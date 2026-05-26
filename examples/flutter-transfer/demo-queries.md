@@ -1,0 +1,130 @@
+# flutter-transfer Demo Queries
+
+This file defines real acceptance scenarios for ProjectNavigatorMCP.
+
+Target repository:
+
+```text
+/Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
+```
+
+Project-local database:
+
+```text
+/Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer/.pnav/project.sqlite
+```
+
+The path above is only a demo target. Implementation code must accept any repository path
+passed through CLI arguments.
+
+## Setup
+
+Expected commands:
+
+```bash
+pnav init /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
+pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
+pnav map /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
+```
+
+## Demo 1: Workspace Microplan Scroll Issue
+
+Command:
+
+```bash
+pnav capsule /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "修复 workspace microplan 页面滚动问题"
+```
+
+Expected result should mention:
+
+- `frontend/lib/modules/workspace/**`
+- `frontend/lib/core/router/app_router.dart`
+- `frontend/test/integration/workspace_microplan_*.dart`
+- `make workspace-microplan-scroll-guard`
+- `make flutter-sliver-contract-guard`
+- responsive width checks: `360 / 390 / 768 / 1024 / 1280 / 1440`
+
+Expected risks should mention:
+
+- nested scroll / sliver constraint risk
+- responsive layout risk
+- do not weaken guard tests
+
+## Demo 2: Auth and Identity Switching
+
+Command:
+
+```bash
+pnav capsule /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "修改登录身份切换逻辑"
+```
+
+Expected result should mention:
+
+- `frontend/lib/core/identity/**`
+- `frontend/lib/core/di/**`
+- `frontend/lib/modules/auth/**`
+- identity-related tests under `frontend/test/core/identity/`
+- auth-related tests under `frontend/test/core/di/` and `frontend/test/unit/test_auth.dart`
+- `make frontend-auth-stable-user-guard`
+- `make frontend-analyze`
+
+Expected risks should mention:
+
+- athlete / coach / admin / personal workspace identity differences
+- stable-user assumptions
+- auth bootstrap behavior
+
+## Demo 3: Session Plan API Field Change
+
+Command:
+
+```bash
+pnav capsule /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "调整 session plan 接口字段"
+```
+
+Expected result should mention:
+
+- `backend/app/api/v1/session_plans.py`
+- `backend/app/services/session_plan_service.py`
+- `backend/app/schemas/session_plan.py`
+- `backend/repositories/session_plan_repository.py`
+- `shared/api/openapi.json`
+- `frontend/packages/api_client/**`
+- `make fetch-openapi`
+- `make gen-sdk`
+- `make openapi-sdk-drift-guard`
+
+Expected warnings:
+
+- Do not edit `shared/api/openapi.json` by hand.
+- Do not patch generated Dart SDK files manually.
+- If backend contract changes, update the generation chain first.
+
+## Demo 4: Memory Loop
+
+After completing Demo 1, call `remember_task` through MCP or an equivalent future CLI.
+
+Example memory:
+
+```json
+{
+  "title": "修复 workspace microplan 页面滚动问题",
+  "summary": "Root cause was nested scroll constraint mismatch in the workspace microplan page.",
+  "changed_files": [
+    "frontend/lib/modules/workspace/pages/microplan_page.dart"
+  ],
+  "tests": [
+    "make workspace-microplan-scroll-guard",
+    "make flutter-sliver-contract-guard"
+  ],
+  "tags": ["flutter", "workspace", "scroll"]
+}
+```
+
+Then rerun:
+
+```bash
+pnav capsule /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "workspace microplan 滚动又有问题"
+```
+
+Expected result should include the prior memory hit.

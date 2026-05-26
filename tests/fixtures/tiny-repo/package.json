@@ -1,0 +1,8 @@
+{
+  "name": "tiny-repo",
+  "private": true,
+  "scripts": {
+    "test": "vitest run"
+  }
+}
+

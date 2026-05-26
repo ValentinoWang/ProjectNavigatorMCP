@@ -1,0 +1,37 @@
+{
+  "name": "project-navigator-mcp",
+  "version": "0.1.0",
+  "description": "Local Repository Intelligence MCP for Codex, Claude Code, and other coding agents.",
+  "type": "module",
+  "bin": {
+    "pnav": "./dist/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "DEVELOPMENT.zh-CN.md",
+    "AGENTS.md",
+    "docs",
+    "examples"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "better-sqlite3": "^11.10.0",
+    "commander": "^13.1.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.15.30",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

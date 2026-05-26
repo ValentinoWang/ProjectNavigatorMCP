@@ -1,0 +1,125 @@
+export const SCHEMA_VERSION = 1;
+
+export const INITIAL_SCHEMA_SQL = `
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS repos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  root_path TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS scan_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+  git_sha TEXT,
+  started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  finished_at TEXT,
+  status TEXT NOT NULL DEFAULT 'running'
+);
+
+CREATE TABLE IF NOT EXISTS files (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+  path TEXT NOT NULL,
+  language TEXT NOT NULL,
+  size INTEGER NOT NULL DEFAULT 0,
+  hash TEXT,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(repo_id, path)
+);
+
+CREATE TABLE IF NOT EXISTS symbols (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  start_line INTEGER NOT NULL,
+  end_line INTEGER NOT NULL,
+  parent_symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS edges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+  from_type TEXT NOT NULL,
+  from_id INTEGER NOT NULL,
+  to_type TEXT NOT NULL,
+  to_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  weight REAL NOT NULL DEFAULT 1.0,
+  confidence REAL NOT NULL DEFAULT 1.0
+);
+
+CREATE TABLE IF NOT EXISTS routes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+  framework TEXT NOT NULL,
+  method TEXT,
+  path TEXT NOT NULL,
+  name TEXT,
+  file_id INTEGER REFERENCES files(id) ON DELETE SET NULL,
+  symbol_id INTEGER REFERENCES symbols(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS tests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+  test_file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  target_file_id INTEGER REFERENCES files(id) ON DELETE CASCADE,
+  command TEXT,
+  confidence REAL NOT NULL DEFAULT 1.0
+);
+
+CREATE TABLE IF NOT EXISTS commands (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  command TEXT NOT NULL,
+  source_file TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'unknown'
+);
+
+CREATE TABLE IF NOT EXISTS project_rules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+  source_file TEXT NOT NULL,
+  title TEXT,
+  body TEXT NOT NULL,
+  category TEXT NOT NULL DEFAULT 'general',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS memories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+  topic TEXT NOT NULL,
+  summary TEXT NOT NULL,
+  files_json TEXT NOT NULL DEFAULT '[]',
+  commands_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  summary TEXT,
+  changed_files_json TEXT NOT NULL DEFAULT '[]',
+  tests_json TEXT NOT NULL DEFAULT '[]',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_files_repo_path ON files(repo_id, path);
+CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
+CREATE INDEX IF NOT EXISTS idx_edges_from ON edges(repo_id, from_type, from_id);
+CREATE INDEX IF NOT EXISTS idx_edges_to ON edges(repo_id, to_type, to_id);
+CREATE INDEX IF NOT EXISTS idx_commands_repo_name ON commands(repo_id, name);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(path, language, content='files', content_rowid='id');
+CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(name, kind, content='symbols', content_rowid='id');
+CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(topic, summary, content='memories', content_rowid='id');
+`;
+
