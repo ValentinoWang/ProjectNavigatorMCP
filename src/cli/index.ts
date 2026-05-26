@@ -3,9 +3,16 @@ import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { prepareTaskContext } from "../capsule/prepareTaskContext.js";
 import { renderCapsule } from "../capsule/renderCapsule.js";
+import { discoverCode } from "../discovery/discoverCode.js";
+import { findEntrypoints } from "../discovery/entrypoints.js";
+import { moduleMap } from "../discovery/moduleMap.js";
+import { findReusableComponents, findSimilarCode } from "../discovery/reuse.js";
+import { findCallers, findCallees, traceSymbol } from "../discovery/symbolGraph.js";
+import { whyRelated } from "../discovery/whyRelated.js";
 import { analyzeGuardOutput } from "../guard/analyzeGuardOutput.js";
 import { explainGuardRule } from "../guard/ruleRegistry.js";
 import { getWorktreeStatus } from "../git/worktreeStatus.js";
+import { impactAnalysisV2 } from "../graph/impactAnalysisV2.js";
 import { getRepoMap, renderRepoMap } from "../graph/repoMap.js";
 import { startMcpServer } from "../mcp/server.js";
 import { rememberTask, searchProjectMemory } from "../memory/memory.js";
@@ -63,6 +70,7 @@ program
   .option("--changed-file <file...>", "Explicit changed file")
   .option("--domain-hint <domain>", "Optional task domain hint")
   .option("--plan-max-steps <number>", "Maximum execution plan steps", "8")
+  .option("--mode <mode>", "Task context mode: auto, discovery, or repair", "auto")
   .action(
     (
       repo: string,
@@ -74,6 +82,7 @@ program
         changedFile?: string[];
         domainHint?: string;
         planMaxSteps?: string;
+        mode?: "auto" | "discovery" | "repair";
       }
     ) => {
       console.log(
@@ -84,12 +93,111 @@ program
             guardCommand: options.guardCommand,
             changedFiles: options.changedFile ?? [],
             domainHint: options.domainHint,
-            planMaxSteps: Number(options.planMaxSteps ?? "8")
+            planMaxSteps: Number(options.planMaxSteps ?? "8"),
+            mode: options.mode
           })
         )
       );
     }
   );
+
+program
+  .command("discover")
+  .description("Discover entrypoints, reusable code, callgraph hints, and related files for a task")
+  .argument("<repo>", "Target repository path")
+  .argument("<task>", "Task description")
+  .option("-l, --limit <number>", "Maximum read-order files", "15")
+  .action((repo: string, task: string, options: { limit: string }) => {
+    console.log(JSON.stringify(discoverCode(repo, task, Number(options.limit)), null, 2));
+  });
+
+program
+  .command("entrypoints")
+  .description("Find likely entrypoints for a task")
+  .argument("<repo>", "Target repository path")
+  .argument("<task>", "Task description")
+  .option("-l, --limit <number>", "Maximum entrypoints", "10")
+  .action((repo: string, task: string, options: { limit: string }) => {
+    console.log(JSON.stringify(findEntrypoints(repo, task, Number(options.limit)), null, 2));
+  });
+
+program
+  .command("callers")
+  .description("Find callers of a symbol")
+  .argument("<repo>", "Target repository path")
+  .argument("<symbol>", "Symbol, qualified symbol, or file path")
+  .option("-l, --limit <number>", "Maximum callers", "20")
+  .action((repo: string, symbol: string, options: { limit: string }) => {
+    console.log(JSON.stringify(findCallers(repo, symbol, Number(options.limit)), null, 2));
+  });
+
+program
+  .command("callees")
+  .description("Find callees of a symbol")
+  .argument("<repo>", "Target repository path")
+  .argument("<symbol>", "Symbol, qualified symbol, or file path")
+  .option("-l, --limit <number>", "Maximum callees", "20")
+  .action((repo: string, symbol: string, options: { limit: string }) => {
+    console.log(JSON.stringify(findCallees(repo, symbol, Number(options.limit)), null, 2));
+  });
+
+program
+  .command("trace-symbol")
+  .description("Trace callers and callees around a symbol")
+  .argument("<repo>", "Target repository path")
+  .argument("<symbol>", "Symbol, qualified symbol, or file path")
+  .action((repo: string, symbol: string) => {
+    console.log(JSON.stringify(traceSymbol(repo, symbol), null, 2));
+  });
+
+program
+  .command("similar")
+  .description("Find similar code blocks for a symbol or file")
+  .argument("<repo>", "Target repository path")
+  .argument("<target>", "Symbol, qualified symbol, or file path")
+  .option("-l, --limit <number>", "Maximum matches", "10")
+  .action((repo: string, target: string, options: { limit: string }) => {
+    console.log(JSON.stringify(findSimilarCode(repo, target, Number(options.limit)), null, 2));
+  });
+
+program
+  .command("reuse")
+  .description("Find reusable components or duplicate risks for a task")
+  .argument("<repo>", "Target repository path")
+  .argument("<task>", "Task description")
+  .option("-l, --limit <number>", "Maximum matches", "10")
+  .action((repo: string, task: string, options: { limit: string }) => {
+    console.log(JSON.stringify(findReusableComponents(repo, task, Number(options.limit)), null, 2));
+  });
+
+program
+  .command("modules")
+  .description("Print module map")
+  .argument("<repo>", "Target repository path")
+  .argument("[scope]", "Optional module scope")
+  .option("-l, --limit <number>", "Maximum modules", "30")
+  .action((repo: string, scope: string | undefined, options: { limit: string }) => {
+    console.log(JSON.stringify(moduleMap(repo, scope ?? "", Number(options.limit)), null, 2));
+  });
+
+program
+  .command("why")
+  .description("Explain why a file is related to a task")
+  .argument("<repo>", "Target repository path")
+  .argument("<path>", "Target file path")
+  .requiredOption("--task <task>", "Task description")
+  .action((repo: string, targetPath: string, options: { task: string }) => {
+    console.log(JSON.stringify(whyRelated(repo, targetPath, options.task), null, 2));
+  });
+
+program
+  .command("impact-v2")
+  .description("Run symbol-aware impact analysis")
+  .argument("<repo>", "Target repository path")
+  .argument("<target>", "File, route, or symbol target")
+  .action((repo: string, target: string) => {
+    console.log(JSON.stringify(impactAnalysisV2(repo, target), null, 2));
+  });
 
 program
   .command("memory")

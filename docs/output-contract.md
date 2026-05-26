@@ -32,7 +32,7 @@ The current TypeScript service layer uses camelCase fields. MCP output preserves
 
 ## Stability
 
-For v0.1 through v0.4, these fields should be considered stable:
+For v0.1 through v0.5, these fields should be considered stable:
 
 - `repo`
 - `generated_at`
@@ -92,3 +92,23 @@ New integrations should treat `editBoundaryV2` as the single source of truth.
 ## v0.4 Finish Audit
 
 `audit_task_result.data.audit` reports whether the final diff stayed inside `editBoundaryV2`, whether inspect-only or do-not-touch files were modified, whether guard scripts or snapshots were changed, and whether required validation commands were marked passed.
+
+## v0.5 Discovery Fields
+
+`discover_code.data` is the primary Discovery Mode payload:
+
+- `mode`: always `discovery`.
+- `entrypoints`: likely routes, pages, handlers, commands, tests, or component entrypoints.
+- `coreSymbols`: task-relevant symbols.
+- `callGraphPreview`: caller/callee hints with confidence and evidence.
+- `reuseCandidates`: existing implementations to inspect before writing new code.
+- `duplicateRisks`: similar implementations that may indicate redundant code.
+- `impactPreview`: relevant files for first-pass impact review.
+- `recommendedReadOrder`: compact file order for agent reading.
+- `whyRelated`: evidence chains explaining why files are related.
+- `relatedTests`: recommended test files and commands.
+
+`prepare_task_context.data.mode` is `discovery` or `repair`.
+When `mode` is `discovery`, `prepare_task_context.data.discovery` contains the same shape as `discover_code.data`.
+
+Call graph tools return confidence-scored edges. Low-confidence ambiguous results must not be treated as exact references.

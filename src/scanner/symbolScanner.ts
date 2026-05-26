@@ -1,4 +1,5 @@
 import type { ScannedImport, ScannedRoute, ScannedSymbol } from "./types.js";
+import { findBraceBlockEnd, findIndentBlockEnd, leadingSpaces } from "../analysis/bodyExtractor.js";
 
 export interface SymbolScanResult {
   symbols: ScannedSymbol[];
@@ -24,26 +25,46 @@ function scanDart(filePath: string, content: string): SymbolScanResult {
   const symbols: ScannedSymbol[] = [];
   const imports: ScannedImport[] = [];
   const routes: ScannedRoute[] = [];
+  let currentClass: { name: string; endLine: number } | null = null;
 
   lines.forEach((line, index) => {
     const lineNumber = index + 1;
+    if (currentClass && lineNumber > currentClass.endLine) {
+      currentClass = null;
+    }
     const classMatch = line.match(
       /^\s*(?:abstract\s+|base\s+|final\s+|sealed\s+)?(?:class|mixin|enum|extension)\s+([A-Za-z_][A-Za-z0-9_]*)/
     );
     if (classMatch) {
-      symbols.push(symbol(filePath, classMatch[1], "class", lineNumber, line.trim()));
+      const endLine = findBraceBlockEnd(lines, index);
+      currentClass = { name: classMatch[1], endLine };
+      symbols.push(symbol(filePath, classMatch[1], "class", lineNumber, endLine, line.trim(), null, "dart"));
     }
 
     const functionMatch = line.match(
-      /^\s*(?:[A-Za-z_<>,?]+\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:async\s*)?[{=>]/
+      /^\s*(?:[A-Za-z_<>,.?]+\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^;]*)\)\s*(?:async\s*)?[{=>]/
     );
     if (functionMatch && !["if", "for", "while", "switch"].includes(functionMatch[1])) {
-      symbols.push(symbol(filePath, functionMatch[1], "function", lineNumber, line.trim()));
+      const endLine = findBraceBlockEnd(lines, index);
+      const containerName = currentClass?.endLine && lineNumber <= currentClass.endLine ? currentClass.name : null;
+      symbols.push(
+        symbol(
+          filePath,
+          functionMatch[1],
+          containerName ? "method" : "function",
+          lineNumber,
+          endLine,
+          line.trim(),
+          containerName,
+          "dart",
+          parametersFromSignature(functionMatch[2])
+        )
+      );
     }
 
     const providerMatch = line.match(/\b(?:final|var)\s+([A-Za-z_][A-Za-z0-9_]*Provider)\s*=/);
     if (providerMatch) {
-      symbols.push(symbol(filePath, providerMatch[1], "provider", lineNumber, line.trim()));
+      symbols.push(symbol(filePath, providerMatch[1], "provider", lineNumber, lineNumber, line.trim(), null, "dart"));
     }
 
     const importMatch = line.match(/^\s*import\s+['"]([^'"]+)['"]/);
@@ -51,7 +72,7 @@ function scanDart(filePath: string, content: string): SymbolScanResult {
       imports.push({ fromPath: filePath, importText: importMatch[1] });
     }
 
-    if (line.includes("GoRoute(") || /name:\s*[A-Za-z0-9_.]+\s*,/.test(line)) {
+    if (line.includes("GoRoute(")) {
       const nearby = lines.slice(index, Math.min(lines.length, index + 10)).join("\n");
       const name =
         nearby.match(/name:\s*['"]([^'"]+)['"]/)?.[1] ?? nearby.match(/name:\s*([A-Za-z0-9_.]+)/)?.[1] ?? null;
@@ -78,17 +99,44 @@ function scanPython(filePath: string, content: string): SymbolScanResult {
   const symbols: ScannedSymbol[] = [];
   const imports: ScannedImport[] = [];
   const routes: ScannedRoute[] = [];
+  let currentClass: { name: string; indent: number; endLine: number } | null = null;
 
   lines.forEach((line, index) => {
     const lineNumber = index + 1;
+    if (
+      currentClass &&
+      (lineNumber > currentClass.endLine || (line.trim() && leadingSpaces(line) <= currentClass.indent))
+    ) {
+      currentClass = null;
+    }
     const classMatch = line.match(/^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)/);
     if (classMatch) {
-      symbols.push(symbol(filePath, classMatch[1], "class", lineNumber, line.trim()));
+      const endLine = findIndentBlockEnd(lines, index);
+      currentClass = { name: classMatch[1], indent: leadingSpaces(line), endLine };
+      symbols.push(symbol(filePath, classMatch[1], "class", lineNumber, endLine, line.trim(), null, "python"));
     }
 
-    const defMatch = line.match(/^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
+    const defMatch = line.match(/^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)(?:\s*->\s*([^:]+))?/);
     if (defMatch) {
-      symbols.push(symbol(filePath, defMatch[1], "function", lineNumber, line.trim()));
+      const endLine = findIndentBlockEnd(lines, index);
+      const containerName =
+        currentClass && leadingSpaces(line) > currentClass.indent && lineNumber <= currentClass.endLine
+          ? currentClass.name
+          : null;
+      symbols.push(
+        symbol(
+          filePath,
+          defMatch[1],
+          containerName ? "method" : "function",
+          lineNumber,
+          endLine,
+          line.trim(),
+          containerName,
+          "python",
+          parametersFromSignature(defMatch[2]),
+          defMatch[3]?.trim() ?? null
+        )
+      );
     }
 
     const importMatch = line.match(/^\s*(?:from\s+([A-Za-z0-9_.]+)\s+import|import\s+([A-Za-z0-9_.]+))/);
@@ -122,23 +170,77 @@ function scanTypeScript(filePath: string, content: string): SymbolScanResult {
   const symbols: ScannedSymbol[] = [];
   const imports: ScannedImport[] = [];
   const routes: ScannedRoute[] = [];
+  let currentClass: { name: string; endLine: number } | null = null;
 
   lines.forEach((line, index) => {
     const lineNumber = index + 1;
+    if (currentClass && lineNumber > currentClass.endLine) {
+      currentClass = null;
+    }
     const classMatch = line.match(/^\s*export\s+class\s+([A-Za-z_][A-Za-z0-9_]*)|^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)/);
     const className = classMatch?.[1] ?? classMatch?.[2];
     if (className) {
-      symbols.push(symbol(filePath, className, "class", lineNumber, line.trim()));
+      const endLine = findBraceBlockEnd(lines, index);
+      currentClass = { name: className, endLine };
+      symbols.push(symbol(filePath, className, "class", lineNumber, endLine, line.trim(), null, "typescript"));
     }
 
-    const functionMatch = line.match(/^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
+    const functionMatch = line.match(
+      /^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)/
+    );
     if (functionMatch) {
-      symbols.push(symbol(filePath, functionMatch[1], "function", lineNumber, line.trim()));
+      symbols.push(
+        symbol(
+          filePath,
+          functionMatch[1],
+          "function",
+          lineNumber,
+          findBraceBlockEnd(lines, index),
+          line.trim(),
+          null,
+          "typescript",
+          parametersFromSignature(functionMatch[2])
+        )
+      );
     }
 
-    const constFunctionMatch = line.match(/^\s*(?:export\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:async\s*)?\(/);
+    const constFunctionMatch = line.match(
+      /^\s*(?:export\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:async\s*)?\(([^)]*)\)/
+    );
     if (constFunctionMatch) {
-      symbols.push(symbol(filePath, constFunctionMatch[1], "function", lineNumber, line.trim()));
+      const name = constFunctionMatch[1];
+      symbols.push(
+        symbol(
+          filePath,
+          name,
+          isLikelyReactComponent(name) ? "component" : name.startsWith("use") ? "hook" : "function",
+          lineNumber,
+          findBraceBlockEnd(lines, index),
+          line.trim(),
+          null,
+          "typescript",
+          parametersFromSignature(constFunctionMatch[2])
+        )
+      );
+    }
+
+    const methodMatch = line.match(
+      /^\s*(?:public\s+|private\s+|protected\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(([^)]*)\)\s*[:{]/
+    );
+    if (methodMatch && currentClass && !["if", "for", "while", "switch"].includes(methodMatch[1])) {
+      symbols.push(
+        symbol(
+          filePath,
+          methodMatch[1],
+          "method",
+          lineNumber,
+          findBraceBlockEnd(lines, index),
+          line.trim(),
+          currentClass.name,
+          "typescript",
+          parametersFromSignature(methodMatch[2])
+        )
+      );
     }
 
     const importMatch = line.match(/^\s*import(?:.+from\s+)?["']([^"']+)["']/);
@@ -150,16 +252,48 @@ function scanTypeScript(filePath: string, content: string): SymbolScanResult {
   return { symbols, imports, routes };
 }
 
-function symbol(filePath: string, name: string, kind: string, line: number, signature: string): ScannedSymbol {
+function symbol(
+  filePath: string,
+  name: string,
+  kind: string,
+  startLine: number,
+  endLine: number,
+  signature: string,
+  containerName: string | null,
+  languageKind: string,
+  parameters: string[] = [],
+  returnType: string | null = null
+): ScannedSymbol {
   return {
     filePath,
     name,
     kind,
     signature,
-    qualifiedName: name,
-    startLine: line,
-    endLine: line
+    qualifiedName: containerName ? `${containerName}.${name}` : name,
+    containerName,
+    parameters,
+    returnType,
+    visibility: name.startsWith("_") ? "private" : "public",
+    bodyStartLine: startLine,
+    bodyEndLine: endLine,
+    languageKind,
+    startLine,
+    endLine
   };
+}
+
+function parametersFromSignature(value: string | undefined): string[] {
+  if (!value?.trim()) {
+    return [];
+  }
+  return value
+    .split(",")
+    .map((item) => item.trim().split(/[:=\s]/)[0])
+    .filter(Boolean);
+}
+
+function isLikelyReactComponent(name: string): boolean {
+  return /^[A-Z]/.test(name);
 }
 
 function dedupeRoutes(routes: ScannedRoute[]): ScannedRoute[] {

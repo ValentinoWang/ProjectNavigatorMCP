@@ -5,6 +5,7 @@ export function renderCapsule(context: TaskContext): string {
     `# Task Context Capsule`,
     "",
     `Task: ${context.task}`,
+    `Mode: ${context.mode}`,
     `Task Session: ${context.taskSessionId}`,
     `Interpretation: ${context.interpretation}`,
     `Domain: ${context.domain ? `${context.domain.name} (${context.domain.confidence.toFixed(2)})` : "unknown"}`,
@@ -102,6 +103,30 @@ export function renderCapsule(context: TaskContext): string {
       context.recommendedCommands.map((command) => `- ${command.command} (${command.reason ?? command.category})`)
     ),
     ...context.testFiles.map((file) => `- ${file}`),
+    "",
+    "## Discovery Mode",
+    ...(context.discovery
+      ? [
+          `- entrypoints: ${
+            context.discovery.entrypoints
+              .map((entry) => entry.symbol ?? entry.path)
+              .slice(0, 5)
+              .join(", ") || "none"
+          }`,
+          `- reuse candidates: ${
+            context.discovery.reuseCandidates
+              .map((hit) => hit.qualifiedName ?? hit.symbol ?? hit.path)
+              .slice(0, 5)
+              .join(", ") || "none"
+          }`,
+          `- duplicate risks: ${
+            context.discovery.duplicateRisks
+              .map((hit) => hit.qualifiedName ?? hit.symbol ?? hit.path)
+              .slice(0, 5)
+              .join(", ") || "none"
+          }`
+        ]
+      : ["- not requested"]),
     "",
     "## Project Rules",
     ...emptyAware(

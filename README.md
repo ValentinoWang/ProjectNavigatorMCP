@@ -43,7 +43,7 @@ business data.
 Postgres can be introduced later only if the product needs team-shared memory,
 centralized dashboards, permissions, or SaaS-style multi-project management.
 
-## v0.4 Capabilities
+## v0.5 Capabilities
 
 The current release supports:
 
@@ -72,8 +72,16 @@ The current release supports:
 23. Source document target tiering so body mentions and `depends_on` stay reference-only by default.
 24. Domain recipes with aliases and inspect-only/default-do-not-touch path rules.
 25. Finish-time audit through `audit_task_result`, `pnav audit`, and `pnav finish --audit`.
+26. Discovery Mode through `discover_code` and `pnav discover`.
+27. Symbol Model V2 with qualified names, containers, body ranges, body hashes, and code blocks.
+28. Call / Reference Graph V1 through `find_callers`, `find_callees`, and `trace_symbol`.
+29. Entrypoint discovery for Flutter routes/pages, FastAPI handlers, commands, tests, and components.
+30. Reuse and duplicate detection through `find_similar_code` and `find_reusable_components`.
+31. Module maps through `module_map` and `pnav modules`.
+32. Evidence explanations through `why_related`.
+33. Symbol-aware `impact_analysis_v2`.
 
-MVP MCP tools:
+MCP tools:
 
 - `repo_map`
 - `find_symbol`
@@ -90,6 +98,16 @@ MVP MCP tools:
 - `git_worktree_status`
 - `record_task_result`
 - `audit_task_result`
+- `discover_code`
+- `find_entrypoints`
+- `find_callers`
+- `find_callees`
+- `trace_symbol`
+- `find_similar_code`
+- `find_reusable_components`
+- `module_map`
+- `why_related`
+- `impact_analysis_v2`
 
 ## Example Target Repository
 
@@ -128,6 +146,12 @@ Start here:
 - [Edit Boundary V2](docs/edit-boundary-v2.md)
 - [Source Document Target Tiering](docs/source-doc-target-tiering.md)
 - [Domain Recipes](docs/domain-recipes.md)
+- [Discovery Mode](docs/discovery-mode.md)
+- [Symbol Model V2](docs/symbol-model-v2.md)
+- [Call Graph V1](docs/call-graph-v1.md)
+- [Reuse Detection](docs/reuse-detection.md)
+- [Module Map](docs/module-map.md)
+- [v0.5 Code Discovery & Reuse Plan](docs/v0.5-code-discovery-reuse-plan.md)
 - [Finish-Time Audit](docs/finish-time-audit.md)
 - [v0.3 Execution Ready Plan](docs/v0.3-execution-ready-plan.md)
 - [Roadmap](docs/roadmap.md)

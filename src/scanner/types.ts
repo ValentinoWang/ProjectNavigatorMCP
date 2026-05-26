@@ -11,6 +11,13 @@ export interface ScannedSymbol {
   kind: string;
   signature: string | null;
   qualifiedName: string | null;
+  containerName?: string | null;
+  parameters?: string[];
+  returnType?: string | null;
+  visibility?: string | null;
+  bodyStartLine?: number | null;
+  bodyEndLine?: number | null;
+  languageKind?: string | null;
   startLine: number;
   endLine: number;
 }

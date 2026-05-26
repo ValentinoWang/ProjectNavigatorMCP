@@ -2,9 +2,16 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import * as z from "zod/v4";
 import { prepareTaskContext } from "../capsule/prepareTaskContext.js";
+import { discoverCode } from "../discovery/discoverCode.js";
+import { findEntrypoints } from "../discovery/entrypoints.js";
+import { moduleMap } from "../discovery/moduleMap.js";
+import { findReusableComponents, findSimilarCode } from "../discovery/reuse.js";
+import { findCallers, findCallees, traceSymbol } from "../discovery/symbolGraph.js";
+import { whyRelated } from "../discovery/whyRelated.js";
 import { loadSourceDoc } from "../docs/sourceDocQuery.js";
 import { getWorktreeStatus } from "../git/worktreeStatus.js";
 import { impactAnalysis } from "../graph/impactAnalysis.js";
+import { impactAnalysisV2 } from "../graph/impactAnalysisV2.js";
 import { findRelatedFiles } from "../graph/relatedFiles.js";
 import { relatedTests } from "../graph/relatedTests.js";
 import { getRepoMap } from "../graph/repoMap.js";
@@ -131,7 +138,8 @@ export function createMcpServer(repoPath: string): McpServer {
         plan_max_steps: z.number().int().positive().max(20).optional(),
         planMaxSteps: z.number().int().positive().max(20).optional(),
         include_debug: z.boolean().optional(),
-        includeDebug: z.boolean().optional()
+        includeDebug: z.boolean().optional(),
+        mode: z.enum(["auto", "discovery", "repair"]).optional()
       }
     },
     async (input) =>
@@ -150,8 +158,137 @@ export function createMcpServer(repoPath: string): McpServer {
             includeDirtyStatus: input.includeDirtyStatus ?? input.include_dirty_status,
             domainHint: input.domainHint ?? input.domain_hint,
             planMaxSteps: input.planMaxSteps ?? input.plan_max_steps,
-            includeDebug: input.includeDebug ?? input.include_debug
+            includeDebug: input.includeDebug ?? input.include_debug,
+            mode: input.mode
           })
+        )
+      )
+  );
+
+  server.registerTool(
+    "discover_code",
+    {
+      description:
+        "Discovery Mode: find entrypoints, reusable code, callgraph hints, impact preview, and why-related evidence.",
+      inputSchema: {
+        task: z.string(),
+        limit: z.number().int().positive().max(100).optional()
+      }
+    },
+    async ({ task, limit }) => textJson(toolResponse(repoPath, discoverCode(repoPath, task, limit ?? 15)))
+  );
+
+  server.registerTool(
+    "find_entrypoints",
+    {
+      description: "Find likely code entrypoints for a natural language task.",
+      inputSchema: {
+        task: z.string(),
+        limit: z.number().int().positive().max(100).optional()
+      }
+    },
+    async ({ task, limit }) => textJson(toolResponse(repoPath, findEntrypoints(repoPath, task, limit ?? 10)))
+  );
+
+  server.registerTool(
+    "find_callers",
+    {
+      description: "Find callers of a symbol, qualified symbol, or file path.",
+      inputSchema: {
+        query: z.string(),
+        limit: z.number().int().positive().max(100).optional()
+      }
+    },
+    async ({ query, limit }) => textJson(toolResponse(repoPath, findCallers(repoPath, query, limit ?? 20)))
+  );
+
+  server.registerTool(
+    "find_callees",
+    {
+      description: "Find callees of a symbol, qualified symbol, or file path.",
+      inputSchema: {
+        query: z.string(),
+        limit: z.number().int().positive().max(100).optional()
+      }
+    },
+    async ({ query, limit }) => textJson(toolResponse(repoPath, findCallees(repoPath, query, limit ?? 20)))
+  );
+
+  server.registerTool(
+    "trace_symbol",
+    {
+      description: "Trace callers and callees around a symbol.",
+      inputSchema: {
+        query: z.string()
+      }
+    },
+    async ({ query }) => textJson(toolResponse(repoPath, traceSymbol(repoPath, query)))
+  );
+
+  server.registerTool(
+    "find_similar_code",
+    {
+      description: "Find similar code blocks for a symbol, qualified symbol, or file path.",
+      inputSchema: {
+        target: z.string(),
+        limit: z.number().int().positive().max(100).optional()
+      }
+    },
+    async ({ target, limit }) => textJson(toolResponse(repoPath, findSimilarCode(repoPath, target, limit ?? 10)))
+  );
+
+  server.registerTool(
+    "find_reusable_components",
+    {
+      description: "Find reusable components or duplicate risks for a task.",
+      inputSchema: {
+        task: z.string(),
+        limit: z.number().int().positive().max(100).optional()
+      }
+    },
+    async ({ task, limit }) => textJson(toolResponse(repoPath, findReusableComponents(repoPath, task, limit ?? 10)))
+  );
+
+  server.registerTool(
+    "module_map",
+    {
+      description: "Return modules with entrypoints, core files, dependencies, tests, and duplicate clusters.",
+      inputSchema: {
+        scope: z.string().optional(),
+        limit: z.number().int().positive().max(100).optional()
+      }
+    },
+    async ({ scope, limit }) => textJson(toolResponse(repoPath, moduleMap(repoPath, scope ?? "", limit ?? 30)))
+  );
+
+  server.registerTool(
+    "why_related",
+    {
+      description: "Explain why a file is related to a task using evidence chains.",
+      inputSchema: {
+        target: z.string(),
+        task: z.string()
+      }
+    },
+    async ({ target, task }) => textJson(toolResponse(repoPath, whyRelated(repoPath, target, task)))
+  );
+
+  server.registerTool(
+    "impact_analysis_v2",
+    {
+      description: "Symbol-aware impact analysis with callers, callees, entrypoints, tests, and reuse risks.",
+      inputSchema: {
+        query: z.string(),
+        includeTests: z.boolean().optional(),
+        includeEntrypoints: z.boolean().optional(),
+        includeReuseRisks: z.boolean().optional()
+      }
+    },
+    async ({ query, includeTests, includeEntrypoints, includeReuseRisks }) =>
+      textJson(
+        toolResponse(
+          repoPath,
+          impactAnalysisV2(repoPath, query, { includeTests, includeEntrypoints, includeReuseRisks })
         )
       )
   );

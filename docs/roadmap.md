@@ -49,18 +49,23 @@ Minimal Repair Path & Finish-Time Audit:
 
 ## v0.5
 
-Scanner accuracy:
+Code Discovery & Reuse Intelligence:
 
-- Richer Dart, TypeScript, JavaScript, and Python symbol extraction.
-- Better qualified names and signatures.
-- FastAPI router prefix support.
-- More import alias resolution.
-- Incremental scanning by file hash.
+- Discovery Mode with `discover_code` and `pnav discover`.
+- Symbol Model V2 with body ranges, code blocks, and fingerprints.
+- Call / Reference Graph V1 with confidence and evidence.
+- Entrypoint discovery for Flutter, FastAPI, commands, tests, and components.
+- Reuse and duplicate detection without a vector database.
+- Module maps.
+- `why_related` evidence chains.
+- Symbol-aware `impact_analysis_v2`.
 
 ## v0.6
 
-Optional language intelligence backends:
+Scanner accuracy and optional language intelligence backends:
 
+- Incremental scanning by file hash.
+- Richer import alias resolution.
 - Tree-sitter parser adapters.
 - LSP-assisted definition/reference lookup.
 - SCIP import support where available.

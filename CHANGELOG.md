@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.5.0
+
+Code Discovery & Reuse Intelligence release.
+
+- Added Discovery Mode with `discover_code` and `pnav discover`.
+- Added Symbol Model V2 fields and `code_blocks`.
+- Added Call / Reference Graph V1 with `symbol_edges`, confidence, and evidence.
+- Added `find_entrypoints`, `find_callers`, `find_callees`, and `trace_symbol`.
+- Added deterministic reuse and duplicate detection with `find_similar_code` and `find_reusable_components`.
+- Added module maps through `module_map` and `pnav modules`.
+- Added `why_related` evidence chains.
+- Added symbol-aware `impact_analysis_v2`.
+- Added SQLite v6 migration for `code_blocks`, `symbol_edges`, similarity tables, modules, and enriched symbol metadata.
+- Added v0.5 discovery fixture and tests for discovery mode, symbol model v2, call graph, reuse detection, and module maps.
+
 ## v0.4.0
 
 Minimal Repair Path & Finish-Time Audit release.

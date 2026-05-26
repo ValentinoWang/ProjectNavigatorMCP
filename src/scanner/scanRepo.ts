@@ -1,4 +1,7 @@
 import path from "node:path";
+import { extractCallTokens } from "../analysis/callEdgeExtractor.js";
+import { extractBody } from "../analysis/bodyExtractor.js";
+import { fingerprintCode } from "../analysis/codeFingerprint.js";
 import { loadProjectConfig } from "../config/projectConfig.js";
 import type { ProjectDatabase } from "../db/connection.js";
 import { openProject } from "../db/project.js";
@@ -19,7 +22,21 @@ interface FileRow {
 interface SymbolRow {
   id: number;
   file_id: number;
+  file_path: string;
+  language: string;
   name: string;
+  kind: string;
+  qualified_name: string | null;
+  start_line: number;
+  end_line: number;
+  body_start_line: number | null;
+  body_end_line: number | null;
+}
+
+interface BlockCalls {
+  symbolId: number;
+  fileId: number;
+  calls: string[];
 }
 
 export function scanRepo(repoPath: string): ScanResult {
@@ -62,7 +79,14 @@ function scanIntoDatabase(db: ProjectDatabase, repoId: number, repoRoot: string)
     }
 
     insertSymbols(db, fileRows, symbols);
-    const symbolRows = loadSymbolRows(db);
+    const symbolRows = loadSymbolRows(db, repoId);
+    const blockCalls = insertCodeBlocks(db, repoId, repoRoot, symbolRows, config.maxFileBytes);
+    insertSymbolEdges(db, repoId, symbolRows, blockCalls);
+    insertModules(
+      db,
+      repoId,
+      files.map((file) => file.path)
+    );
     insertContainsEdges(db, repoId, fileRows, symbolRows);
     insertImportEdges(db, repoId, fileRows, imports);
     insertRoutes(db, repoId, fileRows, symbolRows, routes);
@@ -112,6 +136,13 @@ function clearScannedData(db: ProjectDatabase, repoId: number): void {
     .all(repoId)
     .map((row) => (row as { id: number }).id);
   db.prepare("DELETE FROM edges WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM symbol_edges WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM code_blocks WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM modules WHERE repo_id = ?").run(repoId);
+  db.prepare(
+    "DELETE FROM similarity_members WHERE cluster_id IN (SELECT id FROM similarity_clusters WHERE repo_id = ?)"
+  ).run(repoId);
+  db.prepare("DELETE FROM similarity_clusters WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM routes WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM tests WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM commands WHERE repo_id = ?").run(repoId);
@@ -142,21 +173,198 @@ function loadFileRows(db: ProjectDatabase, repoId: number): Map<string, number> 
 
 function insertSymbols(db: ProjectDatabase, fileRows: Map<string, number>, symbols: ScannedSymbol[]): void {
   const stmt = db.prepare(
-    "INSERT INTO symbols (file_id, name, kind, signature, qualified_name, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    `INSERT INTO symbols
+      (file_id, name, kind, signature, qualified_name, container_name, parameters_json, return_type,
+       visibility, body_start_line, body_end_line, language_kind, start_line, end_line)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const insert = db.transaction(() => {
     for (const item of symbols) {
       const fileId = fileRows.get(item.filePath);
       if (fileId) {
-        stmt.run(fileId, item.name, item.kind, item.signature, item.qualifiedName, item.startLine, item.endLine);
+        stmt.run(
+          fileId,
+          item.name,
+          item.kind,
+          item.signature,
+          item.qualifiedName,
+          item.containerName ?? null,
+          JSON.stringify(item.parameters ?? []),
+          item.returnType ?? null,
+          item.visibility ?? null,
+          item.bodyStartLine ?? item.startLine,
+          item.bodyEndLine ?? item.endLine,
+          item.languageKind ?? null,
+          item.startLine,
+          item.endLine
+        );
       }
     }
   });
   insert();
 }
 
-function loadSymbolRows(db: ProjectDatabase): SymbolRow[] {
-  return db.prepare("SELECT id, file_id, name FROM symbols").all() as SymbolRow[];
+function loadSymbolRows(db: ProjectDatabase, repoId: number): SymbolRow[] {
+  return db
+    .prepare(
+      `SELECT s.id, s.file_id, f.path AS file_path, f.language, s.name, s.kind, s.qualified_name,
+              s.start_line, s.end_line, s.body_start_line, s.body_end_line
+       FROM symbols s JOIN files f ON f.id = s.file_id
+       WHERE f.repo_id = ?`
+    )
+    .all(repoId) as SymbolRow[];
+}
+
+function insertCodeBlocks(
+  db: ProjectDatabase,
+  repoId: number,
+  repoRoot: string,
+  symbols: SymbolRow[],
+  maxFileBytes: number
+): BlockCalls[] {
+  const byFile = new Map<string, string | null>();
+  const stmt = db.prepare(
+    `INSERT INTO code_blocks
+      (repo_id, file_id, symbol_id, kind, path, name, qualified_name, start_line, end_line,
+       body_hash, normalized_hash, fingerprint, tokens_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const updateSymbol = db.prepare("UPDATE symbols SET body_hash = ?, normalized_fingerprint = ? WHERE id = ?");
+  const calls: BlockCalls[] = [];
+  const insert = db.transaction(() => {
+    for (const symbol of symbols) {
+      if (!byFile.has(symbol.file_path)) {
+        byFile.set(symbol.file_path, readRepoTextFile(repoRoot, symbol.file_path, maxFileBytes));
+      }
+      const content = byFile.get(symbol.file_path);
+      if (!content) {
+        continue;
+      }
+      const startLine = symbol.body_start_line ?? symbol.start_line;
+      const endLine = symbol.body_end_line ?? symbol.end_line;
+      const body = extractBody(content, startLine, endLine);
+      const fingerprint = fingerprintCode(body);
+      stmt.run(
+        repoId,
+        symbol.file_id,
+        symbol.id,
+        symbol.kind,
+        symbol.file_path,
+        symbol.name,
+        symbol.qualified_name,
+        startLine,
+        endLine,
+        fingerprint.bodyHash,
+        fingerprint.normalizedHash,
+        fingerprint.fingerprint,
+        JSON.stringify(fingerprint.tokens.slice(0, 300))
+      );
+      updateSymbol.run(fingerprint.bodyHash, fingerprint.fingerprint, symbol.id);
+      calls.push({ symbolId: symbol.id, fileId: symbol.file_id, calls: extractCallTokens(body) });
+    }
+  });
+  insert();
+  return calls;
+}
+
+function insertSymbolEdges(db: ProjectDatabase, repoId: number, symbols: SymbolRow[], blockCalls: BlockCalls[]): void {
+  const byName = new Map<string, SymbolRow[]>();
+  for (const symbol of symbols) {
+    const entries = byName.get(symbol.name) ?? [];
+    entries.push(symbol);
+    byName.set(symbol.name, entries);
+  }
+  const stmt = db.prepare(
+    `INSERT INTO symbol_edges
+      (repo_id, from_symbol_id, to_symbol_id, from_file_id, to_file_id, kind, confidence, evidence_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const seen = new Set<string>();
+  const insert = db.transaction(() => {
+    for (const block of blockCalls) {
+      for (const call of block.calls) {
+        const candidates = (byName.get(call) ?? []).filter((candidate) => candidate.id !== block.symbolId);
+        const target = chooseCallTarget(candidates, block.fileId);
+        if (!target) {
+          continue;
+        }
+        const key = `${block.symbolId}:${target.symbol.id}:calls`;
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+        stmt.run(
+          repoId,
+          block.symbolId,
+          target.symbol.id,
+          block.fileId,
+          target.symbol.file_id,
+          /^[A-Z]/.test(call) ? "constructs" : "calls",
+          target.confidence,
+          JSON.stringify(target.evidence)
+        );
+      }
+    }
+  });
+  insert();
+}
+
+function chooseCallTarget(
+  candidates: SymbolRow[],
+  fromFileId: number
+): { symbol: SymbolRow; confidence: number; evidence: string[] } | null {
+  if (candidates.length === 0) {
+    return null;
+  }
+  const sameFile = candidates.find((candidate) => candidate.file_id === fromFileId);
+  if (sameFile) {
+    return { symbol: sameFile, confidence: 0.95, evidence: ["exact_local"] };
+  }
+  if (candidates.length === 1) {
+    return { symbol: candidates[0], confidence: 0.75, evidence: ["repo_unique_name"] };
+  }
+  return { symbol: candidates[0], confidence: 0.45, evidence: ["ambiguous_name"] };
+}
+
+function insertModules(db: ProjectDatabase, repoId: number, files: string[]): void {
+  const stmt = db.prepare(
+    "INSERT OR IGNORE INTO modules (repo_id, name, root_path, module_type, summary) VALUES (?, ?, ?, ?, ?)"
+  );
+  const roots = new Map<string, { name: string; type: string; count: number }>();
+  for (const file of files) {
+    const module = inferModule(file);
+    if (!module) {
+      continue;
+    }
+    const current = roots.get(module.rootPath) ?? { name: module.name, type: module.type, count: 0 };
+    current.count += 1;
+    roots.set(module.rootPath, current);
+  }
+  const insert = db.transaction(() => {
+    for (const [rootPath, module] of roots) {
+      stmt.run(repoId, module.name, rootPath, module.type, `${module.count} indexed files`);
+    }
+  });
+  insert();
+}
+
+function inferModule(filePath: string): { name: string; rootPath: string; type: string } | null {
+  const parts = filePath.split("/");
+  if (parts[0] === "frontend" && parts[1] === "lib" && parts[2] === "modules" && parts[3]) {
+    const name = parts.slice(3, Math.min(parts.length - 1, 5)).join("/");
+    return { name, rootPath: ["frontend", "lib", "modules", ...name.split("/")].join("/"), type: "flutter_module" };
+  }
+  if (parts[0] === "backend" && parts[1] === "app" && parts[2]) {
+    const name = parts.slice(2, Math.min(parts.length - 1, 4)).join("/");
+    return { name, rootPath: ["backend", "app", ...name.split("/")].join("/"), type: "backend_area" };
+  }
+  if (parts[0] === "src" && parts[1]) {
+    return { name: parts[1], rootPath: `src/${parts[1]}`, type: "source_module" };
+  }
+  if ((parts[0] === "packages" || parts[0] === "apps") && parts[1]) {
+    return { name: parts[1], rootPath: `${parts[0]}/${parts[1]}`, type: parts[0].slice(0, -1) };
+  }
+  return null;
 }
 
 function insertContainsEdges(

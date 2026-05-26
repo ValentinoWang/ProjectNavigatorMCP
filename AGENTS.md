@@ -139,3 +139,14 @@ For Minimal Repair Path & Finish-Time Audit work:
 - `minimalRepairPath` is the preferred agent execution path.
 - Do not let `depends_on`, body-inferred paths, generic Markdown, screenshots, QA manifests, Maestro, or Patrol enter editable boundaries unless explicitly requested.
 - Finish-time audit must be deterministic and must not call an LLM.
+
+## v0.5 Development Rules
+
+For Code Discovery & Reuse Intelligence work:
+
+- Keep Discovery Mode separate from Repair Mode.
+- Do not put discovery ranking logic into repair planner modules.
+- Do not introduce Postgres, Web UI, LSP, SCIP, or mandatory Tree-sitter in v0.5.
+- Every top discovery result should include deterministic evidence.
+- Ambiguous call/reference edges must expose lower confidence instead of pretending to be exact.
+- Reuse detection must be local and deterministic; do not add a vector database for v0.5.

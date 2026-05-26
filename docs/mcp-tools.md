@@ -504,6 +504,111 @@ Input:
 }
 ```
 
+### `discover_code`
+
+Input:
+
+```json
+{ "task": "新增 athlete dashboard training trend card", "limit": 15 }
+```
+
+Data shape:
+
+```json
+{
+  "mode": "discovery",
+  "task": "新增 athlete dashboard training trend card",
+  "entrypoints": [],
+  "coreSymbols": [],
+  "callGraphPreview": [],
+  "reuseCandidates": [],
+  "duplicateRisks": [],
+  "impactPreview": [],
+  "recommendedReadOrder": [],
+  "whyRelated": [],
+  "relatedTests": { "commands": [], "testFiles": [] },
+  "warnings": []
+}
+```
+
+### `find_entrypoints`
+
+Input:
+
+```json
+{ "task": "修改 dashboard 页面", "limit": 10 }
+```
+
+Returns likely Flutter routes/pages, FastAPI handlers, commands, tests, and components.
+
+### `find_callers` / `find_callees` / `trace_symbol`
+
+Input:
+
+```json
+{ "query": "AthleteDashboardHomeWidgets.buildTrendCard", "limit": 20 }
+```
+
+Returns confidence-scored symbol graph hits with evidence such as `exact_local`, `repo_unique_name`, or `ambiguous_name`.
+
+### `find_similar_code`
+
+Input:
+
+```json
+{ "target": "AthleteDashboardHomeWidgets.duplicatedSummaryCard", "limit": 10 }
+```
+
+Returns deterministic exact or near-duplicate code block matches.
+
+### `find_reusable_components`
+
+Input:
+
+```json
+{ "task": "新增 dashboard trend card", "limit": 10 }
+```
+
+Returns reusable components/services/hooks and duplicate risks to inspect before creating new code.
+
+### `module_map`
+
+Input:
+
+```json
+{ "scope": "user_core/dashboard", "limit": 10 }
+```
+
+Returns path modules with entrypoints, core files, dependencies, dependents, tests, and duplicate clusters.
+
+### `why_related`
+
+Input:
+
+```json
+{
+  "target": "frontend/lib/modules/user_core/dashboard/athlete_dashboard_home_widgets.dart",
+  "task": "新增 dashboard trend card"
+}
+```
+
+Returns evidence explaining why a file is related to a task.
+
+### `impact_analysis_v2`
+
+Input:
+
+```json
+{
+  "query": "AthleteDashboardHomeWidgets.buildTrendCard",
+  "includeTests": true,
+  "includeEntrypoints": true,
+  "includeReuseRisks": true
+}
+```
+
+Returns callers, callees, impacted files, affected entrypoints, related tests, reuse risks, and risk notes.
+
 Data shape:
 
 ```json

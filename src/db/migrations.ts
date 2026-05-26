@@ -194,6 +194,86 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_finish_audits_session ON finish_audits(session_id);
       ALTER TABLE document_targets ADD COLUMN evidence_tier TEXT NOT NULL DEFAULT 'fallback_keyword';
     `
+  },
+  {
+    version: 6,
+    name: "code_discovery_reuse_intelligence",
+    sql: `
+      ALTER TABLE symbols ADD COLUMN container_name TEXT;
+      ALTER TABLE symbols ADD COLUMN parameters_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE symbols ADD COLUMN return_type TEXT;
+      ALTER TABLE symbols ADD COLUMN visibility TEXT;
+      ALTER TABLE symbols ADD COLUMN body_start_line INTEGER;
+      ALTER TABLE symbols ADD COLUMN body_end_line INTEGER;
+      ALTER TABLE symbols ADD COLUMN body_hash TEXT;
+      ALTER TABLE symbols ADD COLUMN normalized_fingerprint TEXT;
+      ALTER TABLE symbols ADD COLUMN language_kind TEXT;
+
+      CREATE TABLE IF NOT EXISTS code_blocks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        symbol_id INTEGER REFERENCES symbols(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        path TEXT NOT NULL,
+        name TEXT,
+        qualified_name TEXT,
+        start_line INTEGER NOT NULL,
+        end_line INTEGER NOT NULL,
+        body_hash TEXT,
+        normalized_hash TEXT,
+        fingerprint TEXT,
+        tokens_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS symbol_edges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        from_symbol_id INTEGER REFERENCES symbols(id) ON DELETE CASCADE,
+        to_symbol_id INTEGER REFERENCES symbols(id) ON DELETE CASCADE,
+        from_file_id INTEGER REFERENCES files(id) ON DELETE CASCADE,
+        to_file_id INTEGER REFERENCES files(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 0.5,
+        evidence_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS similarity_clusters (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        cluster_type TEXT NOT NULL,
+        representative_block_id INTEGER REFERENCES code_blocks(id) ON DELETE SET NULL,
+        score REAL NOT NULL DEFAULT 0,
+        summary TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS similarity_members (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cluster_id INTEGER NOT NULL REFERENCES similarity_clusters(id) ON DELETE CASCADE,
+        block_id INTEGER NOT NULL REFERENCES code_blocks(id) ON DELETE CASCADE,
+        similarity REAL NOT NULL DEFAULT 0,
+        reason TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS modules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        root_path TEXT NOT NULL,
+        module_type TEXT NOT NULL DEFAULT 'path',
+        summary TEXT,
+        UNIQUE(repo_id, name, root_path)
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_code_blocks_repo_path ON code_blocks(repo_id, path);
+      CREATE INDEX IF NOT EXISTS idx_code_blocks_repo_symbol ON code_blocks(repo_id, symbol_id);
+      CREATE INDEX IF NOT EXISTS idx_symbol_edges_from ON symbol_edges(repo_id, from_symbol_id);
+      CREATE INDEX IF NOT EXISTS idx_symbol_edges_to ON symbol_edges(repo_id, to_symbol_id);
+      CREATE INDEX IF NOT EXISTS idx_modules_repo_root ON modules(repo_id, root_path);
+    `
   }
 ];
 

@@ -3,6 +3,8 @@ import { buildWorktreeBoundary, type WorktreeBoundary } from "../git/worktreeBou
 import { getWorktreeStatus, type WorktreeStatus } from "../git/worktreeStatus.js";
 import { analyzeGuardOutput, type GuardOutputAnalysis } from "../guard/analyzeGuardOutput.js";
 import { openProject } from "../db/project.js";
+import { discoverCode } from "../discovery/discoverCode.js";
+import type { DiscoveryResult } from "../discovery/types.js";
 import { findRelatedFiles } from "../graph/relatedFiles.js";
 import { relatedTests } from "../graph/relatedTests.js";
 import { traceRoute } from "../graph/traceRoute.js";
@@ -46,6 +48,8 @@ export interface EditBoundary {
 
 export interface TaskContext {
   task: string;
+  mode: "discovery" | "repair";
+  discovery: DiscoveryResult | null;
   taskSessionId: string;
   interpretation: string;
   domain: DomainDecision | null;
@@ -91,10 +95,13 @@ export interface TaskContextOptions {
   domainHint?: string;
   planMaxSteps?: number;
   includeDebug?: boolean;
+  mode?: "auto" | "discovery" | "repair";
 }
 
 export function prepareTaskContext(repoPath: string, task: string, options: TaskContextOptions = {}): TaskContext {
   const warnings: string[] = [];
+  const mode = resolveMode(options);
+  const discovery = mode === "discovery" ? discoverCode(repoPath, task, options.maxFiles ?? 15) : null;
   const sourceDocResult = options.sourceDoc ? loadSourceDoc(repoPath, options.sourceDoc) : { doc: null };
   if (sourceDocResult.warning) {
     warnings.push(sourceDocResult.warning);
@@ -177,6 +184,8 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
 
   return {
     task,
+    mode,
+    discovery,
     taskSessionId: taskSession.taskSessionId,
     interpretation: interpretTask(task, sourceDoc),
     domain,
@@ -224,6 +233,16 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
     warnings: Array.from(new Set(warnings)),
     nextSteps: nextSteps(dirtyWorktree)
   };
+}
+
+function resolveMode(options: TaskContextOptions): "discovery" | "repair" {
+  if (options.mode && options.mode !== "auto") {
+    return options.mode;
+  }
+  if (options.guardOutput || options.sourceDoc || (options.changedFiles?.length ?? 0) > 0) {
+    return "repair";
+  }
+  return "discovery";
 }
 
 function explicitTaskPaths(
