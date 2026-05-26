@@ -3,7 +3,10 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import * as z from "zod/v4";
 import { prepareTaskContext } from "../capsule/prepareTaskContext.js";
 import { discoverCode } from "../discovery/discoverCode.js";
+import { duplicateClusters } from "../discovery/duplicateClusters.js";
 import { findEntrypoints } from "../discovery/entrypoints.js";
+import { explainReuse } from "../discovery/explainReuse.js";
+import { traceFeature } from "../discovery/featureTracer.js";
 import { moduleMap } from "../discovery/moduleMap.js";
 import { findReusableComponents, findSimilarCode } from "../discovery/reuse.js";
 import { findCallers, findCallees, traceSymbol } from "../discovery/symbolGraph.js";
@@ -191,6 +194,18 @@ export function createMcpServer(repoPath: string): McpServer {
   );
 
   server.registerTool(
+    "trace_feature",
+    {
+      description: "Trace a feature from entrypoint to implementation, reuse candidates, and tests.",
+      inputSchema: {
+        task: z.string(),
+        limit: z.number().int().positive().max(20).optional()
+      }
+    },
+    async ({ task, limit }) => textJson(toolResponse(repoPath, traceFeature(repoPath, task, limit ?? 5)))
+  );
+
+  server.registerTool(
     "find_callers",
     {
       description: "Find callers of a symbol, qualified symbol, or file path.",
@@ -259,6 +274,30 @@ export function createMcpServer(repoPath: string): McpServer {
       }
     },
     async ({ scope, limit }) => textJson(toolResponse(repoPath, moduleMap(repoPath, scope ?? "", limit ?? 30)))
+  );
+
+  server.registerTool(
+    "duplicate_clusters",
+    {
+      description: "Return persisted duplicate code clusters from the local index.",
+      inputSchema: {
+        scope: z.string().optional(),
+        limit: z.number().int().positive().max(100).optional()
+      }
+    },
+    async ({ scope, limit }) => textJson(toolResponse(repoPath, duplicateClusters(repoPath, scope ?? "", limit ?? 20)))
+  );
+
+  server.registerTool(
+    "explain_reuse",
+    {
+      description: "Explain reusable implementations and duplicate clusters for a task.",
+      inputSchema: {
+        task: z.string(),
+        limit: z.number().int().positive().max(50).optional()
+      }
+    },
+    async ({ task, limit }) => textJson(toolResponse(repoPath, explainReuse(repoPath, task, limit ?? 5)))
   );
 
   server.registerTool(

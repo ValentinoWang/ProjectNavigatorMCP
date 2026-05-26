@@ -68,4 +68,13 @@ export interface ScanResult {
   rules: number;
   documents: number;
   coChanges: number;
+  incremental?: {
+    mode: "full" | "incremental";
+    filesTotal: number;
+    filesChanged: number;
+    filesSkipped: number;
+    filesDeleted: number;
+    durationMs: number;
+    conservativeFullRebuild: boolean;
+  };
 }

@@ -40,7 +40,9 @@ describe("MCP server", () => {
         "analyze_source_doc",
         "audit_task_result",
         "discover_code",
+        "duplicate_clusters",
         "explain_guard_rule",
+        "explain_reuse",
         "find_callees",
         "find_callers",
         "find_entrypoints",
@@ -58,6 +60,7 @@ describe("MCP server", () => {
         "remember_task",
         "repo_map",
         "search_project_memory",
+        "trace_feature",
         "trace_route",
         "trace_symbol",
         "why_related"
@@ -66,6 +69,9 @@ describe("MCP server", () => {
       const calls: Array<[string, Record<string, unknown>]> = [
         ["repo_map", {}],
         ["discover_code", { task: "add auth test" }],
+        ["trace_feature", { task: "add auth test" }],
+        ["duplicate_clusters", {}],
+        ["explain_reuse", { task: "add auth test" }],
         ["find_entrypoints", { task: "add auth test" }],
         ["find_callers", { query: "add" }],
         ["find_callees", { query: "add" }],

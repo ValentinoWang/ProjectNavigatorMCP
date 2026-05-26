@@ -15,6 +15,7 @@ export interface EntrypointHit {
   score: number;
   why: string;
   evidence: EvidenceItem[];
+  scoreBreakdown?: Record<string, number>;
 }
 
 export interface SymbolTraceHit {
@@ -36,6 +37,9 @@ export interface SimilarCodeHit {
   similarity: number;
   reuseType: string;
   why: string;
+  verdict?: "reuse_as_is" | "extend_existing" | "extract_shared" | "create_new_allowed";
+  suggestion?: string;
+  scoreBreakdown?: Record<string, number>;
 }
 
 export interface ModuleHit {
@@ -68,6 +72,10 @@ export interface DiscoveryResult {
   duplicateRisks: SimilarCodeHit[];
   impactPreview: FileHit[];
   recommendedReadOrder: FileHit[];
+  mustRead: FileHit[];
+  shouldInspect: FileHit[];
+  reuseBeforeCreate: SimilarCodeHit[];
+  ignoreForNow: FileHit[];
   whyRelated: WhyRelatedResult[];
   relatedTests: {
     commands: CommandHit[];

@@ -541,6 +541,39 @@ Input:
 
 Returns likely Flutter routes/pages, FastAPI handlers, commands, tests, and components.
 
+### `trace_feature`
+
+Input:
+
+```json
+{ "task": "新增 athlete dashboard trend card", "limit": 5 }
+```
+
+Data shape:
+
+```json
+{
+  "task": "新增 athlete dashboard trend card",
+  "chains": [
+    {
+      "entrypoint": "AthleteDashboardPage",
+      "path": [
+        {
+          "type": "flutter_page_widget",
+          "target": "frontend/lib/page.dart",
+          "why": "entrypoint match",
+          "evidence": []
+        },
+        { "type": "implementation", "target": "frontend/lib/widget.dart", "why": "import binding", "evidence": [] },
+        { "type": "test", "target": "frontend/test/page_test.dart", "why": "related test", "evidence": [] }
+      ],
+      "confidence": 0.86
+    }
+  ],
+  "warnings": []
+}
+```
+
 ### `find_callers` / `find_callees` / `trace_symbol`
 
 Input:
@@ -570,6 +603,26 @@ Input:
 ```
 
 Returns reusable components/services/hooks and duplicate risks to inspect before creating new code.
+
+### `duplicate_clusters`
+
+Input:
+
+```json
+{ "scope": "dashboard", "limit": 20 }
+```
+
+Returns persisted normalized duplicate clusters from `similarity_clusters`.
+
+### `explain_reuse`
+
+Input:
+
+```json
+{ "task": "新增 dashboard trend card", "limit": 5 }
+```
+
+Returns reuse candidates, duplicate risks, overlapping clusters, and a deterministic reuse recommendation.
 
 ### `module_map`
 

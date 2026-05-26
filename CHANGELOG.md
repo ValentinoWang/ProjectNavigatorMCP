@@ -1,5 +1,31 @@
 # Changelog
 
+## v0.7.0
+
+Discovery Quality Hardening release.
+
+- Reworked Discovery Mode ranking so route, page, and module-root entrypoints outrank internal card/widget token matches.
+- Added score breakdowns for entrypoints and reuse candidates.
+- Added `mustRead`, `shouldInspect`, `reuseBeforeCreate`, and `ignoreForNow` discovery tiers.
+- Added verified vs candidate feature-chain classification.
+- Added stronger Discovery Mode domain gating for Flutter/frontend UI tasks.
+- Added explicit reuse verdicts: `reuse_as_is`, `extend_existing`, `extract_shared`, and `create_new_allowed`.
+- Strengthened near-duplicate risk thresholds for reuse discovery.
+- Fixed v7 SQLite migration idempotence when `files.last_scanned_at` or `files.deleted_at` already exists.
+- Added migration and discovery-quality regression tests.
+
+## v0.6.0
+
+Precise Discovery Chains & Incremental Index release.
+
+- Added `trace_feature` MCP tool and `pnav trace-feature`.
+- Added Import Resolution V2 with persisted `import_bindings`.
+- Added duplicate cluster persistence plus `duplicate_clusters` and `explain_reuse`.
+- Added layered `impact_analysis_v2` output for direct callers/callees, entrypoints, tests, reuse risks, co-change neighbors, and risk summaries.
+- Added `pnav scan --incremental` and `pnav scan --full`.
+- Added SQLite v7 migration for `import_bindings`, `discovery_chains`, and file scan metadata.
+- Added tests for feature tracing, import resolution, duplicate clusters, impact layering, and incremental scan.
+
 ## v0.5.0
 
 Code Discovery & Reuse Intelligence release.

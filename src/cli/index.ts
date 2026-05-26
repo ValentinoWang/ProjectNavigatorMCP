@@ -4,7 +4,10 @@ import { Command } from "commander";
 import { prepareTaskContext } from "../capsule/prepareTaskContext.js";
 import { renderCapsule } from "../capsule/renderCapsule.js";
 import { discoverCode } from "../discovery/discoverCode.js";
+import { duplicateClusters } from "../discovery/duplicateClusters.js";
 import { findEntrypoints } from "../discovery/entrypoints.js";
+import { explainReuse } from "../discovery/explainReuse.js";
+import { traceFeature } from "../discovery/featureTracer.js";
 import { moduleMap } from "../discovery/moduleMap.js";
 import { findReusableComponents, findSimilarCode } from "../discovery/reuse.js";
 import { findCallers, findCallees, traceSymbol } from "../discovery/symbolGraph.js";
@@ -46,8 +49,13 @@ program
   .command("scan")
   .description("Scan a repository into its local .pnav index")
   .argument("<repo>", "Target repository path")
-  .action((repo: string) => {
-    const result = scanRepo(repo);
+  .option(
+    "--incremental",
+    "Only skip work when the file hash index is unchanged; changed repos use a conservative graph rebuild"
+  )
+  .option("--full", "Force a full scan rebuild")
+  .action((repo: string, options: { incremental?: boolean; full?: boolean }) => {
+    const result = scanRepo(repo, { mode: options.incremental && !options.full ? "incremental" : "full" });
     console.log(JSON.stringify(result, null, 2));
   });
 
@@ -122,6 +130,16 @@ program
   });
 
 program
+  .command("trace-feature")
+  .description("Trace a feature from entrypoints to implementation and tests")
+  .argument("<repo>", "Target repository path")
+  .argument("<task>", "Task description")
+  .option("-l, --limit <number>", "Maximum chains", "5")
+  .action((repo: string, task: string, options: { limit: string }) => {
+    console.log(JSON.stringify(traceFeature(repo, task, Number(options.limit)), null, 2));
+  });
+
+program
   .command("callers")
   .description("Find callers of a symbol")
   .argument("<repo>", "Target repository path")
@@ -178,6 +196,26 @@ program
   .option("-l, --limit <number>", "Maximum modules", "30")
   .action((repo: string, scope: string | undefined, options: { limit: string }) => {
     console.log(JSON.stringify(moduleMap(repo, scope ?? "", Number(options.limit)), null, 2));
+  });
+
+program
+  .command("duplicates")
+  .description("List persisted duplicate code clusters")
+  .argument("<repo>", "Target repository path")
+  .argument("[scope]", "Optional scope")
+  .option("-l, --limit <number>", "Maximum clusters", "20")
+  .action((repo: string, scope: string | undefined, options: { limit: string }) => {
+    console.log(JSON.stringify(duplicateClusters(repo, scope ?? "", Number(options.limit)), null, 2));
+  });
+
+program
+  .command("explain-reuse")
+  .description("Explain reuse candidates and duplicate clusters for a task")
+  .argument("<repo>", "Target repository path")
+  .argument("<task>", "Task description")
+  .option("-l, --limit <number>", "Maximum candidates", "5")
+  .action((repo: string, task: string, options: { limit: string }) => {
+    console.log(JSON.stringify(explainReuse(repo, task, Number(options.limit)), null, 2));
   });
 
 program

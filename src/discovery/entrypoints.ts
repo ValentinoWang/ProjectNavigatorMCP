@@ -1,5 +1,6 @@
 import { openProject } from "../db/project.js";
 import { scoreText } from "../graph/scoring.js";
+import { scoreEntrypointCandidate } from "./discoveryQuality.js";
 import type { EntrypointHit } from "./types.js";
 
 export function findEntrypoints(repoPath: string, task: string, limit = 10): { entrypoints: EntrypointHit[] } {
@@ -20,22 +21,16 @@ export function findEntrypoints(repoPath: string, task: string, limit = 10): { e
       filePath: string | null;
     }>;
     for (const route of routes) {
-      const score = adjustedEntrypointScore(
-        task,
-        route.filePath ?? "",
-        scoreText(task, `${route.routePath} ${route.name ?? ""} ${route.filePath ?? ""}`)
-      );
-      if (score > 0.08) {
-        hits.push({
-          type: route.framework === "fastapi" ? "fastapi_route" : "flutter_route",
-          symbol: route.name,
-          path: route.filePath ?? "",
-          routePath: route.routePath,
-          method: route.method,
-          score: Math.min(1, 0.45 + score),
-          why: "Route path/name/module matches the task.",
-          evidence: [{ type: "route_match", detail: `${route.method ?? ""} ${route.routePath}`.trim(), score }]
-        });
+      const hit = scoreEntrypointCandidate(task, {
+        type: route.framework === "fastapi" ? "fastapi_route" : "flutter_route",
+        symbol: route.name,
+        path: route.filePath ?? "",
+        routePath: route.routePath,
+        method: route.method,
+        rawText: `${route.routePath} ${route.name ?? ""} ${route.filePath ?? ""}`
+      });
+      if (hit.score > 0.16) {
+        hits.push(hit);
       }
     }
 
@@ -49,20 +44,14 @@ export function findEntrypoints(repoPath: string, task: string, limit = 10): { e
       )
       .all(project.repo.id) as Array<{ name: string; qualifiedName: string | null; kind: string; path: string }>;
     for (const symbol of symbols) {
-      const score = adjustedEntrypointScore(
-        task,
-        symbol.path,
-        scoreText(task, `${symbol.name} ${symbol.qualifiedName ?? ""} ${symbol.path}`)
-      );
-      if (score > 0.08) {
-        hits.push({
-          type: entrypointType(symbol.path, symbol.name, symbol.kind),
-          symbol: symbol.qualifiedName ?? symbol.name,
-          path: symbol.path,
-          score: Math.min(1, 0.35 + score),
-          why: "Page/component symbol and module path match the task.",
-          evidence: [{ type: "symbol_match", detail: symbol.qualifiedName ?? symbol.name, score }]
-        });
+      const hit = scoreEntrypointCandidate(task, {
+        type: entrypointType(symbol.path, symbol.name, symbol.kind),
+        symbol: symbol.qualifiedName ?? symbol.name,
+        path: symbol.path,
+        rawText: `${symbol.name} ${symbol.qualifiedName ?? ""} ${symbol.path}`
+      });
+      if (hit.score > 0.16) {
+        hits.push(hit);
       }
     }
 
@@ -72,14 +61,19 @@ export function findEntrypoints(repoPath: string, task: string, limit = 10): { e
     for (const command of commands) {
       const score = scoreText(task, `${command.name} ${command.command} ${command.sourceFile}`);
       if (score > 0.15 || (command.category === "test" && score > 0)) {
-        hits.push({
+        const hit = scoreEntrypointCandidate(task, {
           type: command.category === "test" ? "test_entry" : "cli_command",
           symbol: command.name,
           path: command.sourceFile,
-          score: Math.min(0.75, score),
-          why: "Command catalog entry may validate or enter this workflow.",
-          evidence: [{ type: "command_match", detail: command.command, score }]
+          rawText: `${command.name} ${command.command} ${command.sourceFile}`
         });
+        if (hit.score > 0.16) {
+          hits.push({
+            ...hit,
+            why: "Command catalog entry may validate this workflow.",
+            evidence: [...hit.evidence, { type: "command_match", detail: command.command, score }]
+          });
+        }
       }
     }
 
@@ -91,29 +85,6 @@ export function findEntrypoints(repoPath: string, task: string, limit = 10): { e
   } finally {
     project.db.close();
   }
-}
-
-function adjustedEntrypointScore(task: string, filePath: string, score: number): number {
-  const lowered = task.toLowerCase();
-  const frontendIntent = /页面|界面|组件|卡片|widget|flutter|frontend|dashboard|card|ui/.test(lowered);
-  const apiIntent = /api|接口|endpoint|schema|字段|backend|fastapi|route handler/.test(lowered);
-  let adjusted = score;
-  if (frontendIntent && filePath.startsWith("frontend/lib/")) {
-    adjusted += 0.25;
-  }
-  if (frontendIntent && /\bdashboard\b/.test(lowered) && !filePath.toLowerCase().includes("dashboard")) {
-    adjusted -= 0.25;
-  }
-  if (frontendIntent && /(^|\/)(test|tests)\//.test(filePath)) {
-    adjusted -= 0.35;
-  }
-  if (frontendIntent && filePath.startsWith("backend/") && !apiIntent) {
-    adjusted -= 0.35;
-  }
-  if (apiIntent && filePath.startsWith("backend/")) {
-    adjusted += 0.25;
-  }
-  return Math.max(0, adjusted);
 }
 
 function entrypointType(path: string, name: string, kind: string): string {

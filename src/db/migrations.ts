@@ -274,6 +274,38 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_symbol_edges_to ON symbol_edges(repo_id, to_symbol_id);
       CREATE INDEX IF NOT EXISTS idx_modules_repo_root ON modules(repo_id, root_path);
     `
+  },
+  {
+    version: 7,
+    name: "precise_discovery_chains_incremental_index",
+    sql: `
+      CREATE TABLE IF NOT EXISTS import_bindings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        imported_name TEXT,
+        local_name TEXT,
+        source_text TEXT NOT NULL,
+        resolved_file_id INTEGER REFERENCES files(id) ON DELETE SET NULL,
+        confidence REAL NOT NULL DEFAULT 0.5,
+        evidence_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS discovery_chains (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        task_hash TEXT NOT NULL,
+        task TEXT NOT NULL,
+        chain_json TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 0.5,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_import_bindings_repo_file ON import_bindings(repo_id, file_id);
+      CREATE INDEX IF NOT EXISTS idx_import_bindings_resolved ON import_bindings(repo_id, resolved_file_id);
+      CREATE INDEX IF NOT EXISTS idx_discovery_chains_repo_task ON discovery_chains(repo_id, task_hash);
+    `
   }
 ];
 
@@ -297,7 +329,18 @@ export function migrate(db: ProjectDatabase): MigrationResult {
   );
 
   const applied: number[] = [];
+  const addColumnIfMissing = (table: string, column: string, definition: string) => {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (!columns.some((existing) => existing.name === column)) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+  };
+
   const runMigration = db.transaction((migration: Migration) => {
+    if (migration.version === 7) {
+      addColumnIfMissing("files", "last_scanned_at", "TEXT");
+      addColumnIfMissing("files", "deleted_at", "TEXT");
+    }
     db.exec(migration.sql);
     db.prepare("INSERT INTO schema_migrations (version, name) VALUES (?, ?)").run(migration.version, migration.name);
   });

@@ -3,6 +3,7 @@ import { compareTokenSets } from "../analysis/similarity.js";
 import type { ProjectDatabase } from "../db/connection.js";
 import { openProject } from "../db/project.js";
 import { scoreText } from "../graph/scoring.js";
+import { reuseVerdict } from "./discoveryQuality.js";
 import type { SimilarCodeHit } from "./types.js";
 
 interface BlockRow {
@@ -88,11 +89,15 @@ export function findReusableComponents(
       .filter((hit) =>
         /component|widget|card|service|hook|provider/i.test(`${hit.reuseType} ${hit.symbol ?? ""} ${hit.path}`)
       )
+      .map((hit) => reuseVerdict(task, hit))
       .slice(0, limit);
     return {
       query: task,
       reuseCandidates,
-      duplicateRisks: combined.filter((hit) => hit.similarity >= 0.7).slice(0, limit)
+      duplicateRisks: combined
+        .filter((hit) => hit.similarity >= 0.58)
+        .map((hit) => reuseVerdict(task, hit))
+        .slice(0, limit)
     };
   } finally {
     project.db.close();

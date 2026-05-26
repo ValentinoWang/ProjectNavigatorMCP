@@ -62,9 +62,30 @@ Code Discovery & Reuse Intelligence:
 
 ## v0.6
 
-Scanner accuracy and optional language intelligence backends:
+Precise Discovery Chains & Incremental Index:
 
 - Incremental scanning by file hash.
+- Import Resolution V2 with persisted bindings.
+- Feature chains from entrypoint to implementation, reuse candidate, and test.
+- Duplicate cluster persistence and reuse explanations.
+- Layered impact analysis.
+- Evidence-chain ranking improvements.
+
+## v0.7
+
+Discovery Quality Hardening:
+
+- Route/page/module-root entrypoints outrank internal token-heavy widgets.
+- Discovery results are split into `mustRead`, `shouldInspect`, `reuseBeforeCreate`, and `ignoreForNow`.
+- Feature chains are classified as `verified_chain` or `candidate_chain`.
+- Reuse candidates return explicit verdicts: reuse, extend, extract, or create new.
+- Flutter/frontend UI tasks strongly demote backend/database/infra noise.
+- Score breakdowns explain entrypoint and reuse ranking decisions.
+
+## v0.8
+
+Scanner accuracy and optional language intelligence backends:
+
 - Richer import alias resolution.
 - Tree-sitter parser adapters.
 - LSP-assisted definition/reference lookup.

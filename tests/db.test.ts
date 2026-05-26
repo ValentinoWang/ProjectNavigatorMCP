@@ -26,8 +26,8 @@ describe("migrate", () => {
       const first = migrate(db);
       const second = migrate(db);
 
-      expect(first.applied).toEqual([1, 2, 3, 4, 5, 6]);
-      expect(first.currentVersion).toBe(6);
+      expect(first.applied).toEqual([1, 2, 3, 4, 5, 6, 7]);
+      expect(first.currentVersion).toBe(7);
       expect(second.applied).toEqual([]);
 
       const tables = db
@@ -58,7 +58,41 @@ describe("migrate", () => {
       expect(tables).toContain("similarity_clusters");
       expect(tables).toContain("similarity_members");
       expect(tables).toContain("modules");
+      expect(tables).toContain("import_bindings");
+      expect(tables).toContain("discovery_chains");
       expect(tables).toContain("schema_migrations");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("applies v7 when incremental scan columns already exist", () => {
+    const db = openDatabase(tempDbPath());
+    try {
+      migrate(db);
+
+      db.exec(`
+        DELETE FROM schema_migrations WHERE version = 7;
+        DROP TABLE IF EXISTS import_bindings;
+        DROP TABLE IF EXISTS discovery_chains;
+      `);
+
+      const result = migrate(db);
+      expect(result.applied).toEqual([7]);
+
+      const fileColumns = db
+        .prepare("PRAGMA table_info(files)")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      expect(fileColumns).toContain("last_scanned_at");
+      expect(fileColumns).toContain("deleted_at");
+
+      const tables = db
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      expect(tables).toContain("import_bindings");
+      expect(tables).toContain("discovery_chains");
     } finally {
       db.close();
     }

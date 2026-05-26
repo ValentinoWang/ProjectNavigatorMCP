@@ -32,7 +32,7 @@ The current TypeScript service layer uses camelCase fields. MCP output preserves
 
 ## Stability
 
-For v0.1 through v0.5, these fields should be considered stable:
+For v0.1 through v0.6, these fields should be considered stable:
 
 - `repo`
 - `generated_at`
@@ -112,3 +112,48 @@ New integrations should treat `editBoundaryV2` as the single source of truth.
 When `mode` is `discovery`, `prepare_task_context.data.discovery` contains the same shape as `discover_code.data`.
 
 Call graph tools return confidence-scored edges. Low-confidence ambiguous results must not be treated as exact references.
+
+## v0.6 Discovery Chain Fields
+
+`trace_feature.data` returns:
+
+- `task`
+- `chains[]`
+- `chains[].entrypoint`
+- `chains[].path[]` with `type`, `target`, `why`, and `evidence`
+- `chains[].confidence`
+- `warnings`
+
+`impact_analysis_v2.data` now includes layered fields:
+
+- `directCallers`
+- `directCallees`
+- `entrypointImpact`
+- `testImpact`
+- `reuseImpact`
+- `cochangeImpact`
+- `riskSummary`
+
+`pnav scan --incremental` returns `incremental` stats in the scan result, including changed, skipped, deleted, duration, and whether a conservative graph rebuild was used.
+
+## v0.7 Discovery Quality Fields
+
+`discover_code.data` returns the authoritative Discovery Mode tiers:
+
+- `mustRead`: route, page, module-root, or other high-confidence files the agent should read first.
+- `shouldInspect`: useful implementation and support files after `mustRead`.
+- `reuseBeforeCreate`: reuse candidates with a non-`create_new_allowed` verdict.
+- `ignoreForNow`: demoted files that matched weakly but should not drive first-pass reading.
+
+`entrypoints[]` may include `scoreBreakdown` with deterministic scoring components such as query match, entrypoint type, module proximity, symbol exactness, and domain penalties.
+
+`reuseCandidates[]` may include:
+
+- `verdict`: `reuse_as_is`, `extend_existing`, `extract_shared`, or `create_new_allowed`.
+- `suggestion`: a direct coding-agent instruction for avoiding duplicate implementation.
+- `scoreBreakdown`: similarity, module proximity, and domain penalty.
+
+`trace_feature.data.chains[]` includes `chainType`:
+
+- `verified_chain`: backed by route/page evidence plus import/test evidence.
+- `candidate_chain`: useful but not yet a strict call/import/test chain.

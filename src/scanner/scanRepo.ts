@@ -1,4 +1,5 @@
 import path from "node:path";
+import { parseImportBindings, resolveImportPathV2 } from "../analysis/importResolverV2.js";
 import { extractCallTokens } from "../analysis/callEdgeExtractor.js";
 import { extractBody } from "../analysis/bodyExtractor.js";
 import { fingerprintCode } from "../analysis/codeFingerprint.js";
@@ -39,17 +40,27 @@ interface BlockCalls {
   calls: string[];
 }
 
-export function scanRepo(repoPath: string): ScanResult {
+export interface ScanRepoOptions {
+  mode?: "full" | "incremental";
+}
+
+export function scanRepo(repoPath: string, options: ScanRepoOptions = {}): ScanResult {
   initProject(repoPath);
   const project = openProject(repoPath);
   try {
-    return scanIntoDatabase(project.db, project.repo.id, project.repoRoot);
+    return scanIntoDatabase(project.db, project.repo.id, project.repoRoot, options.mode ?? "full");
   } finally {
     project.db.close();
   }
 }
 
-function scanIntoDatabase(db: ProjectDatabase, repoId: number, repoRoot: string): ScanResult {
+function scanIntoDatabase(
+  db: ProjectDatabase,
+  repoId: number,
+  repoRoot: string,
+  mode: "full" | "incremental"
+): ScanResult {
+  const startedAt = Date.now();
   const gitSha = getGitSha(repoRoot);
   const scanRun = db
     .prepare("INSERT INTO scan_runs (repo_id, git_sha, status) VALUES (?, ?, 'running')")
@@ -59,8 +70,19 @@ function scanIntoDatabase(db: ProjectDatabase, repoId: number, repoRoot: string)
   try {
     const config = loadProjectConfig(repoRoot);
     rebuildFtsTables(db);
-    clearScannedData(db, repoId);
+    const oldHashes = loadExistingHashes(db, repoId);
     const files = scanFiles(repoRoot, config);
+    const incremental = incrementalStats(mode, oldHashes, files, startedAt);
+    if (mode === "incremental" && incremental.filesChanged === 0 && incremental.filesDeleted === 0) {
+      db.prepare("UPDATE scan_runs SET finished_at = CURRENT_TIMESTAMP, status = 'success' WHERE id = ?").run(
+        scanRunId
+      );
+      return {
+        ...previousScanResult(db, repoId, repoRoot, gitSha),
+        incremental: { ...incremental, durationMs: Date.now() - startedAt }
+      };
+    }
+    clearScannedData(db, repoId);
     insertFiles(db, repoId, files);
     const fileRows = loadFileRows(db, repoId);
 
@@ -89,6 +111,7 @@ function scanIntoDatabase(db: ProjectDatabase, repoId: number, repoRoot: string)
     );
     insertContainsEdges(db, repoId, fileRows, symbolRows);
     insertImportEdges(db, repoId, fileRows, imports);
+    insertImportBindings(db, repoId, fileRows, imports);
     insertRoutes(db, repoId, fileRows, symbolRows, routes);
     const testCount = insertTestEdges(db, repoId, fileRows);
 
@@ -103,6 +126,7 @@ function scanIntoDatabase(db: ProjectDatabase, repoId: number, repoRoot: string)
 
     const coChanges = scanCoChanges(repoRoot, new Set(files.map((file) => file.path)));
     insertCoChanges(db, repoId, fileRows, coChanges);
+    insertDuplicateClusters(db, repoId);
 
     db.prepare("UPDATE scan_runs SET finished_at = CURRENT_TIMESTAMP, status = 'success' WHERE id = ?").run(scanRunId);
     return {
@@ -116,7 +140,8 @@ function scanIntoDatabase(db: ProjectDatabase, repoId: number, repoRoot: string)
       commands: commands.length,
       rules: rules.length,
       documents: documents.length,
-      coChanges: coChanges.length
+      coChanges: coChanges.length,
+      incremental: mode === "incremental" ? { ...incremental, durationMs: Date.now() - startedAt } : undefined
     };
   } catch (error) {
     db.prepare("UPDATE scan_runs SET finished_at = CURRENT_TIMESTAMP, status = 'failed' WHERE id = ?").run(scanRunId);
@@ -136,6 +161,7 @@ function clearScannedData(db: ProjectDatabase, repoId: number): void {
     .all(repoId)
     .map((row) => (row as { id: number }).id);
   db.prepare("DELETE FROM edges WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM import_bindings WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM symbol_edges WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM code_blocks WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM modules WHERE repo_id = ?").run(repoId);
@@ -157,7 +183,9 @@ function clearScannedData(db: ProjectDatabase, repoId: number): void {
 }
 
 function insertFiles(db: ProjectDatabase, repoId: number, files: ScannedFile[]): void {
-  const stmt = db.prepare("INSERT INTO files (repo_id, path, language, size, hash) VALUES (?, ?, ?, ?, ?)");
+  const stmt = db.prepare(
+    "INSERT INTO files (repo_id, path, language, size, hash, last_scanned_at, deleted_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)"
+  );
   const insert = db.transaction(() => {
     for (const file of files) {
       stmt.run(repoId, file.path, file.language, file.size, file.hash);
@@ -399,29 +427,49 @@ function insertImportEdges(
   const insert = db.transaction(() => {
     for (const item of imports) {
       const fromId = fileRows.get(item.fromPath);
-      const toPath = resolveImportPath(item.fromPath, item.importText, fileRows);
+      const toPath = resolveImportPathV2(item.fromPath, item.importText, new Set(fileRows.keys()));
       const toId = toPath ? fileRows.get(toPath) : undefined;
       if (fromId && toId) {
-        stmt.run(repoId, fromId, toId, item.importText.startsWith(".") ? 0.9 : 0.45);
+        stmt.run(repoId, fromId, toId, item.importText.startsWith(".") ? 0.9 : 0.62);
       }
     }
   });
   insert();
 }
 
-function resolveImportPath(fromPath: string, importText: string, fileRows: Map<string, number>): string | null {
-  const candidates: string[] = [];
-  if (importText.startsWith(".")) {
-    const base = path.posix.normalize(path.posix.join(path.posix.dirname(fromPath), importText));
-    candidates.push(base, `${base}.ts`, `${base}.tsx`, `${base}.js`, `${base}.dart`, `${base}.py`, `${base}/index.ts`);
-  } else if (importText.startsWith("package:")) {
-    const withoutPackage = importText.replace(/^package:[^/]+\//, "");
-    candidates.push(`frontend/lib/${withoutPackage}`);
-  } else {
-    const dotted = importText.replaceAll(".", "/");
-    candidates.push(`${dotted}.py`, `backend/${dotted}.py`, `backend/app/${dotted}.py`);
-  }
-  return candidates.find((candidate) => fileRows.has(candidate)) ?? null;
+function insertImportBindings(
+  db: ProjectDatabase,
+  repoId: number,
+  fileRows: Map<string, number>,
+  imports: ScannedImport[]
+): void {
+  const filePaths = new Set(fileRows.keys());
+  const stmt = db.prepare(
+    `INSERT INTO import_bindings
+      (repo_id, file_id, imported_name, local_name, source_text, resolved_file_id, confidence, evidence_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const insert = db.transaction(() => {
+    for (const item of imports) {
+      const fileId = fileRows.get(item.fromPath);
+      if (!fileId) {
+        continue;
+      }
+      for (const binding of parseImportBindings(item.fromPath, item.importText, filePaths)) {
+        stmt.run(
+          repoId,
+          fileId,
+          binding.importedName,
+          binding.localName,
+          binding.sourceText,
+          binding.resolvedPath ? (fileRows.get(binding.resolvedPath) ?? null) : null,
+          binding.confidence,
+          JSON.stringify(binding.evidence)
+        );
+      }
+    }
+  });
+  insert();
 }
 
 function insertRoutes(
@@ -562,4 +610,95 @@ function insertCoChanges(
     }
   });
   insert();
+}
+
+function insertDuplicateClusters(db: ProjectDatabase, repoId: number): void {
+  const groups = db
+    .prepare(
+      `SELECT normalized_hash AS normalizedHash, COUNT(*) AS count, MIN(id) AS representative
+       FROM code_blocks
+       WHERE repo_id = ? AND normalized_hash IS NOT NULL AND json_array_length(tokens_json) > 8
+       GROUP BY normalized_hash
+       HAVING COUNT(*) > 1
+       LIMIT 200`
+    )
+    .all(repoId) as Array<{ normalizedHash: string; count: number; representative: number }>;
+  const clusterStmt = db.prepare(
+    "INSERT INTO similarity_clusters (repo_id, cluster_type, representative_block_id, score, summary) VALUES (?, 'exact_duplicate', ?, 1.0, ?)"
+  );
+  const memberStmt = db.prepare(
+    "INSERT INTO similarity_members (cluster_id, block_id, similarity, reason) VALUES (?, ?, 1.0, 'normalized_hash match')"
+  );
+  const blocksStmt = db.prepare("SELECT id FROM code_blocks WHERE repo_id = ? AND normalized_hash = ?");
+  const insert = db.transaction(() => {
+    for (const group of groups) {
+      const cluster = clusterStmt.run(
+        repoId,
+        group.representative,
+        `${group.count} code blocks share a normalized body`
+      );
+      const clusterId = Number(cluster.lastInsertRowid);
+      const blocks = blocksStmt.all(repoId, group.normalizedHash) as Array<{ id: number }>;
+      for (const block of blocks) {
+        memberStmt.run(clusterId, block.id);
+      }
+    }
+  });
+  insert();
+}
+
+function loadExistingHashes(db: ProjectDatabase, repoId: number): Map<string, string | null> {
+  const rows = db
+    .prepare("SELECT path, hash FROM files WHERE repo_id = ? AND deleted_at IS NULL")
+    .all(repoId) as Array<{
+    path: string;
+    hash: string | null;
+  }>;
+  return new Map(rows.map((row) => [row.path, row.hash]));
+}
+
+function incrementalStats(
+  mode: "full" | "incremental",
+  oldHashes: Map<string, string | null>,
+  files: ScannedFile[],
+  startedAt: number
+): NonNullable<ScanResult["incremental"]> {
+  const newPaths = new Set(files.map((file) => file.path));
+  const filesChanged = files.filter((file) => oldHashes.get(file.path) !== file.hash).length;
+  const filesDeleted = Array.from(oldHashes.keys()).filter((oldPath) => !newPaths.has(oldPath)).length;
+  return {
+    mode,
+    filesTotal: files.length,
+    filesChanged,
+    filesSkipped: Math.max(0, files.length - filesChanged),
+    filesDeleted,
+    durationMs: Date.now() - startedAt,
+    conservativeFullRebuild: mode === "incremental" && (filesChanged > 0 || filesDeleted > 0)
+  };
+}
+
+function previousScanResult(db: ProjectDatabase, repoId: number, repoRoot: string, gitSha: string | null): ScanResult {
+  const count = (table: string) =>
+    (db.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE repo_id = ?`).get(repoId) as { count: number }).count;
+  return {
+    repoRoot,
+    gitSha,
+    files: count("files"),
+    symbols: (
+      db
+        .prepare("SELECT COUNT(*) AS count FROM symbols s JOIN files f ON f.id = s.file_id WHERE f.repo_id = ?")
+        .get(repoId) as { count: number }
+    ).count,
+    imports: count("import_bindings"),
+    routes: count("routes"),
+    tests: count("tests"),
+    commands: count("commands"),
+    rules: count("project_rules"),
+    documents: count("documents"),
+    coChanges: (
+      db.prepare("SELECT COUNT(*) AS count FROM edges WHERE repo_id = ? AND kind = 'co_changes'").get(repoId) as {
+        count: number;
+      }
+    ).count
+  };
 }

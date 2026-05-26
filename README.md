@@ -43,7 +43,7 @@ business data.
 Postgres can be introduced later only if the product needs team-shared memory,
 centralized dashboards, permissions, or SaaS-style multi-project management.
 
-## v0.5 Capabilities
+## v0.7 Capabilities
 
 The current release supports:
 
@@ -80,6 +80,16 @@ The current release supports:
 31. Module maps through `module_map` and `pnav modules`.
 32. Evidence explanations through `why_related`.
 33. Symbol-aware `impact_analysis_v2`.
+34. `trace_feature`: evidence chains from entrypoint to implementation, reuse candidates, and tests.
+35. Import Resolution V2 with persisted `import_bindings`.
+36. Persisted duplicate clusters and `explain_reuse`.
+37. Layered `impact_analysis_v2` output for direct, entrypoint, test, reuse, and co-change impact.
+38. Hash-aware `pnav scan --incremental` and explicit `pnav scan --full`.
+39. Discovery Quality Hardening: route/page/module-root entrypoints outrank internal card/widget token matches.
+40. Discovery tiers: `mustRead`, `shouldInspect`, `reuseBeforeCreate`, and `ignoreForNow`.
+41. Verified vs candidate feature chains through `trace_feature`.
+42. Explicit reuse verdicts: `reuse_as_is`, `extend_existing`, `extract_shared`, and `create_new_allowed`.
+43. Score breakdowns for entrypoint and reuse ranking decisions.
 
 MCP tools:
 
@@ -108,6 +118,9 @@ MCP tools:
 - `module_map`
 - `why_related`
 - `impact_analysis_v2`
+- `trace_feature`
+- `duplicate_clusters`
+- `explain_reuse`
 
 ## Example Target Repository
 
@@ -152,6 +165,11 @@ Start here:
 - [Reuse Detection](docs/reuse-detection.md)
 - [Module Map](docs/module-map.md)
 - [v0.5 Code Discovery & Reuse Plan](docs/v0.5-code-discovery-reuse-plan.md)
+- [v0.6 Precise Discovery Chains](docs/v0.6-precise-discovery-chains.md)
+- [Discovery Chain](docs/discovery-chain.md)
+- [Import Resolution V2](docs/import-resolution-v2.md)
+- [Duplicate Clusters](docs/duplicate-clusters.md)
+- [Incremental Scan](docs/incremental-scan.md)
 - [Finish-Time Audit](docs/finish-time-audit.md)
 - [v0.3 Execution Ready Plan](docs/v0.3-execution-ready-plan.md)
 - [Roadmap](docs/roadmap.md)

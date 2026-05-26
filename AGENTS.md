@@ -150,3 +150,24 @@ For Code Discovery & Reuse Intelligence work:
 - Every top discovery result should include deterministic evidence.
 - Ambiguous call/reference edges must expose lower confidence instead of pretending to be exact.
 - Reuse detection must be local and deterministic; do not add a vector database for v0.5.
+
+## v0.6 Development Rules
+
+For Precise Discovery Chains & Incremental Index work:
+
+- Prefer feature chains over wider candidate lists.
+- Persist deterministic import and duplicate evidence in SQLite.
+- Keep ambiguous references low-confidence.
+- Incremental scan must report changed/skipped/deleted counts and avoid rebuilding when nothing changed.
+- Do not introduce Postgres, Web UI, mandatory Tree-sitter, LSP, or SCIP in v0.6.
+
+## v0.7 Development Rules
+
+For Discovery Quality Hardening work:
+
+- Route, page, and module-root entrypoints must outrank internal token-heavy widgets/cards.
+- Discovery Mode should return `mustRead`, `shouldInspect`, `reuseBeforeCreate`, and `ignoreForNow` instead of one flat list.
+- Feature chains must declare whether they are `verified_chain` or `candidate_chain`.
+- Reuse candidates must provide a verdict before an agent creates new code.
+- Flutter/frontend UI discovery must demote backend, database, infra, screenshot, and E2E noise unless explicit evidence requires it.
+- Ranking changes need deterministic tests; do not add LLM-based reranking.

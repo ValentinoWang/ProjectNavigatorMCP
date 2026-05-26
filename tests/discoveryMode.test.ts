@@ -30,10 +30,14 @@ describe("Discovery Mode", () => {
     const result = discoverCode(repo, "新增 athlete dashboard training trend card", 10);
 
     expect(result.mode).toBe("discovery");
-    expect(result.entrypoints.some((entry) => entry.path.includes("athlete_dashboard"))).toBe(true);
+    expect(result.entrypoints[0]?.path).toContain("athlete_dashboard_page.dart");
+    expect(result.entrypoints[0]?.scoreBreakdown?.moduleProximity).toBeGreaterThan(0);
     expect(result.recommendedReadOrder.some((file) => file.path.includes("athlete_dashboard_home_widgets.dart"))).toBe(
       true
     );
+    expect(result.mustRead.some((file) => file.path.includes("athlete_dashboard"))).toBe(true);
+    expect([...result.mustRead, ...result.shouldInspect].every((file) => !file.path.startsWith("backend/"))).toBe(true);
+    expect(result.reuseBeforeCreate.length).toBeGreaterThan(0);
     expect(result.whyRelated[0]?.evidence.length).toBeGreaterThanOrEqual(1);
   });
 
