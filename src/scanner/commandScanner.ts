@@ -103,4 +103,3 @@ function categorizeCommand(value: string): string {
   }
   return "command";
 }
-

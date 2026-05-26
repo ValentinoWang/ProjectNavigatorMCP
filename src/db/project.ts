@@ -22,4 +22,3 @@ export function openProject(repoPath: string): OpenProjectResult {
     dbPath: paths.dbPath
   };
 }
-

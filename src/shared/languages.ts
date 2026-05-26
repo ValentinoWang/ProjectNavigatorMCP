@@ -52,7 +52,7 @@ const BINARY_OR_LOW_SIGNAL_EXTENSIONS = new Set([
 export function detectLanguage(relativePath: string): string {
   const basename = path.basename(relativePath);
   if (TEXT_FILENAMES.has(basename)) {
-    return basename === "Makefile" ? "makefile" : detectLanguageFromExtension(relativePath) ?? "text";
+    return basename === "Makefile" ? "makefile" : (detectLanguageFromExtension(relativePath) ?? "text");
   }
   return detectLanguageFromExtension(relativePath) ?? "text";
 }
@@ -72,4 +72,3 @@ export function isIndexableTextFile(relativePath: string): boolean {
 function detectLanguageFromExtension(relativePath: string): string | undefined {
   return LANGUAGE_BY_EXTENSION.get(path.extname(relativePath).toLowerCase());
 }
-

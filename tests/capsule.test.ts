@@ -46,5 +46,33 @@ describe("prepareTaskContext", () => {
     const memories = searchProjectMemory(repo, "add vitest");
     expect(memories[0]?.topic).toBe("fix add test");
   });
-});
 
+  it("prioritizes guard findings and source_doc sync targets over generic markdown", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "pnav-plan-capsule-"));
+    tempDirs.push(root);
+    cpSync(path.resolve("tests/fixtures/plan-guard-repo"), root, { recursive: true });
+    scanRepo(root);
+
+    const context = prepareTaskContext(root, "role visual design system governance", {
+      sourceDoc: "docs/plans/role_visual_system.md",
+      guardOutput:
+        "frontend/lib/modules/dashboard/athlete_dashboard_home_widgets.dart:9\nPrivate role palette usage is not allowed.",
+      guardCommand: "python scripts/quality/check_role_visual_system_guard.py"
+    });
+
+    expect(context.readOrder[0]?.path).toBe("frontend/lib/modules/dashboard/athlete_dashboard_home_widgets.dart");
+    expect(context.readOrder.slice(0, 5).map((item) => item.path)).toContain(
+      "scripts/quality/check_role_visual_system_guard.py"
+    );
+    expect(context.readOrder.slice(0, 5).map((item) => item.path)).toContain(
+      "frontend/lib/modules/design_system/theme/experience_theme.dart"
+    );
+    expect(context.readOrder.slice(0, 3).map((item) => item.path)).not.toContain("docs/noisy/unrelated.md");
+    expect(context.executionPlan.some((item) => item.command?.includes("check_design_system_usage_guard.py"))).toBe(
+      true
+    );
+    expect(context.editBoundary.preferredFiles).toContain(
+      "frontend/lib/modules/dashboard/athlete_dashboard_home_widgets.dart"
+    );
+  });
+});

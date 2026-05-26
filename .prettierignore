@@ -1,0 +1,6 @@
+dist
+node_modules
+coverage
+.pnav
+*.sqlite
+package-lock.json

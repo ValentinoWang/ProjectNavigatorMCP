@@ -13,8 +13,14 @@ function makeRepo(): string {
   mkdirSync(path.join(root, "src"), { recursive: true });
   mkdirSync(path.join(root, "test"), { recursive: true });
   writeFileSync(path.join(root, "src/core.ts"), "export function core() { return 1; }\n");
-  writeFileSync(path.join(root, "src/service.ts"), "import { core } from './core';\nexport function service() { return core(); }\n");
-  writeFileSync(path.join(root, "src/api.ts"), "import { service } from './service';\nexport function api() { return service(); }\n");
+  writeFileSync(
+    path.join(root, "src/service.ts"),
+    "import { core } from './core';\nexport function service() { return core(); }\n"
+  );
+  writeFileSync(
+    path.join(root, "src/api.ts"),
+    "import { service } from './service';\nexport function api() { return service(); }\n"
+  );
   writeFileSync(path.join(root, "test/api.test.ts"), "import { api } from '../src/api';\napi();\n");
   return root;
 }

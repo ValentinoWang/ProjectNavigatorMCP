@@ -62,5 +62,5 @@ function toFtsQuery(query: string): string {
     .split(/[^A-Za-z0-9_\u4e00-\u9fa5]+/u)
     .filter((term) => term.length > 1)
     .slice(0, 8);
-  return terms.length > 0 ? terms.map((term) => `"${term}"`).join(" OR ") : "\"__pnav_no_match__\"";
+  return terms.length > 0 ? terms.map((term) => `"${term}"`).join(" OR ") : '"__pnav_no_match__"';
 }

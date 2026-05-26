@@ -27,7 +27,7 @@ describe("initProject", () => {
 
     expect(existsSync(result.dbPath)).toBe(true);
     expect(existsSync(result.configPath)).toBe(true);
-    expect(result.appliedMigrations).toEqual([1, 2]);
+    expect(result.appliedMigrations).toEqual([1, 2, 3]);
 
     const config = JSON.parse(readFileSync(result.configPath, "utf8")) as { repoRoot: string };
     expect(config.repoRoot).toBe(repo);

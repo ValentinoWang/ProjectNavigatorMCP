@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.2.0
+
+Plan-to-Guard Navigation release.
+
+- Added Markdown source document indexing with frontmatter fields for `owner_domain`, `authority`, `depends_on`, `sync_targets`, and `validation`.
+- Added SQLite `documents`, `document_targets`, and `document_steps` tables.
+- Added `source_doc`, `guard_output`, `guard_command`, `changed_files`, and `include_dirty_status` support to `prepare_task_context`.
+- Added deterministic read order and execution plan output.
+- Added guard output parsing for common `file:line` and `file:line:column` logs.
+- Added `analyze_source_doc`, `analyze_guard_output`, and `git_worktree_status` MCP tools.
+- Added CLI `pnav guard` and `pnav status`.
+- Added dirty worktree warnings and edit boundaries.
+- Added Prettier format checks to local scripts and CI.
+- Added source document, guard output, and worktree status tests.
+
 ## v0.1.0
 
 Initial public release.

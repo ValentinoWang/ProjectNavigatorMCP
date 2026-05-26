@@ -8,4 +8,3 @@ export function openDatabase(dbPath: string): ProjectDatabase {
   db.pragma("foreign_keys = ON");
   return db;
 }
-

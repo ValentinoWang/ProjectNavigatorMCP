@@ -66,4 +66,3 @@ function categorizeRule(line: string): string {
   }
   return "general";
 }
-

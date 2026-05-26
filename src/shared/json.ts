@@ -8,4 +8,3 @@ export function parseJsonArray(value: string | null | undefined): string[] {
   }
   return parsed.filter((item): item is string => typeof item === "string");
 }
-

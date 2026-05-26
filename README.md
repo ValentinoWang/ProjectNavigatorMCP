@@ -43,7 +43,7 @@ business data.
 Postgres can be introduced later only if the product needs team-shared memory,
 centralized dashboards, permissions, or SaaS-style multi-project management.
 
-## v0.1 Capabilities
+## v0.2 Capabilities
 
 The first public version supports:
 
@@ -56,6 +56,9 @@ The first public version supports:
 7. MCP response envelopes: every tool returns `repo`, `generated_at`, `index_status`, `data`, and `warnings`.
 8. SQLite FTS search for symbols and project memory.
 9. Multi-hop impact analysis through graph traversal.
+10. Source document parsing for Markdown frontmatter `sync_targets`, `depends_on`, and validation commands.
+11. Guard output analysis for `file:line` driven repair paths.
+12. Dirty worktree warnings and edit boundaries for safe minimal edits.
 
 MVP MCP tools:
 
@@ -68,6 +71,9 @@ MVP MCP tools:
 - `prepare_task_context`
 - `search_project_memory`
 - `remember_task`
+- `analyze_source_doc`
+- `analyze_guard_output`
+- `git_worktree_status`
 
 ## Example Target Repository
 
@@ -97,6 +103,8 @@ Start here:
 - [MCP Tools](docs/mcp-tools.md)
 - [Configuration](docs/config.md)
 - [Output Contract](docs/output-contract.md)
+- [Source Documents](docs/source-docs.md)
+- [Guard Output Analysis](docs/guard-output.md)
 - [Roadmap](docs/roadmap.md)
 - [flutter-transfer Demo Queries](examples/flutter-transfer/demo-queries.md)
 - [Codex MCP Config Example](examples/codex-mcp-config.md)

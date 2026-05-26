@@ -34,4 +34,3 @@ export function getProjectPaths(repo: string): ProjectPaths {
     dbPath: path.join(pnavDir, PROJECT_DB_NAME)
   };
 }
-

@@ -25,9 +25,9 @@ ProjectNavigatorMCP reads optional project-local configuration from:
     }
   ],
   "source_path_boosts": [
-    {"pattern": "src/**", "boost": 0.14},
-    {"pattern": "lib/**", "boost": 0.14},
-    {"pattern": "test/**", "boost": 0.08}
+    { "pattern": "src/**", "boost": 0.14 },
+    { "pattern": "lib/**", "boost": 0.14 },
+    { "pattern": "test/**", "boost": 0.08 }
   ]
 }
 ```

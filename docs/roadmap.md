@@ -15,7 +15,18 @@ Stabilize the local Repository Intelligence MCP loop:
 
 ## v0.2
 
-Improve scanner accuracy:
+Plan-to-Guard Navigation:
+
+- Markdown frontmatter indexing for source documents.
+- `source_doc` support in `prepare_task_context`.
+- Deterministic ranking from `sync_targets`, `depends_on`, validation commands, and guard failures.
+- Guard output analysis for `file:line` driven repair paths.
+- Dirty worktree awareness and edit-boundary warnings.
+- Execution plan extraction from Markdown phases, checklists, and validation commands.
+
+## v0.3
+
+Scanner accuracy:
 
 - Richer Dart, TypeScript, JavaScript, and Python symbol extraction.
 - Better qualified names and signatures.
@@ -23,19 +34,18 @@ Improve scanner accuracy:
 - More import alias resolution.
 - Incremental scanning by file hash.
 
-## v0.3
-
-Improve agent handoff quality:
-
-- Explicit token budgets.
-- Stronger read order planning.
-- Impact previews inside task capsules.
-- Structured verification plans.
-- More precise test command ranking.
-
 ## v0.4
 
-Add optional language intelligence backends:
+Agent handoff quality:
+
+- Explicit token budgets.
+- Stronger impact previews inside task capsules.
+- More precise test command ranking.
+- Broader fixture coverage for guarded implementation tasks.
+
+## v0.5
+
+Optional language intelligence backends:
 
 - Tree-sitter parser adapters.
 - LSP-assisted definition/reference lookup.
@@ -47,5 +57,4 @@ Make the tool stable for external open-source users:
 
 - Versioned output contracts.
 - Backward-compatible migrations.
-- Broader fixture coverage.
 - Real-world examples across Flutter, Node, Python, and monorepos.

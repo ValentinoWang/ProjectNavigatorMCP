@@ -109,7 +109,8 @@ export function loadProjectConfig(repoPath: string): ProjectConfig {
     repoRoot: paths.repoRoot,
     include: parsed.include ?? defaults.include,
     exclude: parsed.exclude ?? defaults.exclude,
-    maxFileBytes: parsed.maxFileBytes ?? (parsed as { max_file_bytes?: number }).max_file_bytes ?? defaults.maxFileBytes,
+    maxFileBytes:
+      parsed.maxFileBytes ?? (parsed as { max_file_bytes?: number }).max_file_bytes ?? defaults.maxFileBytes,
     respectGitignore:
       parsed.respectGitignore ??
       (parsed as { respect_gitignore?: boolean }).respect_gitignore ??

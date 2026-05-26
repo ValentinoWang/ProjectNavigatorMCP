@@ -91,7 +91,13 @@ export function rememberTask(repoPath: string, input: RememberTaskInput): { stor
     }
     project.db
       .prepare("INSERT INTO tasks (repo_id, title, summary, changed_files_json, tests_json) VALUES (?, ?, ?, ?, ?)")
-      .run(project.repo.id, input.title, input.summary, JSON.stringify(input.changedFiles ?? []), JSON.stringify(input.tests ?? []));
+      .run(
+        project.repo.id,
+        input.title,
+        input.summary,
+        JSON.stringify(input.changedFiles ?? []),
+        JSON.stringify(input.tests ?? [])
+      );
     return { stored: true, memoryId };
   } finally {
     project.db.close();
@@ -141,7 +147,9 @@ function toMemoryHit(
   },
   score: number
 ): MemoryHit {
-  const tagRows = db.prepare("SELECT tag FROM memory_tags WHERE memory_id = ? ORDER BY tag").all(row.id) as Array<{ tag: string }>;
+  const tagRows = db.prepare("SELECT tag FROM memory_tags WHERE memory_id = ? ORDER BY tag").all(row.id) as Array<{
+    tag: string;
+  }>;
   return {
     id: row.id,
     topic: row.topic,
@@ -162,5 +170,5 @@ function toFtsQuery(query: string): string {
     .split(/[^A-Za-z0-9_\u4e00-\u9fa5]+/u)
     .filter((term) => term.length > 1)
     .slice(0, 8);
-  return terms.length > 0 ? terms.map((term) => `"${term}"`).join(" OR ") : "\"__pnav_no_match__\"";
+  return terms.length > 0 ? terms.map((term) => `"${term}"`).join(" OR ") : '"__pnav_no_match__"';
 }

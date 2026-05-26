@@ -63,6 +63,52 @@ const MIGRATIONS: Migration[] = [
         SELECT id, topic, summary FROM memories
         WHERE id NOT IN (SELECT rowid FROM memories_fts);
     `
+  },
+  {
+    version: 3,
+    name: "source_documents",
+    sql: `
+      CREATE TABLE IF NOT EXISTS documents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        path TEXT NOT NULL,
+        doc_type TEXT NOT NULL DEFAULT 'markdown',
+        title TEXT,
+        owner_domain TEXT,
+        authority TEXT,
+        frontmatter_json TEXT NOT NULL DEFAULT '{}',
+        summary TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(repo_id, path)
+      );
+      CREATE TABLE IF NOT EXISTS document_targets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+        kind TEXT NOT NULL,
+        target_path TEXT NOT NULL,
+        target_file_id INTEGER REFERENCES files(id) ON DELETE SET NULL,
+        confidence REAL NOT NULL DEFAULT 1.0,
+        raw_value TEXT
+      );
+      CREATE TABLE IF NOT EXISTS document_steps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+        phase TEXT,
+        ordinal INTEGER NOT NULL DEFAULT 0,
+        title TEXT,
+        command TEXT,
+        target_path TEXT,
+        category TEXT NOT NULL DEFAULT 'step',
+        raw_text TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 0.7
+      );
+      CREATE INDEX IF NOT EXISTS idx_documents_repo_path ON documents(repo_id, path);
+      CREATE INDEX IF NOT EXISTS idx_document_targets_repo_path ON document_targets(repo_id, target_path);
+      CREATE INDEX IF NOT EXISTS idx_document_steps_repo_document ON document_steps(repo_id, document_id, ordinal);
+    `
   }
 ];
 
@@ -76,19 +122,19 @@ export function migrate(db: ProjectDatabase): MigrationResult {
   `);
 
   const appliedVersions = new Set(
-    db.prepare("SELECT version FROM schema_migrations").all().map((row) => {
-      const typed = row as { version: number };
-      return typed.version;
-    })
+    db
+      .prepare("SELECT version FROM schema_migrations")
+      .all()
+      .map((row) => {
+        const typed = row as { version: number };
+        return typed.version;
+      })
   );
 
   const applied: number[] = [];
   const runMigration = db.transaction((migration: Migration) => {
     db.exec(migration.sql);
-    db.prepare("INSERT INTO schema_migrations (version, name) VALUES (?, ?)").run(
-      migration.version,
-      migration.name
-    );
+    db.prepare("INSERT INTO schema_migrations (version, name) VALUES (?, ?)").run(migration.version, migration.name);
   });
 
   for (const migration of MIGRATIONS) {

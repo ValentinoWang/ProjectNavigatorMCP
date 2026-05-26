@@ -18,6 +18,22 @@ tools.
 5. Do not hard-code the example `flutter-transfer` path in implementation logic.
 6. Treat Tree-sitter, LSP, SCIP, embeddings, and Postgres as later enhancements.
 
+## Deterministic Signal Priority
+
+When implementing or changing v0.2 plan-to-guard behavior, prefer deterministic signals over broad keyword guessing.
+
+Ranking priority:
+
+1. Guard output `file:line`.
+2. `source_doc` frontmatter `sync_targets`.
+3. `source_doc` validation command targets.
+4. `source_doc` `depends_on`.
+5. Project config domain paths.
+6. Symbol and path token matches.
+7. Generic Markdown matches.
+
+Do not let generic Markdown files, historical task notes, or `agents-results` logs outrank explicit source document targets or guard failure files.
+
 ## Required CLI Shape
 
 Implement these commands first:

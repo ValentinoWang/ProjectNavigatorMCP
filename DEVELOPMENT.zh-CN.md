@@ -678,39 +678,48 @@ MVP MCP tools 建议固定为 9 个。
 # Task Context Capsule
 
 ## Task
+
 修复 workspace microplan 页面滚动问题
 
 ## Interpretation
+
 这是一个 Flutter UI / layout 问题，可能涉及 workspace microplan 页面、路由入口、滚动容器和响应式宽度规则。
 
 ## Likely Files
-| path | reason | score |
-|---|---|---:|
-| frontend/lib/modules/workspace/... | path and task keyword match | 0.88 |
-| frontend/lib/core/router/app_router.dart | route entry point | 0.71 |
+
+| path                                     | reason                      | score |
+| ---------------------------------------- | --------------------------- | ----: |
+| frontend/lib/modules/workspace/...       | path and task keyword match |  0.88 |
+| frontend/lib/core/router/app_router.dart | route entry point           |  0.71 |
 
 ## Entry Points
+
 - frontend/lib/core/router/app_router.dart
 - workspace microplan route/page symbols if found
 
 ## Impact Risks
+
 - nested scroll / sliver constraint mismatch
 - responsive width behavior may change
 - existing workspace tests may fail
 
 ## Recommended Commands
+
 - make workspace-microplan-scroll-guard
 - make flutter-sliver-contract-guard
 - make frontend-analyze
 
 ## Project Rules
+
 - UI changes should consider 360 / 390 / 768 / 1024 / 1280 / 1440 widths.
 - Do not weaken tests or bypass gates.
 
 ## Memory Hits
+
 - none / list of related memories
 
 ## Suggested Next Steps for Agent
+
 1. Inspect likely files first.
 2. Confirm route and widget entry.
 3. Make minimal layout fix.

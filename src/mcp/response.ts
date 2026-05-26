@@ -66,4 +66,3 @@ function getIndexStatus(repoPath: string): {
     project.db.close();
   }
 }
-

@@ -13,10 +13,14 @@ export function getRepoMap(repoPath: string): RepoMap {
     const db = project.db;
     const repoId = project.repo.id;
     const languages = db
-      .prepare("SELECT language, COUNT(*) AS files FROM files WHERE repo_id = ? GROUP BY language ORDER BY files DESC, language")
+      .prepare(
+        "SELECT language, COUNT(*) AS files FROM files WHERE repo_id = ? GROUP BY language ORDER BY files DESC, language"
+      )
       .all(repoId) as Array<{ language: string; files: number }>;
     const commands = db
-      .prepare("SELECT name, command, source_file AS sourceFile, category FROM commands WHERE repo_id = ? ORDER BY category, name LIMIT 30")
+      .prepare(
+        "SELECT name, command, source_file AS sourceFile, category FROM commands WHERE repo_id = ? ORDER BY category, name LIMIT 30"
+      )
       .all(repoId) as RepoMap["commands"];
     const latestScan = db
       .prepare("SELECT git_sha AS gitSha, status FROM scan_runs WHERE repo_id = ? ORDER BY id DESC LIMIT 1")
@@ -87,7 +91,9 @@ function countSymbols(db: ProjectDatabase, repoId: number): number {
 
 function getImportantPaths(db: ProjectDatabase, repoId: number): string[] {
   const rows = db
-    .prepare("SELECT path FROM files WHERE repo_id = ? AND (path IN ('AGENTS.md', 'CLAUDE.md', 'README.md', 'Makefile', 'package.json', 'pyproject.toml') OR path LIKE 'frontend/lib/%' OR path LIKE 'backend/app/api/%') ORDER BY path LIMIT 30")
+    .prepare(
+      "SELECT path FROM files WHERE repo_id = ? AND (path IN ('AGENTS.md', 'CLAUDE.md', 'README.md', 'Makefile', 'package.json', 'pyproject.toml') OR path LIKE 'frontend/lib/%' OR path LIKE 'backend/app/api/%') ORDER BY path LIMIT 30"
+    )
     .all(repoId) as Array<{ path: string }>;
   const compact = new Set<string>();
   for (const row of rows) {

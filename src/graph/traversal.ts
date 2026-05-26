@@ -71,7 +71,8 @@ export function traverseGraph(db: ProjectDatabase, repoId: number, options: Trav
     }
     const edges = loadEdges(db, repoId, current.nodeType, current.nodeId, options.direction);
     for (const edge of edges) {
-      const nextType = edge.from_type === current.nodeType && edge.from_id === current.nodeId ? edge.to_type : edge.from_type;
+      const nextType =
+        edge.from_type === current.nodeType && edge.from_id === current.nodeId ? edge.to_type : edge.from_type;
       const nextId = edge.from_type === current.nodeType && edge.from_id === current.nodeId ? edge.to_id : edge.from_id;
       const key = nodeKey(nextType, nextId);
       if (visited.has(key)) {
@@ -109,15 +110,25 @@ export function traverseGraph(db: ProjectDatabase, repoId: number, options: Trav
   return hits.sort((a, b) => b.score - a.score || a.distance - b.distance).slice(0, options.maxResults);
 }
 
-function loadEdges(db: ProjectDatabase, repoId: number, nodeType: NodeType, nodeId: number, direction: TraversalDirection): EdgeRow[] {
+function loadEdges(
+  db: ProjectDatabase,
+  repoId: number,
+  nodeType: NodeType,
+  nodeId: number,
+  direction: TraversalDirection
+): EdgeRow[] {
   if (direction === "downstream") {
     return db
-      .prepare("SELECT from_type, from_id, to_type, to_id, kind, weight, confidence FROM edges WHERE repo_id = ? AND from_type = ? AND from_id = ?")
+      .prepare(
+        "SELECT from_type, from_id, to_type, to_id, kind, weight, confidence FROM edges WHERE repo_id = ? AND from_type = ? AND from_id = ?"
+      )
       .all(repoId, nodeType, nodeId) as EdgeRow[];
   }
   if (direction === "upstream") {
     return db
-      .prepare("SELECT from_type, from_id, to_type, to_id, kind, weight, confidence FROM edges WHERE repo_id = ? AND to_type = ? AND to_id = ?")
+      .prepare(
+        "SELECT from_type, from_id, to_type, to_id, kind, weight, confidence FROM edges WHERE repo_id = ? AND to_type = ? AND to_id = ?"
+      )
       .all(repoId, nodeType, nodeId) as EdgeRow[];
   }
   return db
@@ -188,4 +199,3 @@ function relationshipWeight(kind: string): number {
   }
   return 0.5;
 }
-

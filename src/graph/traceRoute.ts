@@ -17,7 +17,11 @@ export function traceRoute(repoPath: string, query: string, limit = 20): RouteHi
     return rows
       .map((row) => ({
         ...row,
-        score: Math.max(scoreText(query, row.path), scoreText(query, row.name ?? ""), scoreText(query, row.routeFile ?? ""))
+        score: Math.max(
+          scoreText(query, row.path),
+          scoreText(query, row.name ?? ""),
+          scoreText(query, row.routeFile ?? "")
+        )
       }))
       .filter((row) => row.score > 0)
       .sort((a, b) => b.score - a.score)
@@ -27,4 +31,3 @@ export function traceRoute(repoPath: string, query: string, limit = 20): RouteHi
     project.db.close();
   }
 }
-

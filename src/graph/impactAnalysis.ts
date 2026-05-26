@@ -2,10 +2,17 @@ import { openProject } from "../db/project.js";
 import type { ImpactResult } from "./types.js";
 import { traverseGraph, type TraversalDirection } from "./traversal.js";
 
-export function impactAnalysis(repoPath: string, target: string, depth = 2, direction: TraversalDirection = "both"): ImpactResult {
+export function impactAnalysis(
+  repoPath: string,
+  target: string,
+  depth = 2,
+  direction: TraversalDirection = "both"
+): ImpactResult {
   const project = openProject(repoPath);
   try {
-    const file = project.db.prepare("SELECT id, path FROM files WHERE repo_id = ? AND path = ?").get(project.repo.id, target) as { id: number; path: string } | undefined;
+    const file = project.db
+      .prepare("SELECT id, path FROM files WHERE repo_id = ? AND path = ?")
+      .get(project.repo.id, target) as { id: number; path: string } | undefined;
     if (!file) {
       return {
         target,

@@ -27,12 +27,16 @@ function scanDart(filePath: string, content: string): SymbolScanResult {
 
   lines.forEach((line, index) => {
     const lineNumber = index + 1;
-    const classMatch = line.match(/^\s*(?:abstract\s+|base\s+|final\s+|sealed\s+)?(?:class|mixin|enum|extension)\s+([A-Za-z_][A-Za-z0-9_]*)/);
+    const classMatch = line.match(
+      /^\s*(?:abstract\s+|base\s+|final\s+|sealed\s+)?(?:class|mixin|enum|extension)\s+([A-Za-z_][A-Za-z0-9_]*)/
+    );
     if (classMatch) {
       symbols.push(symbol(filePath, classMatch[1], "class", lineNumber, line.trim()));
     }
 
-    const functionMatch = line.match(/^\s*(?:[A-Za-z_<>,?]+\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:async\s*)?[{=>]/);
+    const functionMatch = line.match(
+      /^\s*(?:[A-Za-z_<>,?]+\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:async\s*)?[{=>]/
+    );
     if (functionMatch && !["if", "for", "while", "switch"].includes(functionMatch[1])) {
       symbols.push(symbol(filePath, functionMatch[1], "function", lineNumber, line.trim()));
     }
@@ -50,13 +54,9 @@ function scanDart(filePath: string, content: string): SymbolScanResult {
     if (line.includes("GoRoute(") || /name:\s*[A-Za-z0-9_.]+\s*,/.test(line)) {
       const nearby = lines.slice(index, Math.min(lines.length, index + 10)).join("\n");
       const name =
-        nearby.match(/name:\s*['"]([^'"]+)['"]/)?.[1] ??
-        nearby.match(/name:\s*([A-Za-z0-9_.]+)/)?.[1] ??
-        null;
+        nearby.match(/name:\s*['"]([^'"]+)['"]/)?.[1] ?? nearby.match(/name:\s*([A-Za-z0-9_.]+)/)?.[1] ?? null;
       const routePath =
-        nearby.match(/path:\s*['"]([^'"]+)['"]/)?.[1] ??
-        nearby.match(/path:\s*([A-Za-z0-9_.]+)/)?.[1] ??
-        null;
+        nearby.match(/path:\s*['"]([^'"]+)['"]/)?.[1] ?? nearby.match(/path:\s*([A-Za-z0-9_.]+)/)?.[1] ?? null;
       if (name || routePath) {
         routes.push({
           framework: "flutter_go_router",
@@ -98,7 +98,11 @@ function scanPython(filePath: string, content: string): SymbolScanResult {
 
     const routeMatch = line.match(/^\s*@(?:router|app)\.(get|post|put|patch|delete)\(\s*["']([^"']+)["']/);
     if (routeMatch) {
-      const handler = lines.slice(index + 1, Math.min(lines.length, index + 6)).join("\n").match(/(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/)?.[1] ?? null;
+      const handler =
+        lines
+          .slice(index + 1, Math.min(lines.length, index + 6))
+          .join("\n")
+          .match(/(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/)?.[1] ?? null;
       routes.push({
         framework: "fastapi",
         method: routeMatch[1].toUpperCase(),

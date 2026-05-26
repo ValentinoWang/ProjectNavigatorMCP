@@ -3,6 +3,7 @@ import { loadProjectConfig } from "../config/projectConfig.js";
 import type { ProjectDatabase } from "../db/connection.js";
 import { openProject } from "../db/project.js";
 import { initProject } from "../cli/commands/init.js";
+import { insertSourceDocuments, scanSourceDocuments } from "../docs/sourceDocScanner.js";
 import { readRepoTextFile, scanFiles } from "./fileScanner.js";
 import { scanCommands } from "./commandScanner.js";
 import { getGitSha, scanCoChanges } from "./gitScanner.js";
@@ -33,7 +34,9 @@ export function scanRepo(repoPath: string): ScanResult {
 
 function scanIntoDatabase(db: ProjectDatabase, repoId: number, repoRoot: string): ScanResult {
   const gitSha = getGitSha(repoRoot);
-  const scanRun = db.prepare("INSERT INTO scan_runs (repo_id, git_sha, status) VALUES (?, ?, 'running')").run(repoId, gitSha);
+  const scanRun = db
+    .prepare("INSERT INTO scan_runs (repo_id, git_sha, status) VALUES (?, ?, 'running')")
+    .run(repoId, gitSha);
   const scanRunId = Number(scanRun.lastInsertRowid);
 
   try {
@@ -71,6 +74,9 @@ function scanIntoDatabase(db: ProjectDatabase, repoId: number, repoRoot: string)
     const rules = scanRules(repoRoot);
     insertRules(db, repoId, rules);
 
+    const documents = scanSourceDocuments(repoRoot, files);
+    insertSourceDocuments(db, repoId, fileRows, documents);
+
     const coChanges = scanCoChanges(repoRoot, new Set(files.map((file) => file.path)));
     insertCoChanges(db, repoId, fileRows, coChanges);
 
@@ -85,6 +91,7 @@ function scanIntoDatabase(db: ProjectDatabase, repoId: number, repoRoot: string)
       tests: testCount,
       commands: commands.length,
       rules: rules.length,
+      documents: documents.length,
       coChanges: coChanges.length
     };
   } catch (error) {
@@ -100,12 +107,18 @@ function rebuildFtsTables(db: ProjectDatabase): void {
 }
 
 function clearScannedData(db: ProjectDatabase, repoId: number): void {
-  const fileIds = db.prepare("SELECT id FROM files WHERE repo_id = ?").all(repoId).map((row) => (row as { id: number }).id);
+  const fileIds = db
+    .prepare("SELECT id FROM files WHERE repo_id = ?")
+    .all(repoId)
+    .map((row) => (row as { id: number }).id);
   db.prepare("DELETE FROM edges WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM routes WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM tests WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM commands WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM project_rules WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM document_steps WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM document_targets WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM documents WHERE repo_id = ?").run(repoId);
   for (const fileId of fileIds) {
     db.prepare("DELETE FROM symbols WHERE file_id = ?").run(fileId);
   }
@@ -128,7 +141,9 @@ function loadFileRows(db: ProjectDatabase, repoId: number): Map<string, number> 
 }
 
 function insertSymbols(db: ProjectDatabase, fileRows: Map<string, number>, symbols: ScannedSymbol[]): void {
-  const stmt = db.prepare("INSERT INTO symbols (file_id, name, kind, signature, qualified_name, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  const stmt = db.prepare(
+    "INSERT INTO symbols (file_id, name, kind, signature, qualified_name, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?, ?)"
+  );
   const insert = db.transaction(() => {
     for (const item of symbols) {
       const fileId = fileRows.get(item.filePath);
@@ -144,9 +159,16 @@ function loadSymbolRows(db: ProjectDatabase): SymbolRow[] {
   return db.prepare("SELECT id, file_id, name FROM symbols").all() as SymbolRow[];
 }
 
-function insertContainsEdges(db: ProjectDatabase, repoId: number, fileRows: Map<string, number>, symbols: SymbolRow[]): void {
+function insertContainsEdges(
+  db: ProjectDatabase,
+  repoId: number,
+  fileRows: Map<string, number>,
+  symbols: SymbolRow[]
+): void {
   const fileIdSet = new Set(fileRows.values());
-  const stmt = db.prepare("INSERT INTO edges (repo_id, from_type, from_id, to_type, to_id, kind, weight, confidence) VALUES (?, 'file', ?, 'symbol', ?, 'contains', 1.0, 1.0)");
+  const stmt = db.prepare(
+    "INSERT INTO edges (repo_id, from_type, from_id, to_type, to_id, kind, weight, confidence) VALUES (?, 'file', ?, 'symbol', ?, 'contains', 1.0, 1.0)"
+  );
   const insert = db.transaction(() => {
     for (const symbol of symbols) {
       if (fileIdSet.has(symbol.file_id)) {
@@ -157,8 +179,15 @@ function insertContainsEdges(db: ProjectDatabase, repoId: number, fileRows: Map<
   insert();
 }
 
-function insertImportEdges(db: ProjectDatabase, repoId: number, fileRows: Map<string, number>, imports: ScannedImport[]): void {
-  const stmt = db.prepare("INSERT INTO edges (repo_id, from_type, from_id, to_type, to_id, kind, weight, confidence) VALUES (?, 'file', ?, 'file', ?, 'imports', 0.8, ?)");
+function insertImportEdges(
+  db: ProjectDatabase,
+  repoId: number,
+  fileRows: Map<string, number>,
+  imports: ScannedImport[]
+): void {
+  const stmt = db.prepare(
+    "INSERT INTO edges (repo_id, from_type, from_id, to_type, to_id, kind, weight, confidence) VALUES (?, 'file', ?, 'file', ?, 'imports', 0.8, ?)"
+  );
   const insert = db.transaction(() => {
     for (const item of imports) {
       const fromId = fileRows.get(item.fromPath);
@@ -187,16 +216,24 @@ function resolveImportPath(fromPath: string, importText: string, fileRows: Map<s
   return candidates.find((candidate) => fileRows.has(candidate)) ?? null;
 }
 
-function insertRoutes(db: ProjectDatabase, repoId: number, fileRows: Map<string, number>, symbols: SymbolRow[], routes: ScannedRoute[]): void {
+function insertRoutes(
+  db: ProjectDatabase,
+  repoId: number,
+  fileRows: Map<string, number>,
+  symbols: SymbolRow[],
+  routes: ScannedRoute[]
+): void {
   const symbolsByFileAndName = new Map(symbols.map((row) => [`${row.file_id}:${row.name}`, row.id]));
-  const stmt = db.prepare("INSERT INTO routes (repo_id, framework, method, path, name, file_id, symbol_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  const stmt = db.prepare(
+    "INSERT INTO routes (repo_id, framework, method, path, name, file_id, symbol_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
+  );
   const insert = db.transaction(() => {
     for (const route of routes) {
       const fileId = fileRows.get(route.filePath);
       if (!fileId) {
         continue;
       }
-      const symbolId = route.symbolName ? symbolsByFileAndName.get(`${fileId}:${route.symbolName}`) ?? null : null;
+      const symbolId = route.symbolName ? (symbolsByFileAndName.get(`${fileId}:${route.symbolName}`) ?? null) : null;
       stmt.run(repoId, route.framework, route.method, route.path, route.name, fileId, symbolId);
     }
   });
@@ -207,8 +244,12 @@ function insertTestEdges(db: ProjectDatabase, repoId: number, fileRows: Map<stri
   const files = Array.from(fileRows.keys());
   const sourceFiles = files.filter((file) => !isTestFile(file));
   const testFiles = files.filter(isTestFile);
-  const stmt = db.prepare("INSERT INTO tests (repo_id, test_file_id, target_file_id, command, confidence) VALUES (?, ?, ?, ?, ?)");
-  const edgeStmt = db.prepare("INSERT INTO edges (repo_id, from_type, from_id, to_type, to_id, kind, weight, confidence) VALUES (?, 'file', ?, 'file', ?, 'covered_by', 0.9, ?)");
+  const stmt = db.prepare(
+    "INSERT INTO tests (repo_id, test_file_id, target_file_id, command, confidence) VALUES (?, ?, ?, ?, ?)"
+  );
+  const edgeStmt = db.prepare(
+    "INSERT INTO edges (repo_id, from_type, from_id, to_type, to_id, kind, weight, confidence) VALUES (?, 'file', ?, 'file', ?, 'covered_by', 0.9, ?)"
+  );
   let count = 0;
   const insert = db.transaction(() => {
     for (const testFile of testFiles) {
@@ -235,7 +276,10 @@ function isTestFile(file: string): boolean {
 }
 
 function bestTestTarget(testFile: string, sourceFiles: string[]): { path: string; confidence: number } | null {
-  const basename = path.posix.basename(testFile).replace(/(_test|\.test|\.spec)\.[^.]+$/, "").replace(/\.[^.]+$/, "");
+  const basename = path.posix
+    .basename(testFile)
+    .replace(/(_test|\.test|\.spec)\.[^.]+$/, "")
+    .replace(/\.[^.]+$/, "");
   const normalized = basename.replace(/^test_/, "");
   const exact = sourceFiles.find((file) => path.posix.basename(file).replace(/\.[^.]+$/, "") === normalized);
   if (exact) {
@@ -258,8 +302,14 @@ function commandForTestFile(testFile: string): string {
   return "";
 }
 
-function insertCommands(db: ProjectDatabase, repoId: number, commands: { name: string; command: string; sourceFile: string; category: string }[]): void {
-  const stmt = db.prepare("INSERT INTO commands (repo_id, name, command, source_file, category) VALUES (?, ?, ?, ?, ?)");
+function insertCommands(
+  db: ProjectDatabase,
+  repoId: number,
+  commands: { name: string; command: string; sourceFile: string; category: string }[]
+): void {
+  const stmt = db.prepare(
+    "INSERT INTO commands (repo_id, name, command, source_file, category) VALUES (?, ?, ?, ?, ?)"
+  );
   const insert = db.transaction(() => {
     for (const command of commands) {
       stmt.run(repoId, command.name, command.command, command.sourceFile, command.category);
@@ -268,8 +318,14 @@ function insertCommands(db: ProjectDatabase, repoId: number, commands: { name: s
   insert();
 }
 
-function insertRules(db: ProjectDatabase, repoId: number, rules: { sourceFile: string; title: string | null; body: string; category: string }[]): void {
-  const stmt = db.prepare("INSERT INTO project_rules (repo_id, source_file, title, body, category) VALUES (?, ?, ?, ?, ?)");
+function insertRules(
+  db: ProjectDatabase,
+  repoId: number,
+  rules: { sourceFile: string; title: string | null; body: string; category: string }[]
+): void {
+  const stmt = db.prepare(
+    "INSERT INTO project_rules (repo_id, source_file, title, body, category) VALUES (?, ?, ?, ?, ?)"
+  );
   const insert = db.transaction(() => {
     for (const rule of rules) {
       stmt.run(repoId, rule.sourceFile, rule.title, rule.body, rule.category);
@@ -278,8 +334,15 @@ function insertRules(db: ProjectDatabase, repoId: number, rules: { sourceFile: s
   insert();
 }
 
-function insertCoChanges(db: ProjectDatabase, repoId: number, fileRows: Map<string, number>, coChanges: { fromPath: string; toPath: string; weight: number }[]): void {
-  const stmt = db.prepare("INSERT INTO edges (repo_id, from_type, from_id, to_type, to_id, kind, weight, confidence) VALUES (?, 'file', ?, 'file', ?, 'co_changes', ?, 0.65)");
+function insertCoChanges(
+  db: ProjectDatabase,
+  repoId: number,
+  fileRows: Map<string, number>,
+  coChanges: { fromPath: string; toPath: string; weight: number }[]
+): void {
+  const stmt = db.prepare(
+    "INSERT INTO edges (repo_id, from_type, from_id, to_type, to_id, kind, weight, confidence) VALUES (?, 'file', ?, 'file', ?, 'co_changes', ?, 0.65)"
+  );
   const insert = db.transaction(() => {
     for (const item of coChanges) {
       const fromId = fileRows.get(item.fromPath);

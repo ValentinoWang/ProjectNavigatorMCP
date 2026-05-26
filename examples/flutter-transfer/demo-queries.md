@@ -110,13 +110,8 @@ Example memory:
 {
   "title": "修复 workspace microplan 页面滚动问题",
   "summary": "Root cause was nested scroll constraint mismatch in the workspace microplan page.",
-  "changed_files": [
-    "frontend/lib/modules/workspace/pages/microplan_page.dart"
-  ],
-  "tests": [
-    "make workspace-microplan-scroll-guard",
-    "make flutter-sliver-contract-guard"
-  ],
+  "changed_files": ["frontend/lib/modules/workspace/pages/microplan_page.dart"],
+  "tests": ["make workspace-microplan-scroll-guard", "make flutter-sliver-contract-guard"],
   "tags": ["flutter", "workspace", "scroll"]
 }
 ```

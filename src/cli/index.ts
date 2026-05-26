@@ -1,7 +1,10 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { Command } from "commander";
 import { prepareTaskContext } from "../capsule/prepareTaskContext.js";
 import { renderCapsule } from "../capsule/renderCapsule.js";
+import { analyzeGuardOutput } from "../guard/analyzeGuardOutput.js";
+import { getWorktreeStatus } from "../git/worktreeStatus.js";
 import { getRepoMap, renderRepoMap } from "../graph/repoMap.js";
 import { startMcpServer } from "../mcp/server.js";
 import { rememberTask, searchProjectMemory } from "../memory/memory.js";
@@ -12,48 +15,137 @@ import { PACKAGE_NAME, PACKAGE_VERSION } from "../shared/packageInfo.js";
 
 const program = new Command();
 
+program.name("pnav").description("Local Repository Intelligence MCP CLI").version(PACKAGE_VERSION);
+
 program
-  .name("pnav")
-  .description("Local Repository Intelligence MCP CLI")
-  .version(PACKAGE_VERSION);
+  .command("doctor")
+  .description("Check local ProjectNavigatorMCP prerequisites")
+  .action(() => {
+    console.log(renderDoctorReport(getDoctorReport()));
+  });
 
-program.command("doctor").description("Check local ProjectNavigatorMCP prerequisites").action(() => {
-  console.log(renderDoctorReport(getDoctorReport()));
-});
+program
+  .command("init")
+  .description("Initialize ProjectNavigatorMCP metadata in a repository")
+  .argument("<repo>", "Target repository path")
+  .action((repo: string) => {
+    console.log(renderInitResult(initProject(repo)));
+  });
 
-program.command("init").description("Initialize ProjectNavigatorMCP metadata in a repository").argument("<repo>", "Target repository path").action((repo: string) => {
-  console.log(renderInitResult(initProject(repo)));
-});
+program
+  .command("scan")
+  .description("Scan a repository into its local .pnav index")
+  .argument("<repo>", "Target repository path")
+  .action((repo: string) => {
+    const result = scanRepo(repo);
+    console.log(JSON.stringify(result, null, 2));
+  });
 
-program.command("scan").description("Scan a repository into its local .pnav index").argument("<repo>", "Target repository path").action((repo: string) => {
-  const result = scanRepo(repo);
-  console.log(JSON.stringify(result, null, 2));
-});
+program
+  .command("map")
+  .description("Print a compact repository map")
+  .argument("<repo>", "Target repository path")
+  .action((repo: string) => {
+    console.log(renderRepoMap(getRepoMap(repo)));
+  });
 
-program.command("map").description("Print a compact repository map").argument("<repo>", "Target repository path").action((repo: string) => {
-  console.log(renderRepoMap(getRepoMap(repo)));
-});
+program
+  .command("capsule")
+  .description("Prepare a task context capsule")
+  .argument("<repo>", "Target repository path")
+  .argument("<task>", "Task description")
+  .option("--source-doc <path>", "Source Markdown document path")
+  .option("--guard-log <file>", "Guard output log file")
+  .option("--guard-command <command>", "Command that produced the guard output")
+  .option("--changed-file <file...>", "Explicit changed file")
+  .action(
+    (
+      repo: string,
+      task: string,
+      options: { sourceDoc?: string; guardLog?: string; guardCommand?: string; changedFile?: string[] }
+    ) => {
+      console.log(
+        renderCapsule(
+          prepareTaskContext(repo, task, {
+            sourceDoc: options.sourceDoc,
+            guardOutput: options.guardLog ? readFileSync(options.guardLog, "utf8") : undefined,
+            guardCommand: options.guardCommand,
+            changedFiles: options.changedFile ?? []
+          })
+        )
+      );
+    }
+  );
 
-program.command("capsule").description("Prepare a task context capsule").argument("<repo>", "Target repository path").argument("<task>", "Task description").action((repo: string, task: string) => {
-  console.log(renderCapsule(prepareTaskContext(repo, task)));
-});
+program
+  .command("memory")
+  .description("Search project memory")
+  .argument("<repo>", "Target repository path")
+  .argument("<query>", "Memory search query")
+  .option("-l, --limit <number>", "Maximum memories", "10")
+  .action((repo: string, query: string, options: { limit: string }) => {
+    console.log(JSON.stringify({ memories: searchProjectMemory(repo, query, Number(options.limit)) }, null, 2));
+  });
 
-program.command("memory").description("Search project memory").argument("<repo>", "Target repository path").argument("<query>", "Memory search query").option("-l, --limit <number>", "Maximum memories", "10").action((repo: string, query: string, options: { limit: string }) => {
-  console.log(JSON.stringify({ memories: searchProjectMemory(repo, query, Number(options.limit)) }, null, 2));
-});
+program
+  .command("remember")
+  .description("Store a project memory")
+  .argument("<repo>", "Target repository path")
+  .requiredOption("--title <title>", "Task title")
+  .requiredOption("--summary <summary>", "Task summary")
+  .option("--file <file...>", "Changed file")
+  .option("--test <test...>", "Validation command")
+  .action((repo: string, options: { title: string; summary: string; file?: string[]; test?: string[] }) => {
+    console.log(
+      JSON.stringify(
+        rememberTask(repo, {
+          title: options.title,
+          summary: options.summary,
+          changedFiles: options.file ?? [],
+          tests: options.test ?? []
+        }),
+        null,
+        2
+      )
+    );
+  });
 
-program.command("remember").description("Store a project memory").argument("<repo>", "Target repository path").requiredOption("--title <title>", "Task title").requiredOption("--summary <summary>", "Task summary").option("--file <file...>", "Changed file").option("--test <test...>", "Validation command").action((repo: string, options: { title: string; summary: string; file?: string[]; test?: string[] }) => {
-  console.log(JSON.stringify(rememberTask(repo, {
-    title: options.title,
-    summary: options.summary,
-    changedFiles: options.file ?? [],
-    tests: options.test ?? []
-  }), null, 2));
-});
+program
+  .command("guard")
+  .description("Analyze guard output and suggest likely fix files")
+  .argument("<repo>", "Target repository path")
+  .requiredOption("--log <file>", "Guard output log file")
+  .option("--command <command>", "Command that produced the output")
+  .option("--source-doc <path>", "Related source document path")
+  .action((repo: string, options: { log: string; command?: string; sourceDoc?: string }) => {
+    const output = readFileSync(options.log, "utf8");
+    console.log(
+      JSON.stringify(
+        analyzeGuardOutput(repo, output, {
+          command: options.command,
+          sourceDoc: options.sourceDoc
+        }),
+        null,
+        2
+      )
+    );
+  });
 
-program.command("mcp").description("Start the MCP server for a repository").argument("<repo>", "Target repository path").action(async (repo: string) => {
-  await startMcpServer(repo);
-});
+program
+  .command("status")
+  .description("Print Git dirty worktree status for a repository")
+  .argument("<repo>", "Target repository path")
+  .action((repo: string) => {
+    console.log(JSON.stringify(getWorktreeStatus(repo), null, 2));
+  });
+
+program
+  .command("mcp")
+  .description("Start the MCP server for a repository")
+  .argument("<repo>", "Target repository path")
+  .action(async (repo: string) => {
+    await startMcpServer(repo);
+  });
 
 try {
   program.parse();

@@ -47,4 +47,3 @@ export function renderInitResult(result: InitResult): string {
     `applied migrations: ${result.appliedMigrations.length === 0 ? "none" : result.appliedMigrations.join(", ")}`
   ].join("\n");
 }
-

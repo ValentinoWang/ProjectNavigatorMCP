@@ -49,7 +49,11 @@ export function relatedTests(repoPath: string, changedFiles: string[], task = ""
       .prepare("SELECT name, command, source_file AS sourceFile, category FROM commands WHERE repo_id = ?")
       .all(repoId) as CommandHit[];
     for (const row of commandRows) {
-      const score = Math.max(scoreText(task, row.name), scoreText(task, row.command), scoreText(changedFiles.join(" "), row.command));
+      const score = Math.max(
+        scoreText(task, row.name),
+        scoreText(task, row.command),
+        scoreText(changedFiles.join(" "), row.command)
+      );
       const guardBoost = /guard|test|analyze|lint/.test(row.category) ? 0.2 : 0;
       const taskBoost = commandTaskBoost(task, row.command, config);
       if (score + guardBoost + taskBoost > 0.15) {
@@ -62,7 +66,9 @@ export function relatedTests(repoPath: string, changedFiles: string[], task = ""
     }
 
     return {
-      commands: Array.from(commands.values()).sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0)).slice(0, 20),
+      commands: Array.from(commands.values())
+        .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
+        .slice(0, 20),
       testFiles: Array.from(tests).sort().slice(0, 30)
     };
   } finally {

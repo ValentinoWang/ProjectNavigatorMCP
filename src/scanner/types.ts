@@ -59,5 +59,6 @@ export interface ScanResult {
   tests: number;
   commands: number;
   rules: number;
+  documents: number;
   coChanges: number;
 }

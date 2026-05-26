@@ -36,8 +36,11 @@ describe("MCP server", () => {
       const tools = await client.listTools();
       const toolNames = tools.tools.map((tool) => tool.name).sort();
       expect(toolNames).toEqual([
+        "analyze_guard_output",
+        "analyze_source_doc",
         "find_related_files",
         "find_symbol",
+        "git_worktree_status",
         "impact_analysis",
         "prepare_task_context",
         "related_tests",
@@ -55,7 +58,13 @@ describe("MCP server", () => {
         ["impact_analysis", { target: "src/main.ts", depth: 2 }],
         ["related_tests", { changedFiles: ["src/main.ts"], task: "add" }],
         ["prepare_task_context", { task: "add auth test", maxFiles: 5, maxSymbols: 5 }],
-        ["remember_task", { title: "Add auth test", summary: "Stored from MCP test", changedFiles: ["src/main.ts"], tags: ["test"] }],
+        ["analyze_source_doc", { source_doc: "AGENTS.md" }],
+        ["analyze_guard_output", { output: "src/main.ts:1 bad", command: "npm test" }],
+        ["git_worktree_status", {}],
+        [
+          "remember_task",
+          { title: "Add auth test", summary: "Stored from MCP test", changedFiles: ["src/main.ts"], tags: ["test"] }
+        ],
         ["search_project_memory", { query: "auth test" }]
       ];
 

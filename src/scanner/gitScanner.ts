@@ -53,4 +53,3 @@ export function scanCoChanges(repoRoot: string, knownFiles: Set<string>, maxComm
       return { fromPath, toPath, weight };
     });
 }
-

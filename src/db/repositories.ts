@@ -25,4 +25,3 @@ export function upsertRepo(db: ProjectDatabase, repoRoot: string): RepoRecord {
   }
   return row as RepoRecord;
 }
-

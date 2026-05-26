@@ -53,11 +53,7 @@ export function getDoctorReport(): DoctorReport {
   return {
     packageName: PACKAGE_NAME,
     packageVersion: PACKAGE_VERSION,
-    checks: [
-      { name: "node", ok: true, detail: process.version },
-      checkGit(),
-      checkSQLite()
-    ]
+    checks: [{ name: "node", ok: true, detail: process.version }, checkGit(), checkSQLite()]
   };
 }
 
@@ -68,4 +64,3 @@ export function renderDoctorReport(report: DoctorReport): string {
   }
   return lines.join("\n");
 }
-
