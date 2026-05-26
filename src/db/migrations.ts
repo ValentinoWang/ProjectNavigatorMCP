@@ -109,6 +109,46 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_document_targets_repo_path ON document_targets(repo_id, target_path);
       CREATE INDEX IF NOT EXISTS idx_document_steps_repo_document ON document_steps(repo_id, document_id, ordinal);
     `
+  },
+  {
+    version: 4,
+    name: "execution_ready_secretary",
+    sql: `
+      CREATE TABLE IF NOT EXISTS guard_rules (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        rule_id TEXT NOT NULL,
+        domain TEXT,
+        severity TEXT NOT NULL DEFAULT 'warning',
+        matcher_json TEXT NOT NULL DEFAULT '{}',
+        canonical_paths_json TEXT NOT NULL DEFAULT '[]',
+        recipe_json TEXT NOT NULL DEFAULT '{}',
+        validation_commands_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(repo_id, rule_id)
+      );
+      CREATE TABLE IF NOT EXISTS task_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        task TEXT,
+        source_doc TEXT,
+        domain TEXT,
+        guard_rules_json TEXT NOT NULL DEFAULT '[]',
+        guard_findings_json TEXT NOT NULL DEFAULT '[]',
+        changed_files_json TEXT NOT NULL DEFAULT '[]',
+        validation_json TEXT NOT NULL DEFAULT '[]',
+        result TEXT,
+        summary TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_guard_rules_repo_rule ON guard_rules(repo_id, rule_id);
+      CREATE INDEX IF NOT EXISTS idx_task_runs_repo_created ON task_runs(repo_id, created_at);
+      ALTER TABLE documents ADD COLUMN parse_mode TEXT NOT NULL DEFAULT 'frontmatter';
+      ALTER TABLE documents ADD COLUMN doc_confidence REAL NOT NULL DEFAULT 1.0;
+      ALTER TABLE documents ADD COLUMN source_warnings_json TEXT NOT NULL DEFAULT '[]';
+    `
   }
 ];
 

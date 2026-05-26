@@ -3,6 +3,7 @@ import { defaultProjectConfig } from "../../config/projectConfig.js";
 import { openDatabase } from "../../db/connection.js";
 import { migrate } from "../../db/migrations.js";
 import { upsertRepo } from "../../db/repositories.js";
+import { seedGuardRules } from "../../guard/ruleRegistry.js";
 import { getProjectPaths } from "../../shared/paths.js";
 
 export interface InitResult {
@@ -26,6 +27,7 @@ export function initProject(repo: string): InitResult {
   try {
     const migration = migrate(db);
     upsertRepo(db, paths.repoRoot);
+    seedGuardRules(paths.repoRoot);
     return {
       repoRoot: paths.repoRoot,
       pnavDir: paths.pnavDir,

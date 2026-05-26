@@ -4,10 +4,12 @@ import { Command } from "commander";
 import { prepareTaskContext } from "../capsule/prepareTaskContext.js";
 import { renderCapsule } from "../capsule/renderCapsule.js";
 import { analyzeGuardOutput } from "../guard/analyzeGuardOutput.js";
+import { explainGuardRule } from "../guard/ruleRegistry.js";
 import { getWorktreeStatus } from "../git/worktreeStatus.js";
 import { getRepoMap, renderRepoMap } from "../graph/repoMap.js";
 import { startMcpServer } from "../mcp/server.js";
 import { rememberTask, searchProjectMemory } from "../memory/memory.js";
+import { recordTaskResult } from "../memory/recordTaskResult.js";
 import { scanRepo } from "../scanner/scanRepo.js";
 import { getDoctorReport, renderDoctorReport } from "./commands/doctor.js";
 import { initProject, renderInitResult } from "./commands/init.js";
@@ -58,11 +60,20 @@ program
   .option("--guard-log <file>", "Guard output log file")
   .option("--guard-command <command>", "Command that produced the guard output")
   .option("--changed-file <file...>", "Explicit changed file")
+  .option("--domain-hint <domain>", "Optional task domain hint")
+  .option("--plan-max-steps <number>", "Maximum execution plan steps", "8")
   .action(
     (
       repo: string,
       task: string,
-      options: { sourceDoc?: string; guardLog?: string; guardCommand?: string; changedFile?: string[] }
+      options: {
+        sourceDoc?: string;
+        guardLog?: string;
+        guardCommand?: string;
+        changedFile?: string[];
+        domainHint?: string;
+        planMaxSteps?: string;
+      }
     ) => {
       console.log(
         renderCapsule(
@@ -70,7 +81,9 @@ program
             sourceDoc: options.sourceDoc,
             guardOutput: options.guardLog ? readFileSync(options.guardLog, "utf8") : undefined,
             guardCommand: options.guardCommand,
-            changedFiles: options.changedFile ?? []
+            changedFiles: options.changedFile ?? [],
+            domainHint: options.domainHint,
+            planMaxSteps: Number(options.planMaxSteps ?? "8")
           })
         )
       );
@@ -86,6 +99,62 @@ program
   .action((repo: string, query: string, options: { limit: string }) => {
     console.log(JSON.stringify({ memories: searchProjectMemory(repo, query, Number(options.limit)) }, null, 2));
   });
+
+program
+  .command("explain-guard")
+  .description("Explain a guard rule and return its repair recipe")
+  .argument("<repo>", "Target repository path")
+  .option("--rule <rule>", "Rule id from guard output")
+  .option("--command <command>", "Command that produced the output")
+  .option("--output <text>", "Guard output text")
+  .action((repo: string, options: { rule?: string; command?: string; output?: string }) => {
+    console.log(JSON.stringify(explainGuardRule(repo, options), null, 2));
+  });
+
+program
+  .command("finish")
+  .description("Record a completed task result in project memory")
+  .argument("<repo>", "Target repository path")
+  .requiredOption("--title <title>", "Task result title")
+  .option("--task <task>", "Original task")
+  .option("--source-doc <path>", "Related source document")
+  .option("--guard-log <file>", "Guard output log file")
+  .option("--guard-command <command>", "Guard command")
+  .option("--validation <command...>", "Validation command")
+  .option("--result <result>", "Task result status")
+  .option("--summary <summary>", "Task result summary")
+  .action(
+    (
+      repo: string,
+      options: {
+        title: string;
+        task?: string;
+        sourceDoc?: string;
+        guardLog?: string;
+        guardCommand?: string;
+        validation?: string[];
+        result?: string;
+        summary?: string;
+      }
+    ) => {
+      console.log(
+        JSON.stringify(
+          recordTaskResult(repo, {
+            title: options.title,
+            task: options.task,
+            sourceDoc: options.sourceDoc,
+            guardLog: options.guardLog,
+            guardCommand: options.guardCommand,
+            validations: options.validation ?? [],
+            result: options.result,
+            summary: options.summary
+          }),
+          null,
+          2
+        )
+      );
+    }
+  );
 
 program
   .command("remember")

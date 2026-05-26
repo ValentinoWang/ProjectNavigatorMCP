@@ -26,6 +26,17 @@ Plan-to-Guard Navigation:
 
 ## v0.3
 
+Execution-Ready Project Secretary:
+
+- Guard Rule Registry with repair recipes, canonical paths, and validation commands.
+- Execution-plan reranking for low-noise 5-8 step handoffs.
+- Domain gates that demote unrelated files and commands without hiding explicit evidence.
+- Worktree boundary output for safe minimal edits in dirty repositories.
+- Source document infer mode for non-frontmatter Markdown plans.
+- Automatic task-result memory through `record_task_result` and `pnav finish`.
+
+## v0.4
+
 Scanner accuracy:
 
 - Richer Dart, TypeScript, JavaScript, and Python symbol extraction.
@@ -33,15 +44,6 @@ Scanner accuracy:
 - FastAPI router prefix support.
 - More import alias resolution.
 - Incremental scanning by file hash.
-
-## v0.4
-
-Agent handoff quality:
-
-- Explicit token budgets.
-- Stronger impact previews inside task capsules.
-- More precise test command ranking.
-- Broader fixture coverage for guarded implementation tasks.
 
 ## v0.5
 

@@ -25,11 +25,12 @@ describe("source document scanner", () => {
   it("indexes frontmatter sync targets and execution steps", () => {
     const repo = copyFixtureRepo();
     const result = scanRepo(repo);
-    expect(result.documents).toBe(1);
+    expect(result.documents).toBeGreaterThanOrEqual(1);
 
     const sourceDoc = loadSourceDoc(repo, "docs/plans/role_visual_system.md").doc;
     expect(sourceDoc?.ownerDomain).toBe("design_system");
     expect(sourceDoc?.authority).toBe("canonical");
+    expect(["frontmatter", "mixed"]).toContain(sourceDoc?.parseMode);
     expect(sourceDoc?.syncTargets).toContain("scripts/quality/check_role_visual_system_guard.py");
     expect(sourceDoc?.syncTargets).toContain("frontend/lib/modules/design_system/theme/experience_theme.dart");
     expect(

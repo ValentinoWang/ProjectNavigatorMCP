@@ -117,3 +117,15 @@ When changing tool names, schema fields, or CLI commands, update all of these to
 
 Do not commit generated databases, caches, `node_modules`, or `.pnav` contents. Keep sample
 outputs small and textual.
+
+## v0.3 Development Rules
+
+For Execution-Ready Project Secretary work:
+
+- Do not introduce Postgres.
+- Do not introduce Tree-sitter or LSP as the v0.3 main path.
+- Do not build a Web UI.
+- Preserve the MCP envelope: `repo`, `generated_at`, `index_status`, `data`, `warnings`.
+- Prefer deterministic rule-based reranking before adding LLM calls.
+- Add or update fixture tests before changing ranking logic.
+- Guard findings, source_doc sync targets, changed_files, and guard recipe canonical paths must outrank generic keyword results.

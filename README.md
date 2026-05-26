@@ -43,9 +43,9 @@ business data.
 Postgres can be introduced later only if the product needs team-shared memory,
 centralized dashboards, permissions, or SaaS-style multi-project management.
 
-## v0.2 Capabilities
+## v0.3 Capabilities
 
-The first public version supports:
+The current release supports:
 
 1. `pnav init <repo>`: create `.pnav/` and SQLite database.
 2. `pnav scan <repo>`: scan repository files, commands, rules, symbols, and relationships.
@@ -59,6 +59,12 @@ The first public version supports:
 10. Source document parsing for Markdown frontmatter `sync_targets`, `depends_on`, and validation commands.
 11. Guard output analysis for `file:line` driven repair paths.
 12. Dirty worktree warnings and edit boundaries for safe minimal edits.
+13. Guard Rule Registry with deterministic repair recipes and canonical paths.
+14. Execution-plan reranking that keeps guarded implementation tasks to the most relevant steps.
+15. Domain gates that demote unrelated files and commands, such as backend noise in frontend design-system tasks.
+16. Worktree boundary output with allowed edit files, pre-existing dirty files, and diff verification commands.
+17. Source document infer mode for useful but non-frontmatter Markdown plans.
+18. `record_task_result` / `pnav finish` for automatic task-result memory.
 
 MVP MCP tools:
 
@@ -73,7 +79,9 @@ MVP MCP tools:
 - `remember_task`
 - `analyze_source_doc`
 - `analyze_guard_output`
+- `explain_guard_rule`
 - `git_worktree_status`
+- `record_task_result`
 
 ## Example Target Repository
 
@@ -105,6 +113,10 @@ Start here:
 - [Output Contract](docs/output-contract.md)
 - [Source Documents](docs/source-docs.md)
 - [Guard Output Analysis](docs/guard-output.md)
+- [Guard Rule Registry](docs/guard-rule-registry.md)
+- [Domain Gating](docs/domain-gating.md)
+- [Worktree Boundary](docs/worktree-boundary.md)
+- [v0.3 Execution Ready Plan](docs/v0.3-execution-ready-plan.md)
 - [Roadmap](docs/roadmap.md)
 - [flutter-transfer Demo Queries](examples/flutter-transfer/demo-queries.md)
 - [Codex MCP Config Example](examples/codex-mcp-config.md)

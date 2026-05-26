@@ -68,8 +68,14 @@ describe("prepareTaskContext", () => {
       "frontend/lib/modules/design_system/theme/experience_theme.dart"
     );
     expect(context.readOrder.slice(0, 3).map((item) => item.path)).not.toContain("docs/noisy/unrelated.md");
+    expect(context.domain?.name).toBe("frontend_design_system");
+    expect(context.guardRecipes[0]?.recipe.steps.length).toBeGreaterThan(0);
+    expect(context.executionPlan.length).toBeLessThanOrEqual(8);
     expect(context.executionPlan.some((item) => item.command?.includes("check_design_system_usage_guard.py"))).toBe(
       true
+    );
+    expect(context.worktreeBoundary.allowedEditFiles).toContain(
+      "frontend/lib/modules/dashboard/athlete_dashboard_home_widgets.dart"
     );
     expect(context.editBoundary.preferredFiles).toContain(
       "frontend/lib/modules/dashboard/athlete_dashboard_home_widgets.dart"

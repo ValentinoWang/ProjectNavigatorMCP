@@ -12,6 +12,9 @@ export interface StoredSourceDoc {
   syncTargets: string[];
   dependsOn: string[];
   validation: string[];
+  parseMode: "frontmatter" | "inferred" | "mixed";
+  docConfidence: number;
+  sourceWarnings: string[];
   targets: Array<{
     kind: string;
     targetPath: string;
@@ -39,7 +42,8 @@ export function loadSourceDoc(
   try {
     const row = project.db
       .prepare(
-        `SELECT id, path, title, owner_domain AS ownerDomain, authority, frontmatter_json AS frontmatterJson
+        `SELECT id, path, title, owner_domain AS ownerDomain, authority, frontmatter_json AS frontmatterJson,
+                parse_mode AS parseMode, doc_confidence AS docConfidence, source_warnings_json AS sourceWarningsJson
          FROM documents WHERE repo_id = ? AND path = ?`
       )
       .get(project.repo.id, normalizedPath) as
@@ -50,6 +54,9 @@ export function loadSourceDoc(
           ownerDomain: string | null;
           authority: string | null;
           frontmatterJson: string;
+          parseMode: "frontmatter" | "inferred" | "mixed";
+          docConfidence: number;
+          sourceWarningsJson: string;
         }
       | undefined;
     if (row) {
@@ -74,6 +81,9 @@ export function loadSourceDoc(
           syncTargets: asArray(frontmatter.sync_targets),
           dependsOn: asArray(frontmatter.depends_on),
           validation: asArray(frontmatter.validation),
+          parseMode: row.parseMode,
+          docConfidence: row.docConfidence,
+          sourceWarnings: asArray(JSON.parse(row.sourceWarningsJson) as string[]),
           targets,
           steps
         }
@@ -103,6 +113,9 @@ function fromAnalysis(doc: SourceDocumentAnalysis): StoredSourceDoc {
     syncTargets: doc.frontmatter.syncTargets,
     dependsOn: doc.frontmatter.dependsOn,
     validation: doc.frontmatter.validation,
+    parseMode: doc.parseMode,
+    docConfidence: doc.docConfidence,
+    sourceWarnings: doc.warnings,
     targets: doc.targets.map((target) => ({
       kind: target.kind,
       targetPath: target.targetPath,

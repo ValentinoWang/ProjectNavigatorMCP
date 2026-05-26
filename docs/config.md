@@ -28,7 +28,20 @@ ProjectNavigatorMCP reads optional project-local configuration from:
     { "pattern": "src/**", "boost": 0.14 },
     { "pattern": "lib/**", "boost": 0.14 },
     { "pattern": "test/**", "boost": 0.08 }
-  ]
+  ],
+  "domainGates": [
+    {
+      "name": "frontend_design_system",
+      "keywords": ["design system", "视觉", "token", "breakpoint", "Flutter"],
+      "positivePaths": ["frontend/lib/**", "frontend/test/**", "scripts/quality/**"],
+      "negativePaths": ["backend/**", "database/**", "infra/**"],
+      "positiveCommands": ["*design_system*", "*role_visual*"],
+      "negativeCommands": ["*maestro*", "*patrol*", "*screenshot*"],
+      "suppressGenericMarkdown": true,
+      "allowNegativeWhenExplicit": true
+    }
+  ],
+  "pathRoots": ["frontend", "backend", "scripts", "src", "docs", "tests"]
 }
 ```
 
@@ -42,5 +55,7 @@ Both camelCase and snake_case are accepted for `maxFileBytes` / `max_file_bytes`
 - `respect_gitignore`: whether common `.gitignore` rules should be applied.
 - `domains`: task-specific relevance hints. This replaces hardcoded business rules.
 - `source_path_boosts`: path-level boosts used by related file and test recommendation.
+- `domainGates`: v0.3 positive/negative path and command gates for reducing task noise.
+- `pathRoots`: repo-relative roots recognized when parsing source documents and guard output.
 
 Configuration is advisory. It improves ranking and file selection; it does not change target project code.

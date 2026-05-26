@@ -7,6 +7,9 @@ export interface SourceDocumentAnalysis {
   ownerDomain?: string;
   authority?: string;
   frontmatter: SourceDocFrontmatter;
+  parseMode: "frontmatter" | "inferred" | "mixed";
+  docConfidence: number;
+  warnings: string[];
   targets: SourceDocumentTarget[];
   steps: SourceDocumentStep[];
   summary: string | null;
@@ -33,16 +36,68 @@ export interface SourceDocumentStep {
 export function analyzeSourceDocument(filePath: string, content: string): SourceDocumentAnalysis {
   const parsed = parseMarkdownDocument(content);
   const steps = extractSteps(parsed.body, parsed.frontmatter.validation);
+  const frontmatterTargets = buildTargets(filePath, parsed.frontmatter);
+  const inferredTargets = inferTargets(filePath, parsed.body);
+  const hasFrontmatterSignals =
+    parsed.frontmatter.syncTargets.length > 0 ||
+    parsed.frontmatter.dependsOn.length > 0 ||
+    parsed.frontmatter.validation.length > 0;
+  const hasInferredSignals = inferredTargets.length > 0;
+  const parseMode =
+    hasFrontmatterSignals && hasInferredSignals ? "mixed" : hasFrontmatterSignals ? "frontmatter" : "inferred";
+  const warnings =
+    parseMode === "inferred"
+      ? ["source_doc has no structured frontmatter; paths and commands were inferred from Markdown body."]
+      : [];
   return {
     path: normalizeRepoPath(filePath),
     title: parsed.title,
     ownerDomain: parsed.frontmatter.ownerDomain,
     authority: parsed.frontmatter.authority,
     frontmatter: parsed.frontmatter,
-    targets: buildTargets(filePath, parsed.frontmatter),
+    parseMode,
+    docConfidence: parseMode === "frontmatter" ? 1 : parseMode === "mixed" ? 0.85 : 0.55,
+    warnings,
+    targets: dedupeTargets([...frontmatterTargets, ...inferredTargets]),
     steps,
     summary: firstParagraph(parsed.body)
   };
+}
+
+function inferTargets(docPath: string, body: string): SourceDocumentTarget[] {
+  const targets: SourceDocumentTarget[] = [];
+  let currentHeading = "";
+  for (const rawLine of body.replace(/\r\n/g, "\n").split("\n")) {
+    const line = rawLine.trim();
+    const heading = line.match(/^#{2,4}\s+(.+)$/);
+    if (heading) {
+      currentHeading = heading[1].trim();
+      continue;
+    }
+    const context = `${currentHeading} ${line}`.toLowerCase();
+    const path = extractPathFromText(line);
+    if (!path) {
+      continue;
+    }
+    if (/sync|同步|must update|必须同步|目标文件|target/.test(context)) {
+      targets.push({
+        kind: "sync_target",
+        targetPath: resolveDocumentPath(docPath, path),
+        confidence: 0.62,
+        rawValue: line
+      });
+    } else if (/validation|validate|验收|guard|校验|命令/.test(context)) {
+      targets.push({ kind: "validation_target", targetPath: path, confidence: 0.55, rawValue: line });
+    } else if (/depends|依赖|相关/.test(context)) {
+      targets.push({
+        kind: "depends_on",
+        targetPath: resolveDocumentPath(docPath, path),
+        confidence: 0.5,
+        rawValue: line
+      });
+    }
+  }
+  return targets;
 }
 
 function buildTargets(docPath: string, frontmatter: SourceDocFrontmatter): SourceDocumentTarget[] {

@@ -6,6 +6,7 @@ export function renderCapsule(context: TaskContext): string {
     "",
     `Task: ${context.task}`,
     `Interpretation: ${context.interpretation}`,
+    `Domain: ${context.domain ? `${context.domain.name} (${context.domain.confidence.toFixed(2)})` : "unknown"}`,
     "",
     "## Source Document",
     ...(context.sourceDoc
@@ -25,6 +26,14 @@ export function renderCapsule(context: TaskContext): string {
       )
     ),
     "",
+    "## Guard Recipes",
+    ...emptyAware(
+      context.guardRecipes.map(
+        (recipe) =>
+          `- ${recipe.ruleId} [${recipe.domain}] ${recipe.recipe.title}; validate: ${recipe.validationCommands.join(", ")}`
+      )
+    ),
+    "",
     "## Read Order",
     ...emptyAware(
       context.readOrder.map(
@@ -35,13 +44,19 @@ export function renderCapsule(context: TaskContext): string {
     "## Execution Plan",
     ...emptyAware(
       context.executionPlan.map(
-        (item) => `- ${item.order}. ${item.title}${item.command ? ` — \`${item.command}\`` : ""} (${item.why})`
+        (item) =>
+          `- ${item.order}. ${item.title}${item.command ? ` — \`${item.command}\`` : ""} (${item.score.toFixed(2)}; ${item.why})`
       )
     ),
     "",
     "## Edit Boundary",
     ...emptyAware(context.editBoundary.preferredFiles.map((file) => `- preferred: ${file}`)),
     ...context.editBoundary.doNotTouchWithoutReason.slice(0, 10).map((file) => `- pre-existing dirty context: ${file}`),
+    "",
+    "## Worktree Boundary",
+    ...emptyAware(context.worktreeBoundary.allowedEditFiles.map((file) => `- allowed: ${file}`)),
+    ...context.worktreeBoundary.riskyDirtyFiles.slice(0, 10).map((file) => `- risky pre-existing: ${file}`),
+    ...context.worktreeBoundary.verifyDiffCommands.map((command) => `- verify: \`${command}\``),
     "",
     "## Likely Files",
     ...emptyAware(context.likelyFiles.map((file) => `- ${file.path} (${file.score.toFixed(2)}) - ${file.reason}`)),
@@ -91,7 +106,8 @@ function emptyAware(lines: string[]): string[] {
 
 function normalizedSyncTargets(context: TaskContext): string[] {
   return (
-    context.sourceDoc?.targets.filter((target) => target.kind === "sync_target").map((target) => target.targetPath) ??
-    []
+    context.sourceDoc?.targets
+      .filter((target) => target.kind === "sync_target" && target.confidence >= 0.9)
+      .map((target) => target.targetPath) ?? []
   );
 }

@@ -14,6 +14,17 @@ export interface SourcePathBoost {
   boost: number;
 }
 
+export interface DomainGateConfig {
+  name: string;
+  keywords: string[];
+  positivePaths: string[];
+  negativePaths: string[];
+  positiveCommands: string[];
+  negativeCommands: string[];
+  suppressGenericMarkdown: boolean;
+  allowNegativeWhenExplicit: boolean;
+}
+
 export interface ProjectConfig {
   version: number;
   repoRoot: string;
@@ -23,6 +34,8 @@ export interface ProjectConfig {
   respectGitignore: boolean;
   domains: DomainConfig[];
   sourcePathBoosts: SourcePathBoost[];
+  domainGates: DomainGateConfig[];
+  pathRoots: string[];
 }
 
 export function defaultProjectConfig(repoRoot: string): ProjectConfig {
@@ -91,6 +104,43 @@ export function defaultProjectConfig(repoRoot: string): ProjectConfig {
       { pattern: "tests/**", boost: 0.08 },
       { pattern: "frontend/test/**", boost: 0.08 },
       { pattern: "backend/tests/**", boost: 0.08 }
+    ],
+    domainGates: [
+      {
+        name: "frontend_design_system",
+        keywords: [
+          "design system",
+          "visual",
+          "token",
+          "breakpoint",
+          "guard",
+          "flutter",
+          "dart",
+          "视觉",
+          "角色视觉",
+          "设计系统",
+          "断点"
+        ],
+        positivePaths: ["frontend/lib/**", "frontend/test/**", "scripts/quality/**", "develop/前端/**"],
+        negativePaths: ["backend/**", "database/**", "infra/**", "shared/api/**"],
+        positiveCommands: ["*design_system*", "*design-system*", "*role_visual*", "*role-visual*", "*flutter analyze*"],
+        negativeCommands: ["*maestro*", "*patrol*", "*screenshot*", "*backend*", "*mobile_visual*"],
+        suppressGenericMarkdown: true,
+        allowNegativeWhenExplicit: true
+      }
+    ],
+    pathRoots: [
+      "frontend",
+      "backend",
+      "scripts",
+      "src",
+      "docs",
+      "develop",
+      "tests",
+      "test",
+      "shared",
+      "database",
+      ".github"
     ]
   };
 }
@@ -119,7 +169,10 @@ export function loadProjectConfig(repoPath: string): ProjectConfig {
     sourcePathBoosts:
       parsed.sourcePathBoosts ??
       (parsed as { source_path_boosts?: SourcePathBoost[] }).source_path_boosts ??
-      defaults.sourcePathBoosts
+      defaults.sourcePathBoosts,
+    domainGates:
+      parsed.domainGates ?? (parsed as { domain_gates?: DomainGateConfig[] }).domain_gates ?? defaults.domainGates,
+    pathRoots: parsed.pathRoots ?? (parsed as { path_roots?: string[] }).path_roots ?? defaults.pathRoots
   };
 }
 

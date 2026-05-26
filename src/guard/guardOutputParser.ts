@@ -5,6 +5,8 @@ export interface GuardFinding {
   line: number | null;
   column: number | null;
   rule: string | null;
+  ruleId?: string | null;
+  domain?: string | null;
   message: string;
   confidence: number;
 }
@@ -54,13 +56,16 @@ function parseLine(line: string, rule: string | null): GuardFinding | null {
 }
 
 function inferRule(command: string | undefined, output: string): string | null {
+  const bracketed = output.match(/\[([A-Za-z0-9_-]+)\]/)?.[1];
+  if (bracketed) {
+    return bracketed;
+  }
   const source = `${command ?? ""}\n${output}`;
   const script = source.match(/(?:check|run)_([A-Za-z0-9_ -]+?)(?:\.py|\.sh|\s|$)/)?.[1];
   if (script) {
     return script.replace(/-/g, "_");
   }
-  const bracketed = output.match(/\[([A-Za-z0-9_-]+)\]/)?.[1];
-  return bracketed ?? null;
+  return null;
 }
 
 function cleanupMessage(line: string): string {

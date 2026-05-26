@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.3.0
+
+Execution-Ready Project Secretary release.
+
+- Added Guard Rule Registry, default frontend design-system rules, and `explain_guard_rule`.
+- Added guard repair recipes with canonical paths, validation commands, and suggested actions.
+- Added task-domain inference and domain gates that demote unrelated files and commands.
+- Added execution-plan reranking with default 5-8 step task handoff.
+- Added worktree boundary output with allowed edit files, risky pre-existing files, and diff verification commands.
+- Added source document infer mode for Markdown plans without structured frontmatter.
+- Added `record_task_result` MCP tool and `pnav finish` for task-result memory.
+- Added SQLite v4 migration for `guard_rules`, `task_runs`, and source document confidence metadata.
+- Added tests for guard rules, domain gates, source document inference, and task-result memory.
+
 ## v0.2.0
 
 Plan-to-Guard Navigation release.

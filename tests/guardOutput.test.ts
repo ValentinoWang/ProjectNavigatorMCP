@@ -45,6 +45,8 @@ describe("analyzeGuardOutput", () => {
     expect(result.likelyFixFiles.map((file) => file.path)).toContain(
       "frontend/lib/modules/design_system/theme/experience_theme.dart"
     );
+    expect(result.ruleMatches[0]?.ruleId).toBe("ROLE-VISUAL-SYSTEM");
+    expect(result.ruleMatches[0]?.recipe.steps.length).toBeGreaterThan(0);
     expect(result.validationCommands).toContain("python scripts/quality/check_role_visual_system_guard.py");
   });
 });

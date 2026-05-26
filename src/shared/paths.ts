@@ -9,6 +9,7 @@ export interface ProjectPaths {
   pnavDir: string;
   cacheDir: string;
   configPath: string;
+  guardRulesPath: string;
   dbPath: string;
 }
 
@@ -31,6 +32,7 @@ export function getProjectPaths(repo: string): ProjectPaths {
     pnavDir,
     cacheDir: path.join(pnavDir, "cache"),
     configPath: path.join(pnavDir, "config.json"),
+    guardRulesPath: path.join(pnavDir, "guard-rules.json"),
     dbPath: path.join(pnavDir, PROJECT_DB_NAME)
   };
 }

@@ -43,9 +43,19 @@ When a source document is passed to `prepare_task_context`, deterministic signal
 
 Generic Markdown files and `agents-results` logs are demoted unless explicitly passed as `source_doc`.
 
+## Parse Modes
+
+v0.3 supports three parse modes:
+
+- `frontmatter`: structured frontmatter provides the main targets and validation commands.
+- `mixed`: frontmatter exists, and additional paths or commands were inferred from the body.
+- `inferred`: no structured frontmatter was found; targets and commands were inferred from headings, checklists, paths, and fenced shell blocks.
+
+Inferred documents receive lower `docConfidence` and `sourceWarnings` so agents know to treat them as helpful hints rather than canonical instructions.
+
 ## Scan Behavior
 
-`pnav scan <repo>` indexes Markdown files that contain frontmatter and at least one target or execution step. Indexed data is stored in:
+`pnav scan <repo>` indexes Markdown files that contain source-document signals and at least one target or execution step. Indexed data is stored in:
 
 - `documents`
 - `document_targets`

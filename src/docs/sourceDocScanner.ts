@@ -8,7 +8,10 @@ export function scanSourceDocuments(repoRoot: string, files: ScannedFile[]): Sou
     .filter((file) => isMarkdown(file.path))
     .map((file) => {
       const content = readRepoTextFile(repoRoot, file.path, 600_000);
-      if (!content || !content.startsWith("---")) {
+      if (!content) {
+        return null;
+      }
+      if (!content.startsWith("---") && !looksLikeSourceDocument(content)) {
         return null;
       }
       const analysis = analyzeSourceDocument(file.path, content);
@@ -28,8 +31,8 @@ export function insertSourceDocuments(
 ): void {
   const insertDocument = db.prepare(
     `INSERT INTO documents
-      (repo_id, path, doc_type, title, owner_domain, authority, frontmatter_json, summary, updated_at)
-     VALUES (?, ?, 'markdown', ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
+      (repo_id, path, doc_type, title, owner_domain, authority, frontmatter_json, summary, parse_mode, doc_confidence, source_warnings_json, updated_at)
+     VALUES (?, ?, 'markdown', ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
   );
   const insertTarget = db.prepare(
     `INSERT INTO document_targets
@@ -51,7 +54,10 @@ export function insertSourceDocuments(
         doc.ownerDomain ?? null,
         doc.authority ?? null,
         JSON.stringify(doc.frontmatter.raw),
-        doc.summary
+        doc.summary,
+        doc.parseMode,
+        doc.docConfidence,
+        JSON.stringify(doc.warnings)
       );
       const documentId = Number(result.lastInsertRowid);
       for (const target of doc.targets) {
@@ -86,4 +92,10 @@ export function insertSourceDocuments(
 
 function isMarkdown(filePath: string): boolean {
   return /\.(md|markdown)$/i.test(filePath);
+}
+
+function looksLikeSourceDocument(content: string): boolean {
+  return /(^|\n)\s*(#+\s*)?(必须同步|相关文件|验证命令|验收命令|Validation|Related Files|Sync Targets|Implementation Plan|Migration Plan)\b/i.test(
+    content
+  );
 }

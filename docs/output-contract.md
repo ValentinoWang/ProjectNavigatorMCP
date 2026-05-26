@@ -32,7 +32,7 @@ The current TypeScript service layer uses camelCase fields. MCP output preserves
 
 ## Stability
 
-For v0.1 and v0.2, these fields should be considered stable:
+For v0.1 through v0.3, these fields should be considered stable:
 
 - `repo`
 - `generated_at`
@@ -58,3 +58,15 @@ Tool-specific result shapes may still evolve before v1.0, but changes should be 
 - `warnings`: task-level warnings.
 
 Dirty worktree data is intentionally not part of `index_status`. It describes the Git working tree, not the stored repository index.
+
+## v0.3 Task Context Fields
+
+`prepare_task_context.data` may also include these execution-ready fields:
+
+- `domain`: inferred or hinted task domain.
+- `guardRecipes`: matched guard rule recipes, canonical paths, and validation commands.
+- `executionPlan[].score`: reranked execution relevance.
+- `executionPlan[].penalties`: reasons a step was penalized.
+- `worktreeBoundary`: allowed edit files, risky pre-existing dirty files, and diff verification commands.
+- `debug.demotedFiles`: files demoted by domain gates.
+- `debug.droppedCommands`: commands dropped or penalized by the execution-plan reranker.

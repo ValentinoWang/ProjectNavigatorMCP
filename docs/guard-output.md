@@ -1,4 +1,4 @@
-# Guard Output Analysis
+# Guard Output Analysis and Guard Rule Registry
 
 `analyze_guard_output` converts guard, compiler, test, and linter logs into deterministic navigation signals.
 
@@ -28,10 +28,13 @@ It also accepts custom guard output when the line contains a repo-relative path 
 The MCP tool and CLI output include:
 
 - `findings`: parsed file, line, column, rule, message, and confidence.
+- `ruleMatches`: matched guard rule recipes from the registry.
 - `likelyFixFiles`: ranked files, with direct guard findings first.
 - `suggestedActions`: deterministic next steps.
 - `validationCommands`: the producing command plus source document validation commands.
 - `warnings`: non-fatal parsing or source document issues.
+
+When a rule matches the registry, the output also includes `ruleId`, `domain`, canonical paths, recipe steps, and validation commands. See [Guard Rule Registry](guard-rule-registry.md).
 
 ## CLI
 

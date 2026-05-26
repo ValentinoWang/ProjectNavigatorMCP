@@ -11,7 +11,9 @@ import { getRepoMap } from "../graph/repoMap.js";
 import { findSymbol } from "../graph/symbolSearch.js";
 import { traceRoute } from "../graph/traceRoute.js";
 import { analyzeGuardOutput } from "../guard/analyzeGuardOutput.js";
+import { explainGuardRule } from "../guard/ruleRegistry.js";
 import { rememberTask, searchProjectMemory } from "../memory/memory.js";
+import { recordTaskResult } from "../memory/recordTaskResult.js";
 import { PACKAGE_VERSION } from "../shared/packageInfo.js";
 import { toolResponse } from "./response.js";
 
@@ -122,7 +124,13 @@ export function createMcpServer(repoPath: string): McpServer {
         includeRules: z.boolean().optional(),
         include_rules: z.boolean().optional(),
         include_dirty_status: z.boolean().optional(),
-        includeDirtyStatus: z.boolean().optional()
+        includeDirtyStatus: z.boolean().optional(),
+        domain_hint: z.string().optional(),
+        domainHint: z.string().optional(),
+        plan_max_steps: z.number().int().positive().max(20).optional(),
+        planMaxSteps: z.number().int().positive().max(20).optional(),
+        include_debug: z.boolean().optional(),
+        includeDebug: z.boolean().optional()
       }
     },
     async (input) =>
@@ -138,7 +146,10 @@ export function createMcpServer(repoPath: string): McpServer {
             maxSymbols: input.maxSymbols ?? input.max_symbols,
             includeMemory: input.includeMemory ?? input.include_memory,
             includeRules: input.includeRules ?? input.include_rules,
-            includeDirtyStatus: input.includeDirtyStatus ?? input.include_dirty_status
+            includeDirtyStatus: input.includeDirtyStatus ?? input.include_dirty_status,
+            domainHint: input.domainHint ?? input.domain_hint,
+            planMaxSteps: input.planMaxSteps ?? input.plan_max_steps,
+            includeDebug: input.includeDebug ?? input.include_debug
           })
         )
       )
@@ -181,6 +192,19 @@ export function createMcpServer(repoPath: string): McpServer {
   );
 
   server.registerTool(
+    "explain_guard_rule",
+    {
+      description: "Explain a guard rule and return its canonical paths, validation commands, and repair recipe.",
+      inputSchema: {
+        rule: z.string().optional(),
+        command: z.string().optional(),
+        output: z.string().optional()
+      }
+    },
+    async (input) => textJson(toolResponse(repoPath, explainGuardRule(repoPath, input)))
+  );
+
+  server.registerTool(
     "git_worktree_status",
     {
       description: "Return dirty worktree status and warnings for safe minimal edits.",
@@ -218,6 +242,43 @@ export function createMcpServer(repoPath: string): McpServer {
       }
     },
     async (input) => textJson(toolResponse(repoPath, rememberTask(repoPath, input)))
+  );
+
+  server.registerTool(
+    "record_task_result",
+    {
+      description: "Record a completed guarded task result into project memory and task_runs.",
+      inputSchema: {
+        title: z.string(),
+        task: z.string().optional(),
+        source_doc: z.string().optional(),
+        sourceDoc: z.string().optional(),
+        guard_output: z.string().optional(),
+        guardOutput: z.string().optional(),
+        guard_command: z.string().optional(),
+        guardCommand: z.string().optional(),
+        validations: z.array(z.string()).optional(),
+        validation: z.array(z.string()).optional(),
+        result: z.string().optional(),
+        summary: z.string().optional()
+      }
+    },
+    async (input) =>
+      textJson(
+        toolResponse(
+          repoPath,
+          recordTaskResult(repoPath, {
+            title: input.title,
+            task: input.task,
+            sourceDoc: input.sourceDoc ?? input.source_doc,
+            guardOutput: input.guardOutput ?? input.guard_output,
+            guardCommand: input.guardCommand ?? input.guard_command,
+            validations: input.validations ?? input.validation ?? [],
+            result: input.result,
+            summary: input.summary
+          })
+        )
+      )
   );
 
   return server;

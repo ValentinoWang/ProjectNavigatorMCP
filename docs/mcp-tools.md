@@ -45,15 +45,16 @@ Scores are relevance values. Confidence describes relationship reliability.
 
 ## Deterministic Ranking
 
-v0.2 uses deterministic navigation signals before broad keyword matching:
+v0.3 uses deterministic navigation signals before broad keyword matching:
 
 1. Guard output `file:line`.
-2. `source_doc` frontmatter `sync_targets`.
-3. `source_doc` validation command targets.
-4. `source_doc` `depends_on`.
-5. Project config domain paths.
-6. Symbol and path token matches.
-7. Generic Markdown matches.
+2. Guard Rule Registry canonical paths and repair recipes.
+3. `source_doc` frontmatter `sync_targets`.
+4. `source_doc` validation command targets.
+5. `source_doc` `depends_on`.
+6. Domain gates for positive/negative paths and commands.
+7. Symbol and path token matches.
+8. Generic Markdown matches.
 
 ## Tools
 
@@ -228,7 +229,10 @@ Input:
   "maxSymbols": 12,
   "includeMemory": true,
   "includeRules": true,
-  "include_dirty_status": true
+  "include_dirty_status": true,
+  "domain_hint": "frontend_design_system",
+  "plan_max_steps": 8,
+  "include_debug": true
 }
 ```
 
@@ -237,22 +241,40 @@ Data shape:
 ```json
 {
   "task": "修复 microplan 页面滚动问题",
+  "domain": { "name": "frontend_design_system", "confidence": 0.93, "evidence": [] },
   "sourceDoc": {
     "path": "develop/前端/角色视觉设计系统一致性治理完整方案.md",
     "ownerDomain": "frontend_visual_system",
     "authority": "design_governance",
     "syncTargets": ["scripts/quality/check_role_visual_system_guard.py"]
   },
-  "guardFindings": [{ "file": "frontend/lib/page.dart", "line": 9, "message": "Raw breakpoint is not allowed." }],
+  "guardFindings": [
+    {
+      "file": "frontend/lib/page.dart",
+      "line": 9,
+      "ruleId": "DS-BREAKPOINT",
+      "domain": "frontend_design_system",
+      "message": "Raw breakpoint is not allowed."
+    }
+  ],
+  "guardRecipes": [{ "ruleId": "DS-BREAKPOINT", "canonicalPaths": [], "validationCommands": [] }],
   "readOrder": [{ "path": "frontend/lib/page.dart", "why": "Guard failure location", "score": 1 }],
   "executionPlan": [
     {
       "order": 1,
       "title": "Fix frontend/lib/page.dart:9",
-      "command": "bash scripts/quality/run_frontend_design_system_usage_guard.sh --mode ci"
+      "command": "bash scripts/quality/run_frontend_design_system_usage_guard.sh --mode ci",
+      "score": 1,
+      "penalties": []
     }
   ],
   "editBoundary": { "preferredFiles": ["frontend/lib/page.dart"], "doNotTouchWithoutReason": [] },
+  "worktreeBoundary": {
+    "allowedEditFiles": ["frontend/lib/page.dart"],
+    "preExistingDirtyFiles": [],
+    "riskyDirtyFiles": [],
+    "verifyDiffCommands": ["git diff -- frontend/lib/page.dart", "git status --short"]
+  },
   "dirtyWorktree": { "dirty": true, "summary": { "modifiedCount": 42, "stagedCount": 0, "untrackedCount": 3 } },
   "relatedFiles": [],
   "symbols": [],
@@ -260,6 +282,7 @@ Data shape:
   "relatedTests": { "commands": [], "testFiles": [] },
   "projectRules": [],
   "memoryHits": [],
+  "debug": { "demotedFiles": [], "droppedCommands": [] },
   "nextSteps": []
 }
 ```
@@ -334,6 +357,31 @@ Data shape:
 }
 ```
 
+### `explain_guard_rule`
+
+Input:
+
+```json
+{
+  "rule": "DS-BREAKPOINT",
+  "command": "bash scripts/quality/run_frontend_design_system_usage_guard.sh --mode ci",
+  "output": "frontend/lib/page.dart:9 [DS-BREAKPOINT] raw width"
+}
+```
+
+Data shape:
+
+```json
+{
+  "ruleId": "DS-BREAKPOINT",
+  "domain": "frontend_design_system",
+  "canonicalPaths": ["frontend/lib/modules/design_system/theme/experience_theme.dart"],
+  "recipe": { "title": "Replace raw breakpoint or magic width with design-system breakpoint token" },
+  "validationCommands": ["python scripts/quality/check_role_visual_system_guard.py"],
+  "confidence": 0.91
+}
+```
+
 ### `search_project_memory`
 
 Input:
@@ -377,6 +425,34 @@ Input:
   "decisions": ["Keep refresh handling inside identity controller."],
   "pitfalls": ["Do not skip role-specific workspace checks."],
   "validation": ["flutter test passed"]
+}
+```
+
+### `record_task_result`
+
+Input:
+
+```json
+{
+  "title": "Fix DS breakpoint",
+  "task": "角色视觉设计系统一致性治理",
+  "guard_output": "frontend/lib/page.dart:9 [DS-BREAKPOINT] raw width",
+  "guard_command": "bash scripts/quality/run_frontend_design_system_usage_guard.sh --mode ci",
+  "validation": ["make frontend-design-system-usage-guard"],
+  "result": "passed"
+}
+```
+
+Data shape:
+
+```json
+{
+  "stored": true,
+  "memoryId": 1,
+  "taskRunId": 1,
+  "changedFiles": ["frontend/lib/page.dart"],
+  "guardRules": ["DS-BREAKPOINT"],
+  "validation": ["make frontend-design-system-usage-guard"]
 }
 ```
 

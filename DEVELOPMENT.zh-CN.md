@@ -761,6 +761,18 @@ flutter responsive width rules
 
 ## 12. 开发里程碑
 
+### v0.3 Milestones：Execution-Ready Project Secretary
+
+v0.3 的主线不是 scanner accuracy，而是执行型项目秘书：
+
+1. Guard Rule Registry：把 Guard 失败映射到 rule id、domain、canonical paths、repair recipe 和 validation commands。
+2. Task Domain + Domain Gate：前端设计系统任务压低 backend/database/infra 和无关命令，但不隐藏显式证据。
+3. Execution Plan Reranker：把方案文档和 Guard 命令压缩成默认 5-8 步。
+4. Worktree Boundary：输出 allowedEditFiles、preExistingDirtyFiles、riskyDirtyFiles 和 verifyDiffCommands。
+5. Source Doc Infer Mode：无 frontmatter 文档也能提取路径和命令，但降低 confidence 并输出 warning。
+6. record_task_result / pnav finish：任务完成后自动沉淀 guard、diff、验证命令和结果记忆。
+7. Real flutter-transfer Regression：用角色视觉设计系统一致性治理方案验证低噪声执行路径。
+
 ### Milestone 1：文档和项目骨架
 
 交付：

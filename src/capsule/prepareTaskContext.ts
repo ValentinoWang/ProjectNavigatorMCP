@@ -1,4 +1,5 @@
 import { loadSourceDoc, type StoredSourceDoc } from "../docs/sourceDocQuery.js";
+import { buildWorktreeBoundary, type WorktreeBoundary } from "../git/worktreeBoundary.js";
 import { getWorktreeStatus, type WorktreeStatus } from "../git/worktreeStatus.js";
 import { analyzeGuardOutput, type GuardOutputAnalysis } from "../guard/analyzeGuardOutput.js";
 import { openProject } from "../db/project.js";
@@ -7,6 +8,10 @@ import { relatedTests } from "../graph/relatedTests.js";
 import { traceRoute } from "../graph/traceRoute.js";
 import { findSymbol } from "../graph/symbolSearch.js";
 import { searchProjectMemory } from "../memory/memory.js";
+import { applyDomainGate } from "../planner/domainGate.js";
+import { rerankExecutionPlan } from "../planner/executionPlanReranker.js";
+import { inferTaskDomain } from "../planner/taskDomain.js";
+import type { DomainDecision, PlannerDebug, RankedExecutionStep } from "../planner/types.js";
 import type { CommandHit, FileHit, RouteHit, RuleHit, SymbolHit } from "../graph/types.js";
 
 export interface ReadOrderItem {
@@ -34,11 +39,14 @@ export interface EditBoundary {
 export interface TaskContext {
   task: string;
   interpretation: string;
+  domain: DomainDecision | null;
   sourceDoc: StoredSourceDoc | null;
   guardFindings: GuardOutputAnalysis["findings"];
+  guardRecipes: GuardOutputAnalysis["ruleMatches"];
   readOrder: ReadOrderItem[];
-  executionPlan: ExecutionPlanItem[];
+  executionPlan: RankedExecutionStep[];
   editBoundary: EditBoundary;
+  worktreeBoundary: WorktreeBoundary;
   dirtyWorktree: WorktreeStatus | null;
   likelyFiles: FileHit[];
   relatedFiles: FileHit[];
@@ -52,6 +60,7 @@ export interface TaskContext {
   };
   projectRules: RuleHit[];
   memoryHits: ReturnType<typeof searchProjectMemory>;
+  debug: PlannerDebug | null;
   warnings: string[];
   nextSteps: string[];
 }
@@ -66,6 +75,9 @@ export interface TaskContextOptions {
   includeMemory?: boolean;
   includeRules?: boolean;
   includeDirtyStatus?: boolean;
+  domainHint?: string;
+  planMaxSteps?: number;
+  includeDebug?: boolean;
 }
 
 export function prepareTaskContext(repoPath: string, task: string, options: TaskContextOptions = {}): TaskContext {
@@ -81,13 +93,24 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
   warnings.push(...(guardAnalysis?.warnings ?? []));
 
   const related = findRelatedFiles(repoPath, task, Math.max(options.maxFiles ?? 20, 40)).files;
-  const readOrder = buildReadOrder({
+  const rawReadOrder = buildReadOrder({
     sourceDoc,
     guardAnalysis,
     changedFiles: options.changedFiles ?? [],
     relatedFiles: related,
     sourceDocPath: options.sourceDoc
-  }).slice(0, options.maxFiles ?? 20);
+  });
+  const domain = inferTaskDomain({
+    repoPath,
+    task,
+    domainHint: options.domainHint,
+    sourceDoc,
+    guardAnalysis,
+    changedFiles: options.changedFiles ?? []
+  });
+  const explicitPaths = explicitTaskPaths(sourceDoc, guardAnalysis, options.changedFiles ?? []);
+  const gated = applyDomainGate({ repoPath, domain, readOrder: rawReadOrder, explicitPaths });
+  const readOrder = gated.readOrder.slice(0, options.maxFiles ?? 20);
 
   const preferredFiles = readOrder.filter((item) => item.score >= 0.75).map((item) => item.path);
   const tests = relatedTests(
@@ -99,18 +122,35 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
   if (dirtyWorktree?.warnings) {
     warnings.push(...dirtyWorktree.warnings);
   }
+  const worktreeBoundary = buildWorktreeBoundary({
+    dirtyWorktree,
+    preferredFiles,
+    changedFiles: options.changedFiles ?? []
+  });
+  warnings.push(...worktreeBoundary.warnings);
 
   const likelyFiles = toLikelyFiles(readOrder, related).slice(0, options.maxFiles ?? 20);
   const projectRules = options.includeRules === false ? [] : selectProjectRules(repoPath, task);
   const memoryHits = options.includeMemory === false ? [] : searchProjectMemory(repoPath, task, 5);
+  const rawExecutionPlan = buildExecutionPlan(sourceDoc, guardAnalysis, tests.commands);
+  const rankedPlan = rerankExecutionPlan({
+    repoPath,
+    plan: rawExecutionPlan,
+    guardAnalysis,
+    domain,
+    recommendedCommands: tests.commands,
+    maxSteps: options.planMaxSteps ?? 8
+  });
 
   return {
     task,
     interpretation: interpretTask(task, sourceDoc),
+    domain,
     sourceDoc,
     guardFindings: guardAnalysis?.findings ?? [],
+    guardRecipes: guardAnalysis?.ruleMatches ?? [],
     readOrder,
-    executionPlan: buildExecutionPlan(sourceDoc, guardAnalysis, tests.commands),
+    executionPlan: rankedPlan.plan,
     editBoundary: {
       preferredFiles: Array.from(new Set(preferredFiles)),
       doNotTouchWithoutReason: dirtyWorktree
@@ -120,6 +160,7 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
             .slice(0, 40)
         : []
     },
+    worktreeBoundary,
     dirtyWorktree,
     likelyFiles,
     relatedFiles: likelyFiles,
@@ -130,9 +171,30 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
     relatedTests: tests,
     projectRules,
     memoryHits,
+    debug:
+      options.includeDebug === false
+        ? null
+        : {
+            domainDecision: domain,
+            demotedFiles: gated.debug.demotedFiles,
+            droppedCommands: rankedPlan.debug.droppedCommands
+          },
     warnings: Array.from(new Set(warnings)),
     nextSteps: nextSteps(dirtyWorktree)
   };
+}
+
+function explicitTaskPaths(
+  sourceDoc: StoredSourceDoc | null,
+  guardAnalysis: GuardOutputAnalysis | null,
+  changedFiles: string[]
+): string[] {
+  return [
+    ...changedFiles,
+    ...(sourceDoc?.targets.map((target) => target.targetPath) ?? []),
+    ...(guardAnalysis?.findings.map((finding) => finding.file) ?? []),
+    ...(guardAnalysis?.ruleMatches.flatMap((match) => match.canonicalPaths) ?? [])
+  ].map(normalizePath);
 }
 
 function buildReadOrder(input: {
@@ -150,7 +212,8 @@ function buildReadOrder(input: {
     items.push({ path: normalizePath(file), why: "Explicit changed_files input", score: 0.9 });
   }
   for (const target of input.sourceDoc?.targets ?? []) {
-    const score = target.kind === "sync_target" ? 0.95 : target.kind === "validation_target" ? 0.85 : 0.75;
+    const baseScore = target.kind === "sync_target" ? 0.95 : target.kind === "validation_target" ? 0.85 : 0.75;
+    const score = Math.min(baseScore, target.confidence);
     items.push({
       path: target.targetPath,
       why: `Explicit source_doc ${target.kind}`,
@@ -182,6 +245,30 @@ function buildExecutionPlan(
       category: "guard",
       why: "Direct guard failure should be resolved before broad exploration."
     });
+  }
+  for (const match of guardAnalysis?.ruleMatches ?? []) {
+    for (const canonicalPath of match.canonicalPaths) {
+      items.push({
+        order: items.length + 1,
+        phase: "inspect",
+        title: `Inspect canonical path for ${match.ruleId}`,
+        command: null,
+        targetPath: canonicalPath,
+        category: "guard_recipe",
+        why: `Guard recipe canonical path for ${match.ruleId}.`
+      });
+    }
+    for (const command of match.validationCommands) {
+      items.push({
+        order: items.length + 1,
+        phase: "guard recipe validation",
+        title: command,
+        command,
+        targetPath: null,
+        category: "guard",
+        why: `Guard recipe validation for ${match.ruleId}.`
+      });
+    }
   }
   for (const target of sourceDoc?.targets.filter(
     (item) => item.kind === "sync_target" && isExecutablePath(item.targetPath)
