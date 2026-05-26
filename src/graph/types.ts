@@ -8,6 +8,8 @@ export interface FileHit {
 export interface SymbolHit {
   name: string;
   kind: string;
+  signature?: string | null;
+  qualifiedName?: string | null;
   path: string;
   startLine: number;
   endLine: number;
@@ -65,7 +67,14 @@ export interface RouteHit {
 
 export interface ImpactResult {
   target: string;
-  impactedFiles: Array<{ path: string; relationship: string; confidence: number; score: number }>;
+  impactedFiles: Array<{
+    path: string;
+    relationship: string;
+    confidence: number;
+    score: number;
+    distance: number;
+    pathChain: string[];
+  }>;
   risks: string[];
 }
 
@@ -73,4 +82,3 @@ export interface RelatedTestsResult {
   commands: CommandHit[];
   testFiles: string[];
 }
-

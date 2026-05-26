@@ -29,17 +29,17 @@ function scanDart(filePath: string, content: string): SymbolScanResult {
     const lineNumber = index + 1;
     const classMatch = line.match(/^\s*(?:abstract\s+|base\s+|final\s+|sealed\s+)?(?:class|mixin|enum|extension)\s+([A-Za-z_][A-Za-z0-9_]*)/);
     if (classMatch) {
-      symbols.push(symbol(filePath, classMatch[1], "class", lineNumber));
+      symbols.push(symbol(filePath, classMatch[1], "class", lineNumber, line.trim()));
     }
 
     const functionMatch = line.match(/^\s*(?:[A-Za-z_<>,?]+\s+)+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:async\s*)?[{=>]/);
     if (functionMatch && !["if", "for", "while", "switch"].includes(functionMatch[1])) {
-      symbols.push(symbol(filePath, functionMatch[1], "function", lineNumber));
+      symbols.push(symbol(filePath, functionMatch[1], "function", lineNumber, line.trim()));
     }
 
     const providerMatch = line.match(/\b(?:final|var)\s+([A-Za-z_][A-Za-z0-9_]*Provider)\s*=/);
     if (providerMatch) {
-      symbols.push(symbol(filePath, providerMatch[1], "provider", lineNumber));
+      symbols.push(symbol(filePath, providerMatch[1], "provider", lineNumber, line.trim()));
     }
 
     const importMatch = line.match(/^\s*import\s+['"]([^'"]+)['"]/);
@@ -49,8 +49,14 @@ function scanDart(filePath: string, content: string): SymbolScanResult {
 
     if (line.includes("GoRoute(") || /name:\s*[A-Za-z0-9_.]+\s*,/.test(line)) {
       const nearby = lines.slice(index, Math.min(lines.length, index + 10)).join("\n");
-      const name = nearby.match(/name:\s*([A-Za-z0-9_.]+)/)?.[1] ?? null;
-      const routePath = nearby.match(/path:\s*([A-Za-z0-9_.]+)/)?.[1] ?? null;
+      const name =
+        nearby.match(/name:\s*['"]([^'"]+)['"]/)?.[1] ??
+        nearby.match(/name:\s*([A-Za-z0-9_.]+)/)?.[1] ??
+        null;
+      const routePath =
+        nearby.match(/path:\s*['"]([^'"]+)['"]/)?.[1] ??
+        nearby.match(/path:\s*([A-Za-z0-9_.]+)/)?.[1] ??
+        null;
       if (name || routePath) {
         routes.push({
           framework: "flutter_go_router",
@@ -77,12 +83,12 @@ function scanPython(filePath: string, content: string): SymbolScanResult {
     const lineNumber = index + 1;
     const classMatch = line.match(/^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)/);
     if (classMatch) {
-      symbols.push(symbol(filePath, classMatch[1], "class", lineNumber));
+      symbols.push(symbol(filePath, classMatch[1], "class", lineNumber, line.trim()));
     }
 
     const defMatch = line.match(/^\s*(?:async\s+)?def\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
     if (defMatch) {
-      symbols.push(symbol(filePath, defMatch[1], "function", lineNumber));
+      symbols.push(symbol(filePath, defMatch[1], "function", lineNumber, line.trim()));
     }
 
     const importMatch = line.match(/^\s*(?:from\s+([A-Za-z0-9_.]+)\s+import|import\s+([A-Za-z0-9_.]+))/);
@@ -118,17 +124,17 @@ function scanTypeScript(filePath: string, content: string): SymbolScanResult {
     const classMatch = line.match(/^\s*export\s+class\s+([A-Za-z_][A-Za-z0-9_]*)|^\s*class\s+([A-Za-z_][A-Za-z0-9_]*)/);
     const className = classMatch?.[1] ?? classMatch?.[2];
     if (className) {
-      symbols.push(symbol(filePath, className, "class", lineNumber));
+      symbols.push(symbol(filePath, className, "class", lineNumber, line.trim()));
     }
 
     const functionMatch = line.match(/^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/);
     if (functionMatch) {
-      symbols.push(symbol(filePath, functionMatch[1], "function", lineNumber));
+      symbols.push(symbol(filePath, functionMatch[1], "function", lineNumber, line.trim()));
     }
 
     const constFunctionMatch = line.match(/^\s*(?:export\s+)?const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:async\s*)?\(/);
     if (constFunctionMatch) {
-      symbols.push(symbol(filePath, constFunctionMatch[1], "function", lineNumber));
+      symbols.push(symbol(filePath, constFunctionMatch[1], "function", lineNumber, line.trim()));
     }
 
     const importMatch = line.match(/^\s*import(?:.+from\s+)?["']([^"']+)["']/);
@@ -140,11 +146,13 @@ function scanTypeScript(filePath: string, content: string): SymbolScanResult {
   return { symbols, imports, routes };
 }
 
-function symbol(filePath: string, name: string, kind: string, line: number): ScannedSymbol {
+function symbol(filePath: string, name: string, kind: string, line: number, signature: string): ScannedSymbol {
   return {
     filePath,
     name,
     kind,
+    signature,
+    qualifiedName: name,
     startLine: line,
     endLine: line
   };
@@ -161,4 +169,3 @@ function dedupeRoutes(routes: ScannedRoute[]): ScannedRoute[] {
     return true;
   });
 }
-

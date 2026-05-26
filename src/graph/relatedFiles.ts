@@ -1,3 +1,4 @@
+import { loadProjectConfig, matchesAnyPattern, type ProjectConfig } from "../config/projectConfig.js";
 import { openProject } from "../db/project.js";
 import type { ProjectDatabase } from "../db/connection.js";
 import { clampScore, scoreText, tokenize } from "./scoring.js";
@@ -12,6 +13,7 @@ interface FileRow {
 export function findRelatedFiles(repoPath: string, task: string, limit = 20): RelatedFilesResult {
   const project = openProject(repoPath);
   try {
+    const config = loadProjectConfig(repoPath);
     const rows = project.db
       .prepare("SELECT id, path, language FROM files WHERE repo_id = ? ORDER BY path")
       .all(project.repo.id) as FileRow[];
@@ -20,8 +22,8 @@ export function findRelatedFiles(repoPath: string, task: string, limit = 20): Re
 
     for (const file of rows) {
       const pathScore = scoreText(task, file.path);
-      const domainBoost = domainScore(task, file.path);
-      const score = clampScore(pathScore * 0.65 + domainBoost + sourcePathBoost(file.path));
+      const domainBoost = domainScore(task, file.path, config);
+      const score = clampScore(pathScore * 0.65 + domainBoost + sourcePathBoost(file.path, config));
       if (score > 0) {
         scored.set(file.id, {
           path: file.path,
@@ -92,36 +94,28 @@ function mergeHit(scored: Map<number, FileHit>, fileId: number, hit: FileHit): v
   }
 }
 
-function domainScore(task: string, filePath: string): number {
+function domainScore(task: string, filePath: string, config: ProjectConfig): number {
   const loweredTask = task.toLowerCase();
-  const loweredPath = filePath.toLowerCase();
   let score = 0;
-  if (/登录|auth|identity|身份/.test(loweredTask) && /auth|identity|login/.test(loweredPath)) {
-    score += 0.35;
-  }
-  if (/登录|auth|identity|身份/.test(loweredTask) && /frontend\/lib\/core\/identity|frontend\/lib\/core\/di|frontend\/lib\/modules\/auth/.test(loweredPath)) {
-    score += 0.22;
-  }
-  if (/workspace|microplan|滚动|scroll|sliver/.test(loweredTask) && /workspace|microplan|scroll|sliver/.test(loweredPath)) {
-    score += 0.35;
-  }
-  if (/session plan|session_plan|接口|api|字段|contract|openapi/.test(loweredTask) && /session[_-]?plan|api|schema|openapi|client/.test(loweredPath)) {
-    score += 0.35;
-  }
-  if (/test|测试|guard|验收/.test(loweredTask) && /test|tests|guard/.test(loweredPath)) {
-    score += 0.25;
+  for (const domain of config.domains) {
+    const taskMatches = domain.keywords.some((keyword) => loweredTask.includes(keyword.toLowerCase()));
+    if (!taskMatches) {
+      continue;
+    }
+    const pathMatches =
+      matchesAnyPattern(filePath, domain.paths) ||
+      domain.keywords.some((keyword) => filePath.toLowerCase().includes(keyword.toLowerCase()));
+    if (pathMatches) {
+      score += 0.35;
+    }
   }
   return score;
 }
 
-function sourcePathBoost(filePath: string): number {
-  if (/^(frontend\/lib|backend\/app|backend\/repositories|shared\/api)\//.test(filePath)) {
-    return 0.18;
-  }
-  if (/^(frontend\/test|backend\/tests|tests)\//.test(filePath)) {
-    return 0.08;
-  }
-  return 0;
+function sourcePathBoost(filePath: string, config: ProjectConfig): number {
+  return config.sourcePathBoosts
+    .filter((item) => matchesAnyPattern(filePath, [item.pattern]))
+    .reduce((total, item) => total + item.boost, 0);
 }
 
 function reasonFor(path: string, pathScore: number, domainBoost: number): string {

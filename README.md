@@ -43,15 +43,19 @@ business data.
 Postgres can be introduced later only if the product needs team-shared memory,
 centralized dashboards, permissions, or SaaS-style multi-project management.
 
-## MVP Capabilities
+## v0.1 Capabilities
 
-The first useful version should support:
+The first public version supports:
 
 1. `pnav init <repo>`: create `.pnav/` and SQLite database.
 2. `pnav scan <repo>`: scan repository files, commands, rules, symbols, and relationships.
 3. `pnav map <repo>`: print a compact repository map.
 4. `pnav capsule <repo> "<task>"`: produce an agent handoff document.
 5. `pnav mcp <repo>`: expose repository intelligence through MCP.
+6. `.pnav/config.json`: tune include/exclude rules, domain boosts, source path boosts, and file size limits.
+7. MCP response envelopes: every tool returns `repo`, `generated_at`, `index_status`, `data`, and `warnings`.
+8. SQLite FTS search for symbols and project memory.
+9. Multi-hop impact analysis through graph traversal.
 
 MVP MCP tools:
 
@@ -91,7 +95,34 @@ Start here:
 - [Development Plan](docs/development-plan.md)
 - [Architecture](docs/architecture.md)
 - [MCP Tools](docs/mcp-tools.md)
+- [Configuration](docs/config.md)
+- [Output Contract](docs/output-contract.md)
+- [Roadmap](docs/roadmap.md)
 - [flutter-transfer Demo Queries](examples/flutter-transfer/demo-queries.md)
+- [Codex MCP Config Example](examples/codex-mcp-config.md)
+- [Claude Code MCP Config Example](examples/claude-code-config.md)
+
+## Quick Start
+
+```bash
+npm install
+npm run build
+npm link
+
+pnav doctor
+pnav init /path/to/project
+pnav scan /path/to/project
+pnav map /path/to/project
+pnav capsule /path/to/project "fix login flow"
+pnav mcp /path/to/project
+```
+
+For the Flutter validation project used during development:
+
+```bash
+pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
+pnav capsule /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "修复 microplan 页面滚动问题"
+```
 
 ## Suggested Implementation Stack
 

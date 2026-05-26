@@ -3,6 +3,20 @@
   "version": "0.1.0",
   "description": "Local Repository Intelligence MCP for Codex, Claude Code, and other coding agents.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ValentinoWang/ProjectNavigatorMCP.git"
+  },
+  "keywords": [
+    "mcp",
+    "codex",
+    "claude-code",
+    "code-intelligence",
+    "repository-analysis",
+    "ai-coding",
+    "sqlite"
+  ],
   "bin": {
     "pnav": "./dist/cli/index.js"
   },
@@ -11,13 +25,16 @@
     "README.md",
     "DEVELOPMENT.zh-CN.md",
     "AGENTS.md",
+    "LICENSE",
+    "CHANGELOG.md",
     "docs",
     "examples"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

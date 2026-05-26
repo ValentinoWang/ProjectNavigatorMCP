@@ -1,3 +1,4 @@
+import { loadProjectConfig, matchesAnyPattern } from "../config/projectConfig.js";
 import { openProject } from "../db/project.js";
 import { findRelatedFiles } from "./relatedFiles.js";
 import { scoreText } from "./scoring.js";
@@ -6,6 +7,7 @@ import type { CommandHit, RelatedTestsResult } from "./types.js";
 export function relatedTests(repoPath: string, changedFiles: string[], task = ""): RelatedTestsResult {
   const project = openProject(repoPath);
   try {
+    const config = loadProjectConfig(repoPath);
     const db = project.db;
     const repoId = project.repo.id;
     const tests = new Set<string>();
@@ -47,12 +49,9 @@ export function relatedTests(repoPath: string, changedFiles: string[], task = ""
       .prepare("SELECT name, command, source_file AS sourceFile, category FROM commands WHERE repo_id = ?")
       .all(repoId) as CommandHit[];
     for (const row of commandRows) {
-      if (isSessionPlanApiTask(task) && /microplan/.test(row.command.toLowerCase())) {
-        continue;
-      }
       const score = Math.max(scoreText(task, row.name), scoreText(task, row.command), scoreText(changedFiles.join(" "), row.command));
       const guardBoost = /guard|test|analyze|lint/.test(row.category) ? 0.2 : 0;
-      const taskBoost = commandTaskBoost(task, row.command);
+      const taskBoost = commandTaskBoost(task, row.command, config);
       if (score + guardBoost + taskBoost > 0.15) {
         commands.set(row.command, {
           ...row,
@@ -71,28 +70,14 @@ export function relatedTests(repoPath: string, changedFiles: string[], task = ""
   }
 }
 
-function commandTaskBoost(task: string, command: string): number {
+function commandTaskBoost(task: string, command: string, config: ReturnType<typeof loadProjectConfig>): number {
   const loweredTask = task.toLowerCase();
-  const loweredCommand = command.toLowerCase();
   let boost = 0;
-  if (/workspace|microplan|滚动|scroll|sliver/.test(loweredTask)) {
-    if (/workspace-microplan-scroll|flutter-sliver|microplan-compact|workspace-design-token/.test(loweredCommand)) {
-      boost += 0.65;
-    }
-  }
-  if (/登录|auth|identity|身份/.test(loweredTask)) {
-    if (/auth|identity|frontend-auth-stable-user/.test(loweredCommand)) {
-      boost += 0.65;
-    }
-  }
-  if (/session plan|session_plan|接口|api|字段|contract|openapi/.test(loweredTask)) {
-    if (/fetch-openapi|gen-sdk|openapi-sdk-drift|openapi-sync|openapi-contract|pytest/.test(loweredCommand)) {
+  for (const domain of config.domains) {
+    const taskMatches = domain.keywords.some((keyword) => loweredTask.includes(keyword.toLowerCase()));
+    if (taskMatches && matchesAnyPattern(command, domain.commands)) {
       boost += 0.65;
     }
   }
   return boost;
-}
-
-function isSessionPlanApiTask(task: string): boolean {
-  return /session plan|session_plan|接口|api|字段|contract|openapi/.test(task.toLowerCase());
 }

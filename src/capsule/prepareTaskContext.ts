@@ -9,32 +9,51 @@ import type { CommandHit, FileHit, RouteHit, RuleHit, SymbolHit } from "../graph
 export interface TaskContext {
   task: string;
   interpretation: string;
+  readOrder: Array<{ path: string; why: string }>;
   likelyFiles: FileHit[];
+  relatedFiles: FileHit[];
   symbols: SymbolHit[];
   routes: RouteHit[];
   recommendedCommands: CommandHit[];
   testFiles: string[];
+  relatedTests: {
+    commands: CommandHit[];
+    testFiles: string[];
+  };
   projectRules: RuleHit[];
   memoryHits: ReturnType<typeof searchProjectMemory>;
   nextSteps: string[];
 }
 
-export function prepareTaskContext(repoPath: string, task: string): TaskContext {
-  const likelyFiles = findRelatedFiles(repoPath, task, 20).files;
-  const symbols = findSymbol(repoPath, task, 12);
+export interface TaskContextOptions {
+  maxFiles?: number;
+  maxSymbols?: number;
+  includeMemory?: boolean;
+  includeRules?: boolean;
+}
+
+export function prepareTaskContext(repoPath: string, task: string, options: TaskContextOptions = {}): TaskContext {
+  const likelyFiles = findRelatedFiles(repoPath, task, options.maxFiles ?? 20).files;
+  const symbols = findSymbol(repoPath, task, options.maxSymbols ?? 12);
   const routes = traceRoute(repoPath, task, 12);
   const tests = relatedTests(repoPath, likelyFiles.map((file) => file.path), task);
-  const projectRules = selectProjectRules(repoPath, task);
-  const memoryHits = searchProjectMemory(repoPath, task, 5);
+  const projectRules = options.includeRules === false ? [] : selectProjectRules(repoPath, task);
+  const memoryHits = options.includeMemory === false ? [] : searchProjectMemory(repoPath, task, 5);
 
   return {
     task,
     interpretation: interpretTask(task),
+    readOrder: likelyFiles.slice(0, 8).map((file) => ({
+      path: file.path,
+      why: file.reason
+    })),
     likelyFiles,
+    relatedFiles: likelyFiles,
     symbols,
     routes,
     recommendedCommands: tests.commands,
     testFiles: tests.testFiles,
+    relatedTests: tests,
     projectRules,
     memoryHits,
     nextSteps: [

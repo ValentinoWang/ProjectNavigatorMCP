@@ -1,14 +1,8 @@
 import { openProject } from "../db/project.js";
 import type { ImpactResult } from "./types.js";
+import { traverseGraph, type TraversalDirection } from "./traversal.js";
 
-interface EdgeRow {
-  path: string;
-  relationship: string;
-  confidence: number;
-  weight: number;
-}
-
-export function impactAnalysis(repoPath: string, target: string, depth = 2): ImpactResult {
+export function impactAnalysis(repoPath: string, target: string, depth = 2, direction: TraversalDirection = "both"): ImpactResult {
   const project = openProject(repoPath);
   try {
     const file = project.db.prepare("SELECT id, path FROM files WHERE repo_id = ? AND path = ?").get(project.repo.id, target) as { id: number; path: string } | undefined;
@@ -20,55 +14,29 @@ export function impactAnalysis(repoPath: string, target: string, depth = 2): Imp
       };
     }
 
-    const rows = project.db
-      .prepare(
-        `SELECT f.path, e.kind AS relationship, e.confidence, e.weight
-         FROM edges e
-         JOIN files f ON f.id = e.to_id AND e.to_type = 'file'
-         WHERE e.repo_id = ? AND e.from_type = 'file' AND e.from_id = ?
-         UNION ALL
-         SELECT f.path, e.kind AS relationship, e.confidence, e.weight
-         FROM edges e
-         JOIN files f ON f.id = e.from_id AND e.from_type = 'file'
-         WHERE e.repo_id = ? AND e.to_type = 'file' AND e.to_id = ?`
-      )
-      .all(project.repo.id, file.id, project.repo.id, file.id) as EdgeRow[];
-
-    const impacted = new Map<string, { path: string; relationship: string; confidence: number; score: number }>();
-    for (const row of rows) {
-      const score = relationshipWeight(row.relationship) * row.confidence * Math.min(3, row.weight);
-      const existing = impacted.get(row.path);
-      if (!existing || score > existing.score) {
-        impacted.set(row.path, {
-          path: row.path,
-          relationship: row.relationship,
-          confidence: row.confidence,
-          score
-        });
-      }
-    }
+    const hits = traverseGraph(project.db, project.repo.id, {
+      seedType: "file",
+      seedId: file.id,
+      direction,
+      maxDepth: depth,
+      maxResults: depth * 30
+    }).filter((hit) => hit.nodeType === "file" && hit.path && hit.path !== target);
 
     return {
       target,
-      impactedFiles: Array.from(impacted.values()).sort((a, b) => b.score - a.score).slice(0, depth * 20),
+      impactedFiles: hits.map((hit) => ({
+        path: hit.path ?? "",
+        relationship: hit.relationshipPath.at(-1)?.kind ?? "related",
+        confidence: hit.confidence,
+        score: hit.score,
+        distance: hit.distance,
+        pathChain: hit.relationshipPath.map((step) => `${step.from} --${step.kind}--> ${step.to}`)
+      })),
       risks: risksForTarget(target)
     };
   } finally {
     project.db.close();
   }
-}
-
-function relationshipWeight(kind: string): number {
-  if (kind === "covered_by") {
-    return 1.0;
-  }
-  if (kind === "imports") {
-    return 0.85;
-  }
-  if (kind === "co_changes") {
-    return 0.7;
-  }
-  return 0.5;
 }
 
 function risksForTarget(target: string): string[] {
@@ -87,4 +55,3 @@ function risksForTarget(target: string): string[] {
   }
   return risks;
 }
-

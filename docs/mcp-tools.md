@@ -1,7 +1,6 @@
 # MCP Tools
 
-ProjectNavigatorMCP exposes repository intelligence to Codex, Claude Code, and other MCP
-clients.
+ProjectNavigatorMCP exposes repository intelligence to Codex, Claude Code, and other MCP clients.
 
 Server command:
 
@@ -15,105 +14,69 @@ Example:
 pnav mcp /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
 ```
 
-The MCP server reads:
+The MCP server reads the project-local index:
 
 ```text
 <repo>/.pnav/project.sqlite
 ```
 
-## MVP Tool List
+## Shared Envelope
 
-- `repo_map`
-- `find_symbol`
-- `find_related_files`
-- `trace_route`
-- `impact_analysis`
-- `related_tests`
-- `prepare_task_context`
-- `search_project_memory`
-- `remember_task`
-
-## Shared Output Rules
-
-All tools should return JSON-compatible objects.
-
-Common fields:
-
-```json
-{
-  "repo": "repo-name",
-  "generated_at": "2026-05-26T00:00:00.000Z",
-  "warnings": []
-}
-```
-
-Scores should be numbers between `0` and `1`.
-
-Confidence should be separated from score when possible:
-
-- `score`: how relevant the result is to this query.
-- `confidence`: how reliable the relationship is.
-
-## Tool: repo_map
-
-Return a compact repository map.
-
-### Input
-
-```json
-{
-  "include_counts": true,
-  "include_commands": true
-}
-```
-
-### Output
+All MCP tools return a JSON string inside MCP text content. The JSON always uses this envelope:
 
 ```json
 {
   "repo": "flutter-transfer",
-  "root_path": "/Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer",
-  "last_scan": "2026-05-26T00:00:00.000Z",
-  "languages": [
-    {"language": "dart", "files": 2512},
-    {"language": "python", "files": 1043},
-    {"language": "markdown", "files": 1321}
-  ],
-  "important_paths": [
-    "AGENTS.md",
-    "Makefile",
-    "frontend/lib",
-    "frontend/test",
-    "backend/app/api/v1",
-    "backend/app/services",
-    "backend/repositories"
-  ],
-  "commands": [
-    {"name": "frontend-analyze", "command": "make frontend-analyze", "category": "analyze"},
-    {"name": "flutter-test", "command": "make flutter-test", "category": "test"},
-    {"name": "ci-local-critical", "command": "make ci-local-critical", "category": "ci"}
-  ],
+  "generated_at": "2026-05-26T00:00:00.000Z",
+  "index_status": {
+    "scanned": true,
+    "git_sha": "abc123",
+    "current_git_sha": "abc123",
+    "stale": false
+  },
+  "data": {},
   "warnings": []
 }
 ```
 
-## Tool: find_symbol
+`index_status.scanned` is false when the repository has not been scanned yet. `stale` is true when the latest stored scan SHA differs from the current Git SHA.
 
-Find classes, functions, methods, widgets, providers, and API handlers.
+Scores are relevance values. Confidence describes relationship reliability.
 
-### Input
+## Tools
+
+### `repo_map`
+
+Input:
+
+```json
+{}
+```
+
+Data shape:
 
 ```json
 {
-  "query": "IdentityController",
-  "kind": "class",
-  "limit": 10
+  "repo": "flutter-transfer",
+  "rootPath": "/path/to/flutter-transfer",
+  "gitSha": "abc123",
+  "languages": [{"language": "dart", "files": 2512}],
+  "counts": {"files": 5523, "symbols": 34985, "routes": 495, "tests": 810, "commands": 104, "rules": 300, "memories": 2},
+  "importantPaths": ["AGENTS.md", "README.md", "Makefile"],
+  "commands": [{"name": "test", "command": "make test", "sourceFile": "Makefile", "category": "test"}],
+  "recentScanStatus": "completed"
 }
 ```
 
-`kind` is optional.
+### `find_symbol`
 
-### Output
+Input:
+
+```json
+{"query": "IdentityController", "limit": 10}
+```
+
+Data shape:
 
 ```json
 {
@@ -121,322 +84,191 @@ Find classes, functions, methods, widgets, providers, and API handlers.
     {
       "name": "IdentityController",
       "kind": "class",
-      "path": "frontend/lib/core/identity/identity_controller.dart",
-      "start_line": 1,
-      "end_line": 120,
       "signature": "class IdentityController",
-      "score": 0.92,
-      "confidence": 0.86
+      "qualifiedName": "IdentityController",
+      "path": "lib/core/identity/identity_controller.dart",
+      "startLine": 12,
+      "endLine": 12,
+      "score": 0.92
     }
-  ],
-  "warnings": []
+  ]
 }
 ```
 
-## Tool: find_related_files
+### `find_related_files`
 
-Given a natural language task, return likely relevant files.
-
-### Input
+Input:
 
 ```json
-{
-  "task": "修复 workspace microplan 页面滚动问题",
-  "limit": 20,
-  "include_tests": true,
-  "include_memory": true
-}
+{"task": "修复 microplan 页面滚动问题", "limit": 20}
 ```
 
-### Output
+Data shape:
 
 ```json
 {
-  "task": "修复 workspace microplan 页面滚动问题",
   "files": [
     {
-      "path": "frontend/lib/modules/workspace/pages/microplan_page.dart",
+      "path": "lib/modules/workspace/pages/microplan_page.dart",
       "language": "dart",
-      "reason": "Path and symbol names match workspace/microplan task keywords.",
       "score": 0.88,
-      "confidence": 0.75
-    },
-    {
-      "path": "frontend/lib/core/router/app_router.dart",
-      "language": "dart",
-      "reason": "Likely route entry point for workspace pages.",
-      "score": 0.71,
-      "confidence": 0.7
+      "reason": "Path, symbols, or configured domains match the task."
     }
-  ],
-  "warnings": []
+  ]
 }
 ```
 
-## Tool: trace_route
+### `trace_route`
 
-Trace a Flutter route or FastAPI endpoint to its implementation.
-
-### Input
+Input:
 
 ```json
-{
-  "query": "workspaceMicroplan",
-  "framework": "flutter_go_router"
-}
+{"query": "workspaceMicroplan", "limit": 20}
 ```
 
-`framework` is optional.
-
-### Output
+Data shape:
 
 ```json
 {
   "routes": [
     {
       "framework": "flutter_go_router",
-      "name": "workspaceMicroplan",
+      "method": null,
       "path": "/workspace/microplan",
-      "route_file": "frontend/lib/core/router/app_router.dart",
-      "target_files": [
-        "frontend/lib/modules/workspace/pages/microplan_page.dart"
-      ],
-      "confidence": 0.72
+      "name": "workspaceMicroplan",
+      "routeFile": "lib/core/router/app_router.dart",
+      "targetSymbol": "workspaceMicroplan"
     }
-  ],
-  "warnings": []
-}
-```
-
-## Tool: impact_analysis
-
-Estimate what may be affected by changing a file or symbol.
-
-### Input
-
-```json
-{
-  "target": "frontend/lib/core/identity/identity_controller.dart",
-  "target_type": "file",
-  "depth": 2,
-  "include_tests": true
-}
-```
-
-`target_type` may be `file` or `symbol`.
-
-### Output
-
-```json
-{
-  "target": "frontend/lib/core/identity/identity_controller.dart",
-  "impacted_files": [
-    {
-      "path": "frontend/lib/core/di/auth_controller.dart",
-      "relationship": "imports",
-      "distance": 1,
-      "score": 0.76,
-      "confidence": 0.76
-    },
-    {
-      "path": "frontend/test/core/identity/identity_controller_bootstrap_test.dart",
-      "relationship": "covered_by",
-      "distance": 1,
-      "score": 0.91,
-      "confidence": 0.91
-    }
-  ],
-  "risks": [
-    "Identity-specific code paths may differ for athlete, coach, admin, and personal workspace contexts."
-  ],
-  "warnings": []
-}
-```
-
-## Tool: related_tests
-
-Recommend tests and Make targets for a task or file list.
-
-### Input
-
-```json
-{
-  "changed_files": [
-    "frontend/lib/core/identity/identity_controller.dart"
-  ],
-  "task": "修改登录身份切换逻辑",
-  "limit": 10
-}
-```
-
-### Output
-
-```json
-{
-  "commands": [
-    {
-      "command": "make frontend-auth-stable-user-guard",
-      "reason": "Identity/auth behavior may affect stable-user assumptions.",
-      "score": 0.83,
-      "confidence": 0.83
-    },
-    {
-      "command": "make frontend-analyze",
-      "reason": "Flutter static analysis gate from Makefile.",
-      "score": 0.78,
-      "confidence": 0.78
-    }
-  ],
-  "test_files": [
-    {
-      "path": "frontend/test/core/identity/identity_controller_bootstrap_test.dart",
-      "reason": "Likely direct test coverage for identity controller.",
-      "score": 0.86
-    }
-  ],
-  "warnings": []
-}
-```
-
-## Tool: prepare_task_context
-
-Build a compact handoff for Codex or Claude Code before editing.
-
-This is the most important MVP tool. `pnav capsule <repo> "<task>"` should use the same
-underlying service.
-
-### Input
-
-```json
-{
-  "task": "调整 session plan 接口字段",
-  "max_files": 20,
-  "include_memory": true,
-  "include_commands": true,
-  "format": "markdown"
-}
-```
-
-`format` may be `markdown` or `json`.
-
-### Output
-
-```json
-{
-  "task": "调整 session plan 接口字段",
-  "interpretation": "Likely backend API contract and generated frontend SDK change.",
-  "likely_files": [
-    {
-      "path": "backend/app/api/v1/session_plans.py",
-      "reason": "FastAPI route likely owns session plan API contract.",
-      "score": 0.9
-    },
-    {
-      "path": "backend/app/services/session_plan_service.py",
-      "reason": "Service layer likely owns business logic.",
-      "score": 0.82
-    },
-    {
-      "path": "frontend/packages/api_client",
-      "reason": "Generated Dart SDK may need regeneration after API contract changes.",
-      "score": 0.7
-    }
-  ],
-  "recommended_commands": [
-    "make fetch-openapi",
-    "make gen-sdk",
-    "make openapi-sdk-drift-guard"
-  ],
-  "project_rules": [
-    "Do not edit shared/api/openapi.json by hand.",
-    "Do not patch generated Dart SDK files manually."
-  ],
-  "memory_hits": [],
-  "markdown": "# Task Context Capsule\n\n...",
-  "warnings": []
-}
-```
-
-## Tool: search_project_memory
-
-Search prior task memories and project notes.
-
-### Input
-
-```json
-{
-  "query": "workspace microplan scroll",
-  "limit": 5
-}
-```
-
-### Output
-
-```json
-{
-  "matches": [
-    {
-      "memory_id": 1,
-      "topic": "workspace microplan scroll",
-      "summary": "Previous issue was caused by nested scroll constraint mismatch.",
-      "files": [
-        "frontend/lib/modules/workspace/pages/microplan_page.dart"
-      ],
-      "commands": [
-        "make workspace-microplan-scroll-guard"
-      ],
-      "score": 0.87,
-      "created_at": "2026-05-26T00:00:00.000Z"
-    }
-  ],
-  "warnings": []
-}
-```
-
-## Tool: remember_task
-
-Store a completed task summary in project-local memory.
-
-### Input
-
-```json
-{
-  "title": "修复 workspace microplan 页面滚动问题",
-  "summary": "Root cause was nested scroll constraint mismatch in the workspace microplan page.",
-  "changed_files": [
-    "frontend/lib/modules/workspace/pages/microplan_page.dart"
-  ],
-  "tests": [
-    "make workspace-microplan-scroll-guard",
-    "make flutter-sliver-contract-guard"
-  ],
-  "notes": [
-    "For UI changes, validate 360 / 390 / 768 / 1024 / 1280 / 1440 widths."
-  ],
-  "tags": [
-    "flutter",
-    "workspace",
-    "scroll"
   ]
 }
 ```
 
-### Output
+### `impact_analysis`
+
+Input:
+
+```json
+{"target": "lib/core/identity/identity_controller.dart", "depth": 2, "direction": "both"}
+```
+
+`direction` can be `upstream`, `downstream`, or `both`.
+
+Data shape:
 
 ```json
 {
-  "stored": true,
-  "memory_id": 1,
-  "task_id": 1,
-  "warnings": []
+  "target": "lib/core/identity/identity_controller.dart",
+  "impactedFiles": [
+    {
+      "path": "test/core/identity/identity_controller_test.dart",
+      "relationship": "covered_by",
+      "distance": 1,
+      "score": 0.9,
+      "confidence": 0.9,
+      "pathChain": [
+        "lib/core/identity/identity_controller.dart --covered_by--> test/core/identity/identity_controller_test.dart"
+      ]
+    }
+  ],
+  "risks": ["Review direct imports, related tests, and Git co-change neighbors before editing."]
 }
 ```
 
-## Tool Design Notes
+### `related_tests`
 
-1. Tools should be deterministic and quick.
-2. Tools should not edit target project code.
-3. Only `remember_task` writes memory data.
-4. `pnav scan` is responsible for refreshing the index.
-5. All paths returned to agents should be repo-relative paths unless absolute paths are
-   explicitly requested.
+Input:
+
+```json
+{"changedFiles": ["lib/core/identity/identity_controller.dart"], "task": "fix identity login"}
+```
+
+Data shape:
+
+```json
+{
+  "commands": [{"name": "test", "command": "make test", "sourceFile": "Makefile", "category": "test", "confidence": 0.86}],
+  "testFiles": ["test/core/identity/identity_controller_test.dart"]
+}
+```
+
+### `prepare_task_context`
+
+Input:
+
+```json
+{
+  "task": "修复 microplan 页面滚动问题",
+  "maxFiles": 20,
+  "maxSymbols": 12,
+  "includeMemory": true,
+  "includeRules": true
+}
+```
+
+Data shape:
+
+```json
+{
+  "task": "修复 microplan 页面滚动问题",
+  "readOrder": [{"path": "lib/modules/workspace/pages/microplan_page.dart", "why": "Likely relevant file"}],
+  "relatedFiles": [],
+  "symbols": [],
+  "routes": [],
+  "relatedTests": {"commands": [], "testFiles": []},
+  "projectRules": [],
+  "memoryHits": [],
+  "nextSteps": []
+}
+```
+
+### `search_project_memory`
+
+Input:
+
+```json
+{"query": "identity token refresh", "limit": 10}
+```
+
+Data shape:
+
+```json
+{
+  "memories": [
+    {
+      "id": 12,
+      "topic": "Fix identity token refresh",
+      "summary": "Token refresh failed because...",
+      "files": [],
+      "commands": [],
+      "tags": ["identity", "token"],
+      "memoryType": "task",
+      "confidence": 1,
+      "score": 0.91,
+      "createdAt": "2026-05-26 00:00:00"
+    }
+  ]
+}
+```
+
+### `remember_task`
+
+Input:
+
+```json
+{
+  "title": "Fix identity token refresh",
+  "summary": "Token refresh failed because...",
+  "changedFiles": ["lib/core/identity/identity_controller.dart"],
+  "tests": ["flutter test test/core/identity/identity_controller_test.dart"],
+  "tags": ["identity", "token"],
+  "decisions": ["Keep refresh handling inside identity controller."],
+  "pitfalls": ["Do not skip role-specific workspace checks."],
+  "validation": ["flutter test passed"]
+}
+```
+
+Data shape:
+
+```json
+{"stored": true, "memoryId": 12}
+```

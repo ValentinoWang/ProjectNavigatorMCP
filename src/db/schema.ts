@@ -1,4 +1,4 @@
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const INITIAL_SCHEMA_SQL = `
 PRAGMA foreign_keys = ON;
@@ -122,4 +122,3 @@ CREATE VIRTUAL TABLE IF NOT EXISTS files_fts USING fts5(path, language, content=
 CREATE VIRTUAL TABLE IF NOT EXISTS symbols_fts USING fts5(name, kind, content='symbols', content_rowid='id');
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(topic, summary, content='memories', content_rowid='id');
 `;
-

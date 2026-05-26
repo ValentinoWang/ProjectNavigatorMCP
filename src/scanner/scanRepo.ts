@@ -1,4 +1,5 @@
 import path from "node:path";
+import { loadProjectConfig } from "../config/projectConfig.js";
 import type { ProjectDatabase } from "../db/connection.js";
 import { openProject } from "../db/project.js";
 import { initProject } from "../cli/commands/init.js";
@@ -36,8 +37,10 @@ function scanIntoDatabase(db: ProjectDatabase, repoId: number, repoRoot: string)
   const scanRunId = Number(scanRun.lastInsertRowid);
 
   try {
+    const config = loadProjectConfig(repoRoot);
+    rebuildFtsTables(db);
     clearScannedData(db, repoId);
-    const files = scanFiles(repoRoot);
+    const files = scanFiles(repoRoot, config);
     insertFiles(db, repoId, files);
     const fileRows = loadFileRows(db, repoId);
 
@@ -45,7 +48,7 @@ function scanIntoDatabase(db: ProjectDatabase, repoId: number, repoRoot: string)
     const imports: ScannedImport[] = [];
     const routes: ScannedRoute[] = [];
     for (const file of files) {
-      const content = readRepoTextFile(repoRoot, file.path);
+      const content = readRepoTextFile(repoRoot, file.path, config.maxFileBytes);
       if (!content) {
         continue;
       }
@@ -90,6 +93,12 @@ function scanIntoDatabase(db: ProjectDatabase, repoId: number, repoRoot: string)
   }
 }
 
+function rebuildFtsTables(db: ProjectDatabase): void {
+  for (const table of ["files_fts", "symbols_fts", "memories_fts"]) {
+    db.prepare(`INSERT INTO ${table}(${table}) VALUES('rebuild')`).run();
+  }
+}
+
 function clearScannedData(db: ProjectDatabase, repoId: number): void {
   const fileIds = db.prepare("SELECT id FROM files WHERE repo_id = ?").all(repoId).map((row) => (row as { id: number }).id);
   db.prepare("DELETE FROM edges WHERE repo_id = ?").run(repoId);
@@ -119,12 +128,12 @@ function loadFileRows(db: ProjectDatabase, repoId: number): Map<string, number> 
 }
 
 function insertSymbols(db: ProjectDatabase, fileRows: Map<string, number>, symbols: ScannedSymbol[]): void {
-  const stmt = db.prepare("INSERT INTO symbols (file_id, name, kind, start_line, end_line) VALUES (?, ?, ?, ?, ?)");
+  const stmt = db.prepare("INSERT INTO symbols (file_id, name, kind, signature, qualified_name, start_line, end_line) VALUES (?, ?, ?, ?, ?, ?, ?)");
   const insert = db.transaction(() => {
     for (const item of symbols) {
       const fileId = fileRows.get(item.filePath);
       if (fileId) {
-        stmt.run(fileId, item.name, item.kind, item.startLine, item.endLine);
+        stmt.run(fileId, item.name, item.kind, item.signature, item.qualifiedName, item.startLine, item.endLine);
       }
     }
   });

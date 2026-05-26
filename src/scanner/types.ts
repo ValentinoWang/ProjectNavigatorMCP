@@ -9,6 +9,8 @@ export interface ScannedSymbol {
   filePath: string;
   name: string;
   kind: string;
+  signature: string | null;
+  qualifiedName: string | null;
   startLine: number;
   endLine: number;
 }
@@ -59,4 +61,3 @@ export interface ScanResult {
   rules: number;
   coChanges: number;
 }
-

@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { defaultProjectConfig } from "../../config/projectConfig.js";
 import { openDatabase } from "../../db/connection.js";
 import { migrate } from "../../db/migrations.js";
 import { upsertRepo } from "../../db/repositories.js";
@@ -18,7 +19,7 @@ export function initProject(repo: string): InitResult {
   mkdirSync(paths.cacheDir, { recursive: true });
 
   if (!existsSync(paths.configPath)) {
-    writeFileSync(paths.configPath, JSON.stringify(createDefaultConfig(paths.repoRoot), null, 2) + "\n");
+    writeFileSync(paths.configPath, JSON.stringify(defaultProjectConfig(paths.repoRoot), null, 2) + "\n");
   }
 
   const db = openDatabase(paths.dbPath);
@@ -45,23 +46,5 @@ export function renderInitResult(result: InitResult): string {
     `config: ${result.configPath}`,
     `applied migrations: ${result.appliedMigrations.length === 0 ? "none" : result.appliedMigrations.join(", ")}`
   ].join("\n");
-}
-
-function createDefaultConfig(repoRoot: string): unknown {
-  return {
-    version: 1,
-    repoRoot,
-    include: ["**/*"],
-    exclude: [
-      ".git/**",
-      "node_modules/**",
-      "build/**",
-      "dist/**",
-      ".dart_tool/**",
-      ".venv/**",
-      "coverage/**",
-      ".pnav/**"
-    ]
-  };
 }
 
