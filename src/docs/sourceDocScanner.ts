@@ -36,8 +36,8 @@ export function insertSourceDocuments(
   );
   const insertTarget = db.prepare(
     `INSERT INTO document_targets
-      (repo_id, document_id, kind, target_path, target_file_id, confidence, raw_value)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+      (repo_id, document_id, kind, target_path, target_file_id, confidence, raw_value, evidence_tier)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const insertStep = db.prepare(
     `INSERT INTO document_steps
@@ -68,7 +68,8 @@ export function insertSourceDocuments(
           target.targetPath,
           fileRows.get(target.targetPath) ?? null,
           target.confidence,
-          target.rawValue
+          target.rawValue,
+          target.evidenceTier
         );
       }
       for (const step of doc.steps) {

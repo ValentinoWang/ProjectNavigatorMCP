@@ -3,6 +3,7 @@ import { openProject } from "../db/project.js";
 import { getProjectPaths } from "../shared/paths.js";
 import { DEFAULT_GUARD_RULES } from "./defaultRules.js";
 import type { GuardRule, GuardRuleMatch } from "./guardRecipe.js";
+import { enrichRuleMatchWithSubtype, matchRecipeSubtype } from "./recipeSubtype.js";
 
 export interface GuardRuleRegistry {
   version: number;
@@ -35,16 +36,21 @@ export function matchGuardRule(rules: GuardRule[], input: ExplainGuardRuleInput)
   if (!best) {
     return null;
   }
-  return {
+  const match: GuardRuleMatch = {
     ruleId: best.rule.id,
+    subtype: null,
     domain: best.rule.domain,
     severity: best.rule.severity,
     canonicalPaths: best.rule.canonicalPaths,
     recipe: best.rule.recipe,
     validationCommands: best.rule.recipe.validationCommands,
+    tokenHints: [],
+    preferredFixPatterns: [],
+    forbiddenPatterns: best.rule.recipe.forbiddenPatterns ?? [],
     confidence: Math.min(0.99, best.score),
     evidence: best.evidence
   };
+  return enrichRuleMatchWithSubtype(match, matchRecipeSubtype(best.rule, input));
 }
 
 export function seedGuardRules(repoPath: string): number {

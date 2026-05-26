@@ -20,6 +20,7 @@ export interface StoredSourceDoc {
     targetPath: string;
     confidence: number;
     rawValue: string | null;
+    evidenceTier?: string;
   }>;
   steps: Array<{
     phase: string | null;
@@ -62,7 +63,7 @@ export function loadSourceDoc(
     if (row) {
       const targets = project.db
         .prepare(
-          "SELECT kind, target_path AS targetPath, confidence, raw_value AS rawValue FROM document_targets WHERE repo_id = ? AND document_id = ? ORDER BY confidence DESC, id"
+          "SELECT kind, target_path AS targetPath, confidence, raw_value AS rawValue, evidence_tier AS evidenceTier FROM document_targets WHERE repo_id = ? AND document_id = ? ORDER BY confidence DESC, id"
         )
         .all(project.repo.id, row.id) as StoredSourceDoc["targets"];
       const steps = project.db
@@ -120,7 +121,8 @@ function fromAnalysis(doc: SourceDocumentAnalysis): StoredSourceDoc {
       kind: target.kind,
       targetPath: target.targetPath,
       confidence: target.confidence,
-      rawValue: target.rawValue
+      rawValue: target.rawValue,
+      evidenceTier: target.evidenceTier
     })),
     steps: doc.steps.map((step) => ({
       phase: step.phase,

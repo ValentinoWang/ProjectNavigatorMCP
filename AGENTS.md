@@ -129,3 +129,13 @@ For Execution-Ready Project Secretary work:
 - Prefer deterministic rule-based reranking before adding LLM calls.
 - Add or update fixture tests before changing ranking logic.
 - Guard findings, source_doc sync targets, changed_files, and guard recipe canonical paths must outrank generic keyword results.
+
+## v0.4 Development Rules
+
+For Minimal Repair Path & Finish-Time Audit work:
+
+- Do not introduce Postgres, Tree-sitter, LSP, or a Web UI as the v0.4 main path.
+- `editBoundaryV2` is the authoritative edit boundary.
+- `minimalRepairPath` is the preferred agent execution path.
+- Do not let `depends_on`, body-inferred paths, generic Markdown, screenshots, QA manifests, Maestro, or Patrol enter editable boundaries unless explicitly requested.
+- Finish-time audit must be deterministic and must not call an LLM.

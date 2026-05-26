@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.0
+
+Minimal Repair Path & Finish-Time Audit release.
+
+- Added `minimalRepairPath` for short, direct Codex / Claude Code repair paths.
+- Added `editBoundaryV2` as the authoritative file boundary with must-edit, may-edit, inspect-only, reference-only, and do-not-touch tiers.
+- Added semantic dedupe for repeated guard commands, canonical paths, target files, and validation steps.
+- Added Guard Rule subtype matching with token hints, preferred fix patterns, and forbidden patterns.
+- Added source document target tiering so inferred body mentions and `depends_on` remain reference-only by default.
+- Added domain recipes with aliases, inspect-only paths, and default do-not-touch paths.
+- Added SQLite v5 migration for task sessions, task session files, finish audits, and source document evidence tiers.
+- Added `audit_task_result` MCP tool, `pnav audit`, and `pnav finish --audit`.
+- Added tests for minimal repair paths, edit boundary tiers, semantic dedupe, guard subtype recipes, and finish-time audit.
+
 ## v0.3.0
 
 Execution-Ready Project Secretary release.

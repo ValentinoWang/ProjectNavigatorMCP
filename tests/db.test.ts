@@ -26,8 +26,8 @@ describe("migrate", () => {
       const first = migrate(db);
       const second = migrate(db);
 
-      expect(first.applied).toEqual([1, 2, 3, 4]);
-      expect(first.currentVersion).toBe(4);
+      expect(first.applied).toEqual([1, 2, 3, 4, 5]);
+      expect(first.currentVersion).toBe(5);
       expect(second.applied).toEqual([]);
 
       const tables = db
@@ -50,6 +50,9 @@ describe("migrate", () => {
       expect(tables).toContain("document_steps");
       expect(tables).toContain("guard_rules");
       expect(tables).toContain("task_runs");
+      expect(tables).toContain("task_sessions");
+      expect(tables).toContain("task_session_files");
+      expect(tables).toContain("finish_audits");
       expect(tables).toContain("schema_migrations");
     } finally {
       db.close();

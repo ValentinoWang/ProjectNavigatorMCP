@@ -15,6 +15,7 @@ import { explainGuardRule } from "../guard/ruleRegistry.js";
 import { rememberTask, searchProjectMemory } from "../memory/memory.js";
 import { recordTaskResult } from "../memory/recordTaskResult.js";
 import { PACKAGE_VERSION } from "../shared/packageInfo.js";
+import { auditTaskResult } from "../tasks/taskAudit.js";
 import { toolResponse } from "./response.js";
 
 export async function startMcpServer(repoPath: string): Promise<void> {
@@ -276,6 +277,29 @@ export function createMcpServer(repoPath: string): McpServer {
             validations: input.validations ?? input.validation ?? [],
             result: input.result,
             summary: input.summary
+          })
+        )
+      )
+  );
+
+  server.registerTool(
+    "audit_task_result",
+    {
+      description: "Audit current diff against a v0.4 task session boundary and validation results.",
+      inputSchema: {
+        taskSessionId: z.string().optional(),
+        task_session_id: z.string().optional(),
+        validationResults: z.array(z.object({ command: z.string(), result: z.string() })).optional(),
+        validation_results: z.array(z.object({ command: z.string(), result: z.string() })).optional()
+      }
+    },
+    async (input) =>
+      textJson(
+        toolResponse(
+          repoPath,
+          auditTaskResult(repoPath, {
+            taskSessionId: input.taskSessionId ?? input.task_session_id ?? "",
+            validationResults: input.validationResults ?? input.validation_results ?? []
           })
         )
       )

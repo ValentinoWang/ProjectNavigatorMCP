@@ -43,7 +43,7 @@ business data.
 Postgres can be introduced later only if the product needs team-shared memory,
 centralized dashboards, permissions, or SaaS-style multi-project management.
 
-## v0.3 Capabilities
+## v0.4 Capabilities
 
 The current release supports:
 
@@ -65,6 +65,13 @@ The current release supports:
 16. Worktree boundary output with allowed edit files, pre-existing dirty files, and diff verification commands.
 17. Source document infer mode for useful but non-frontmatter Markdown plans.
 18. `record_task_result` / `pnav finish` for automatic task-result memory.
+19. `minimalRepairPath`: a short 4-7 step repair path for Codex / Claude Code.
+20. `editBoundaryV2`: authoritative file tiers for `mustEditFiles`, `mayEditFiles`, `mayInspectFiles`, `referenceOnlyFiles`, and `doNotTouchFiles`.
+21. Semantic execution-plan dedupe for repeated guard commands, canonical paths, and validation steps.
+22. Guard recipe subtypes with token hints, preferred fix patterns, and forbidden patterns.
+23. Source document target tiering so body mentions and `depends_on` stay reference-only by default.
+24. Domain recipes with aliases and inspect-only/default-do-not-touch path rules.
+25. Finish-time audit through `audit_task_result`, `pnav audit`, and `pnav finish --audit`.
 
 MVP MCP tools:
 
@@ -82,6 +89,7 @@ MVP MCP tools:
 - `explain_guard_rule`
 - `git_worktree_status`
 - `record_task_result`
+- `audit_task_result`
 
 ## Example Target Repository
 
@@ -116,6 +124,11 @@ Start here:
 - [Guard Rule Registry](docs/guard-rule-registry.md)
 - [Domain Gating](docs/domain-gating.md)
 - [Worktree Boundary](docs/worktree-boundary.md)
+- [Minimal Repair Path](docs/minimal-repair-path.md)
+- [Edit Boundary V2](docs/edit-boundary-v2.md)
+- [Source Document Target Tiering](docs/source-doc-target-tiering.md)
+- [Domain Recipes](docs/domain-recipes.md)
+- [Finish-Time Audit](docs/finish-time-audit.md)
 - [v0.3 Execution Ready Plan](docs/v0.3-execution-ready-plan.md)
 - [Roadmap](docs/roadmap.md)
 - [flutter-transfer Demo Queries](examples/flutter-transfer/demo-queries.md)

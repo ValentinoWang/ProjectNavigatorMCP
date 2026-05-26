@@ -38,6 +38,7 @@ describe("MCP server", () => {
       expect(toolNames).toEqual([
         "analyze_guard_output",
         "analyze_source_doc",
+        "audit_task_result",
         "explain_guard_rule",
         "find_related_files",
         "find_symbol",
@@ -62,6 +63,7 @@ describe("MCP server", () => {
         ["prepare_task_context", { task: "add auth test", maxFiles: 5, maxSymbols: 5 }],
         ["analyze_source_doc", { source_doc: "AGENTS.md" }],
         ["analyze_guard_output", { output: "src/main.ts:1 bad", command: "npm test" }],
+        ["audit_task_result", { validationResults: [{ command: "npm test", result: "passed" }] }],
         ["explain_guard_rule", { rule: "DS-BREAKPOINT", output: "[DS-BREAKPOINT] raw width" }],
         ["git_worktree_status", {}],
         [

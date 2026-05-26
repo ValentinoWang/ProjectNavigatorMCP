@@ -18,6 +18,15 @@ export interface DomainGateDebug {
     reason: string;
     score: number;
   }>;
+  dedupedPlanItems?: Array<{
+    kept: string;
+    removed: string;
+    reason: string;
+  }>;
+  suppressedCandidates?: Array<{
+    path: string;
+    reason: string;
+  }>;
 }
 
 export interface RankedExecutionStep extends ExecutionPlanItem {

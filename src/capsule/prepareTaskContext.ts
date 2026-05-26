@@ -9,9 +9,14 @@ import { traceRoute } from "../graph/traceRoute.js";
 import { findSymbol } from "../graph/symbolSearch.js";
 import { searchProjectMemory } from "../memory/memory.js";
 import { applyDomainGate } from "../planner/domainGate.js";
+import { buildEditBoundaryV2, type EditBoundaryV2 } from "../planner/editBoundaryV2.js";
 import { rerankExecutionPlan } from "../planner/executionPlanReranker.js";
+import { tierTaskFiles } from "../planner/fileTiering.js";
+import { buildMinimalRepairPath } from "../planner/minimalRepairPath.js";
+import type { MinimalRepairPath } from "../planner/repairPathTypes.js";
 import { inferTaskDomain } from "../planner/taskDomain.js";
 import type { DomainDecision, PlannerDebug, RankedExecutionStep } from "../planner/types.js";
+import { createTaskSession } from "../tasks/taskSession.js";
 import type { CommandHit, FileHit, RouteHit, RuleHit, SymbolHit } from "../graph/types.js";
 
 export interface ReadOrderItem {
@@ -19,6 +24,9 @@ export interface ReadOrderItem {
   why: string;
   score: number;
   line?: number | null;
+  contextTier?: "core" | "inspect" | "reference" | "suppressed";
+  editTier?: "must_edit" | "may_edit" | "may_inspect" | "reference_only" | "do_not_touch";
+  evidenceTier?: string;
 }
 
 export interface ExecutionPlanItem {
@@ -38,14 +46,19 @@ export interface EditBoundary {
 
 export interface TaskContext {
   task: string;
+  taskSessionId: string;
   interpretation: string;
   domain: DomainDecision | null;
   sourceDoc: StoredSourceDoc | null;
   guardFindings: GuardOutputAnalysis["findings"];
   guardRecipes: GuardOutputAnalysis["ruleMatches"];
   readOrder: ReadOrderItem[];
+  coreReadOrder: ReadOrderItem[];
+  referenceReadOrder: ReadOrderItem[];
+  minimalRepairPath: MinimalRepairPath;
   executionPlan: RankedExecutionStep[];
   editBoundary: EditBoundary;
+  editBoundaryV2: EditBoundaryV2;
   worktreeBoundary: WorktreeBoundary;
   dirtyWorktree: WorktreeStatus | null;
   likelyFiles: FileHit[];
@@ -111,8 +124,19 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
   const explicitPaths = explicitTaskPaths(sourceDoc, guardAnalysis, options.changedFiles ?? []);
   const gated = applyDomainGate({ repoPath, domain, readOrder: rawReadOrder, explicitPaths });
   const readOrder = gated.readOrder.slice(0, options.maxFiles ?? 20);
+  const fileTiers = tierTaskFiles({
+    repoPath,
+    sourceDoc,
+    guardAnalysis,
+    changedFiles: options.changedFiles ?? [],
+    domain
+  });
+  const editBoundaryV2 = buildEditBoundaryV2(fileTiers);
+  const tieredReadOrder = annotateReadOrder(readOrder, fileTiers);
+  const coreReadOrder = tieredReadOrder.filter((item) => item.contextTier === "core" || item.contextTier === "inspect");
+  const referenceReadOrder = tieredReadOrder.filter((item) => item.contextTier === "reference");
 
-  const preferredFiles = readOrder.filter((item) => item.score >= 0.75).map((item) => item.path);
+  const preferredFiles = [...editBoundaryV2.mustEditFiles, ...editBoundaryV2.mayEditFiles];
   const tests = relatedTests(
     repoPath,
     preferredFiles.length > 0 ? preferredFiles : readOrder.map((item) => item.path),
@@ -141,15 +165,28 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
     recommendedCommands: tests.commands,
     maxSteps: options.planMaxSteps ?? 8
   });
+  const minimalRepairPath = buildMinimalRepairPath({ guardAnalysis, editBoundaryV2 });
+  warnings.push(...minimalRepairPath.warnings);
+  const taskSession = createTaskSession(repoPath, {
+    task,
+    sourceDoc: options.sourceDoc,
+    domain: domain?.name,
+    editBoundaryV2,
+    minimalRepairPath
+  });
 
   return {
     task,
+    taskSessionId: taskSession.taskSessionId,
     interpretation: interpretTask(task, sourceDoc),
     domain,
     sourceDoc,
     guardFindings: guardAnalysis?.findings ?? [],
     guardRecipes: guardAnalysis?.ruleMatches ?? [],
-    readOrder,
+    readOrder: tieredReadOrder,
+    coreReadOrder,
+    referenceReadOrder,
+    minimalRepairPath,
     executionPlan: rankedPlan.plan,
     editBoundary: {
       preferredFiles: Array.from(new Set(preferredFiles)),
@@ -160,6 +197,7 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
             .slice(0, 40)
         : []
     },
+    editBoundaryV2,
     worktreeBoundary,
     dirtyWorktree,
     likelyFiles,
@@ -177,7 +215,11 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
         : {
             domainDecision: domain,
             demotedFiles: gated.debug.demotedFiles,
-            droppedCommands: rankedPlan.debug.droppedCommands
+            droppedCommands: rankedPlan.debug.droppedCommands,
+            dedupedPlanItems: rankedPlan.debug.dedupedPlanItems,
+            suppressedCandidates: tieredReadOrder
+              .filter((item) => item.contextTier === "suppressed")
+              .map((item) => ({ path: item.path, reason: item.why }))
           },
     warnings: Array.from(new Set(warnings)),
     nextSteps: nextSteps(dirtyWorktree)
@@ -227,6 +269,49 @@ function buildReadOrder(input: {
     items.push({ path: file.path, why: file.reason, score });
   }
   return dedupeReadOrder(items).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
+}
+
+function annotateReadOrder(readOrder: ReadOrderItem[], fileTiers: ReturnType<typeof tierTaskFiles>): ReadOrderItem[] {
+  const tiers = new Map(fileTiers.map((item) => [item.path, item]));
+  return readOrder.map((item) => {
+    const tier = tiers.get(normalizePath(item.path));
+    const editTier = tier?.tier ?? (item.score < 0.3 ? "reference_only" : "may_inspect");
+    return {
+      ...item,
+      editTier,
+      evidenceTier: tier?.evidence[0] ?? evidenceTierFromWhy(item.why),
+      contextTier: contextTierFor(editTier, item.score)
+    };
+  });
+}
+
+function contextTierFor(editTier: ReadOrderItem["editTier"], score: number): ReadOrderItem["contextTier"] {
+  if (editTier === "must_edit" || editTier === "may_edit") {
+    return "core";
+  }
+  if (editTier === "may_inspect" && score >= 0.55) {
+    return "inspect";
+  }
+  if (editTier === "do_not_touch" || score < 0.2) {
+    return "suppressed";
+  }
+  return "reference";
+}
+
+function evidenceTierFromWhy(why: string): string {
+  if (why.includes("Guard failure")) {
+    return "direct_guard";
+  }
+  if (why.includes("sync_target")) {
+    return "frontmatter_sync";
+  }
+  if (why.includes("depends_on")) {
+    return "frontmatter_depends";
+  }
+  if (why.includes("validation")) {
+    return "frontmatter_validation";
+  }
+  return "fallback_keyword";
 }
 
 function buildExecutionPlan(

@@ -25,6 +25,18 @@ export interface DomainGateConfig {
   allowNegativeWhenExplicit: boolean;
 }
 
+export interface DomainRecipeConfig {
+  name: string;
+  aliases: string[];
+  positivePaths: string[];
+  negativePaths: string[];
+  inspectOnlyPaths: string[];
+  defaultDoNotTouch: string[];
+  preferredCommands: string[];
+  suppressedCommands: string[];
+  minimalRepairTemplate: string[];
+}
+
 export interface ProjectConfig {
   version: number;
   repoRoot: string;
@@ -35,6 +47,7 @@ export interface ProjectConfig {
   domains: DomainConfig[];
   sourcePathBoosts: SourcePathBoost[];
   domainGates: DomainGateConfig[];
+  domainRecipes: DomainRecipeConfig[];
   pathRoots: string[];
 }
 
@@ -129,6 +142,57 @@ export function defaultProjectConfig(repoRoot: string): ProjectConfig {
         allowNegativeWhenExplicit: true
       }
     ],
+    domainRecipes: [
+      {
+        name: "frontend_design_system",
+        aliases: ["frontend_visual_system", "role_visual_system", "design_system", "flutter_design_system"],
+        positivePaths: ["frontend/lib/**", "frontend/test/**", "scripts/quality/**"],
+        negativePaths: ["backend/**", "database/**", "infra/**"],
+        inspectOnlyPaths: ["scripts/quality/**", "develop/**"],
+        defaultDoNotTouch: ["backend/**", "database/**"],
+        preferredCommands: ["*role_visual*", "*design_system_usage*", "*design-system-usage*"],
+        suppressedCommands: ["*maestro*", "*patrol*", "*screenshot*", "*mobile_visual*"],
+        minimalRepairTemplate: [
+          "open_guard_location",
+          "inspect_canonical_token_source",
+          "apply_recipe",
+          "run_primary_guard",
+          "run_secondary_guard"
+        ]
+      },
+      {
+        name: "api_contract",
+        aliases: ["api", "backend_api", "openapi", "api-contract"],
+        positivePaths: ["backend/**", "shared/api/**", "frontend/lib/api/**"],
+        negativePaths: ["frontend/lib/modules/design_system/**"],
+        inspectOnlyPaths: ["shared/api/**"],
+        defaultDoNotTouch: ["frontend/lib/modules/design_system/**"],
+        preferredCommands: ["*api*", "*contract*", "*openapi*", "*backend*test*"],
+        suppressedCommands: ["*golden*", "*screenshot*"],
+        minimalRepairTemplate: [
+          "open_failing_contract_or_route",
+          "inspect_schema_or_client",
+          "apply_compatible_contract_change",
+          "run_contract_validation"
+        ]
+      },
+      {
+        name: "auth_identity",
+        aliases: ["auth", "identity", "session", "permission"],
+        positivePaths: ["**/*auth*", "**/*identity*", "**/*session*", "shared/api/**"],
+        negativePaths: [],
+        inspectOnlyPaths: ["shared/api/**"],
+        defaultDoNotTouch: [],
+        preferredCommands: ["*auth*", "*session*", "*permission*"],
+        suppressedCommands: ["*screenshot*"],
+        minimalRepairTemplate: [
+          "open_failure_location",
+          "inspect_identity_boundary",
+          "apply_minimal_permission_fix",
+          "run_auth_tests"
+        ]
+      }
+    ],
     pathRoots: [
       "frontend",
       "backend",
@@ -172,6 +236,10 @@ export function loadProjectConfig(repoPath: string): ProjectConfig {
       defaults.sourcePathBoosts,
     domainGates:
       parsed.domainGates ?? (parsed as { domain_gates?: DomainGateConfig[] }).domain_gates ?? defaults.domainGates,
+    domainRecipes:
+      parsed.domainRecipes ??
+      (parsed as { domain_recipes?: DomainRecipeConfig[] }).domain_recipes ??
+      defaults.domainRecipes,
     pathRoots: parsed.pathRoots ?? (parsed as { path_roots?: string[] }).path_roots ?? defaults.pathRoots
   };
 }

@@ -20,7 +20,18 @@ export interface SourceDocumentTarget {
   targetPath: string;
   confidence: number;
   rawValue: string;
+  evidenceTier: SourceTargetEvidenceTier;
 }
+
+export type SourceTargetEvidenceTier =
+  | "frontmatter_sync"
+  | "frontmatter_validation"
+  | "frontmatter_depends"
+  | "heading_action_item"
+  | "fenced_command"
+  | "inline_command"
+  | "body_path_mention"
+  | "fallback_keyword";
 
 export interface SourceDocumentStep {
   phase: string | null;
@@ -84,16 +95,24 @@ function inferTargets(docPath: string, body: string): SourceDocumentTarget[] {
         kind: "sync_target",
         targetPath: resolveDocumentPath(docPath, path),
         confidence: 0.62,
-        rawValue: line
+        rawValue: line,
+        evidenceTier: "heading_action_item"
       });
     } else if (/validation|validate|验收|guard|校验|命令/.test(context)) {
-      targets.push({ kind: "validation_target", targetPath: path, confidence: 0.55, rawValue: line });
+      targets.push({
+        kind: "validation_target",
+        targetPath: path,
+        confidence: isSuppressedSourceTarget(path) ? 0.25 : 0.55,
+        rawValue: line,
+        evidenceTier: "body_path_mention"
+      });
     } else if (/depends|依赖|相关/.test(context)) {
       targets.push({
         kind: "depends_on",
         targetPath: resolveDocumentPath(docPath, path),
         confidence: 0.5,
-        rawValue: line
+        rawValue: line,
+        evidenceTier: "body_path_mention"
       });
     }
   }
@@ -107,7 +126,8 @@ function buildTargets(docPath: string, frontmatter: SourceDocFrontmatter): Sourc
       kind: "sync_target",
       targetPath: resolveDocumentPath(docPath, targetPath),
       confidence: 0.95,
-      rawValue: targetPath
+      rawValue: targetPath,
+      evidenceTier: "frontmatter_sync"
     });
   }
   for (const targetPath of frontmatter.dependsOn) {
@@ -115,13 +135,20 @@ function buildTargets(docPath: string, frontmatter: SourceDocFrontmatter): Sourc
       kind: "depends_on",
       targetPath: resolveDocumentPath(docPath, targetPath),
       confidence: 0.75,
-      rawValue: targetPath
+      rawValue: targetPath,
+      evidenceTier: "frontmatter_depends"
     });
   }
   for (const command of frontmatter.validation) {
     const targetPath = extractPathFromText(command);
     if (targetPath) {
-      targets.push({ kind: "validation_target", targetPath, confidence: 0.85, rawValue: command });
+      targets.push({
+        kind: "validation_target",
+        targetPath,
+        confidence: 0.85,
+        rawValue: command,
+        evidenceTier: "frontmatter_validation"
+      });
     }
   }
   return dedupeTargets(targets);
@@ -255,6 +282,10 @@ function dedupeTargets(targets: SourceDocumentTarget[]): SourceDocumentTarget[] 
     seen.add(key);
     return true;
   });
+}
+
+function isSuppressedSourceTarget(targetPath: string): boolean {
+  return /screenshot|screen-shot|maestro|patrol|ocr|mobile|visual_pages/i.test(targetPath);
 }
 
 function firstParagraph(body: string): string | null {

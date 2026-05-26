@@ -2,6 +2,7 @@ import { loadProjectConfig, matchesAnyPattern } from "../config/projectConfig.js
 import type { GuardOutputAnalysis } from "../guard/analyzeGuardOutput.js";
 import type { StoredSourceDoc } from "../docs/sourceDocQuery.js";
 import type { DomainDecision } from "./types.js";
+import { findDomainRecipe } from "./domainRecipe.js";
 
 export function inferTaskDomain(input: {
   repoPath: string;
@@ -15,8 +16,9 @@ export function inferTaskDomain(input: {
   const evidence: string[] = [];
   const hinted = input.domainHint ?? input.guardAnalysis?.ruleMatches[0]?.domain ?? input.sourceDoc?.ownerDomain;
   if (hinted) {
+    const recipe = findDomainRecipe(input.repoPath, hinted);
     evidence.push(`explicit domain signal: ${hinted}`);
-    return { name: hinted, confidence: 0.95, evidence };
+    return { name: recipe?.name ?? hinted, confidence: 0.95, evidence };
   }
 
   const source = `${input.task} ${input.sourceDoc?.title ?? ""} ${input.sourceDoc?.authority ?? ""}`.toLowerCase();

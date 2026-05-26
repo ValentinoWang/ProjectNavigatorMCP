@@ -37,6 +37,18 @@ Execution-Ready Project Secretary:
 
 ## v0.4
 
+Minimal Repair Path & Finish-Time Audit:
+
+- `minimalRepairPath` as the primary short execution path for coding agents.
+- `editBoundaryV2` with must-edit, may-edit, inspect-only, reference-only, and do-not-touch tiers.
+- Semantic dedupe for repeated guard commands, canonical paths, and validation steps.
+- Guard recipe subtypes with token hints, preferred fix patterns, and forbidden patterns.
+- Source document target tiering so inferred body mentions do not become editable boundaries.
+- Domain recipes with aliases, inspect-only paths, and default do-not-touch paths.
+- Finish-time audit with `audit_task_result`, `pnav audit`, and `pnav finish --audit`.
+
+## v0.5
+
 Scanner accuracy:
 
 - Richer Dart, TypeScript, JavaScript, and Python symbol extraction.
@@ -45,7 +57,7 @@ Scanner accuracy:
 - More import alias resolution.
 - Incremental scanning by file hash.
 
-## v0.5
+## v0.6
 
 Optional language intelligence backends:
 

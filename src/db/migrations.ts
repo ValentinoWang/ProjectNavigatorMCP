@@ -149,6 +149,51 @@ const MIGRATIONS: Migration[] = [
       ALTER TABLE documents ADD COLUMN doc_confidence REAL NOT NULL DEFAULT 1.0;
       ALTER TABLE documents ADD COLUMN source_warnings_json TEXT NOT NULL DEFAULT '[]';
     `
+  },
+  {
+    version: 5,
+    name: "minimal_repair_and_finish_audit",
+    sql: `
+      CREATE TABLE IF NOT EXISTS task_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        session_id TEXT NOT NULL UNIQUE,
+        task TEXT NOT NULL,
+        source_doc TEXT,
+        domain TEXT,
+        baseline_git_sha TEXT,
+        baseline_status_json TEXT NOT NULL DEFAULT '{}',
+        boundary_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS task_session_files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        path TEXT NOT NULL,
+        tier TEXT NOT NULL,
+        reason TEXT,
+        evidence_json TEXT NOT NULL DEFAULT '[]',
+        baseline_hash TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE IF NOT EXISTS finish_audits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        session_id TEXT,
+        result TEXT NOT NULL,
+        score REAL NOT NULL DEFAULT 0,
+        changed_files_json TEXT NOT NULL DEFAULT '[]',
+        violations_json TEXT NOT NULL DEFAULT '[]',
+        validations_json TEXT NOT NULL DEFAULT '[]',
+        summary TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_task_sessions_repo_created ON task_sessions(repo_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_task_session_files_session ON task_session_files(session_id);
+      CREATE INDEX IF NOT EXISTS idx_finish_audits_session ON finish_audits(session_id);
+      ALTER TABLE document_targets ADD COLUMN evidence_tier TEXT NOT NULL DEFAULT 'fallback_keyword';
+    `
   }
 ];
 

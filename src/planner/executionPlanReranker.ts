@@ -3,6 +3,7 @@ import type { GuardOutputAnalysis } from "../guard/analyzeGuardOutput.js";
 import type { CommandHit } from "../graph/types.js";
 import { commandDomainPenalty } from "./domainGate.js";
 import type { DomainDecision, DomainGateDebug, RankedExecutionStep } from "./types.js";
+import { semanticDedupePlanItems } from "./semanticDedupe.js";
 
 export function rerankExecutionPlan(input: {
   repoPath: string;
@@ -11,10 +12,15 @@ export function rerankExecutionPlan(input: {
   domain: DomainDecision | null;
   recommendedCommands: CommandHit[];
   maxSteps?: number;
-}): { plan: RankedExecutionStep[]; debug: Pick<DomainGateDebug, "droppedCommands"> } {
+}): { plan: RankedExecutionStep[]; debug: Pick<DomainGateDebug, "droppedCommands" | "dedupedPlanItems"> } {
   const maxSteps = input.maxSteps ?? 8;
-  const debug: Pick<DomainGateDebug, "droppedCommands"> = { droppedCommands: [] };
-  const ranked = input.plan
+  const debug: Pick<DomainGateDebug, "droppedCommands" | "dedupedPlanItems"> = {
+    droppedCommands: [],
+    dedupedPlanItems: []
+  };
+  const deduped = semanticDedupePlanItems(input.plan);
+  debug.dedupedPlanItems = deduped.deduped;
+  const ranked = deduped.items
     .map((step) => scoreStep(step, input))
     .sort((a, b) => b.score - a.score || a.order - b.order);
 

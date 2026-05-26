@@ -26,7 +26,48 @@ export const DEFAULT_GUARD_RULES: GuardRule[] = [
         "python scripts/quality/check_role_visual_system_guard.py",
         "python scripts/quality/check_frontend_design_system_usage_guard.py"
       ],
-      forbiddenPatterns: ["Do not add raw breakpoint constants", "Do not disable the guard"]
+      forbiddenPatterns: ["Do not add raw breakpoint constants", "Do not disable the guard"],
+      subtypes: [
+        {
+          id: "breakpoint",
+          match: { outputRegex: ["breakpoint", "raw width", "magic width", "responsive", "DS-BREAKPOINT"] },
+          tokenHints: ["DSBreakpoints", "ExperienceBreakpoints", "experienceTheme.breakpoints"],
+          canonicalSymbols: ["DSBreakpoints", "ExperienceTheme"],
+          preferredFixPatterns: [
+            "Use existing design-system breakpoint token/API.",
+            "Prefer shared responsive helper over local magic number."
+          ],
+          forbiddenPatterns: [
+            "Do not add local const wrappers around raw widths.",
+            "Do not bypass or weaken the guard.",
+            "Do not add per-widget private breakpoint constants."
+          ]
+        },
+        {
+          id: "motion",
+          match: { outputRegex: ["duration", "animation", "motion", "curve"] },
+          tokenHints: ["DSMotion", "ExperienceMotion"],
+          canonicalSymbols: ["DSMotion"],
+          preferredFixPatterns: ["Use shared motion duration/curve token."],
+          forbiddenPatterns: ["Do not inline raw Duration(milliseconds: ...)."]
+        },
+        {
+          id: "semantic_color",
+          match: { outputRegex: ["color", "opacity", "withOpacity", "Color\\("] },
+          tokenHints: ["DSSemanticColors", "ExperienceColors"],
+          canonicalSymbols: ["DSSemanticColors", "DSExperienceTheme"],
+          preferredFixPatterns: ["Use semantic color token instead of raw Color/opacity."],
+          forbiddenPatterns: ["Do not replace raw color with another raw color."]
+        },
+        {
+          id: "typography",
+          match: { outputRegex: ["fontSize", "TextStyle", "lineHeight", "letterSpacing"] },
+          tokenHints: ["DSTypography", "ExperienceTypography"],
+          canonicalSymbols: ["DSTypography"],
+          preferredFixPatterns: ["Use typography token from design system."],
+          forbiddenPatterns: ["Do not introduce local TextStyle with raw fontSize."]
+        }
+      ]
     }
   },
   {

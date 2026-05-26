@@ -3,6 +3,16 @@ export interface GuardRecipe {
   steps: string[];
   validationCommands: string[];
   forbiddenPatterns?: string[];
+  subtypes?: GuardRecipeSubtype[];
+}
+
+export interface GuardRecipeSubtype {
+  id: string;
+  match: GuardRuleMatcher;
+  tokenHints: string[];
+  canonicalSymbols?: string[];
+  preferredFixPatterns: string[];
+  forbiddenPatterns: string[];
 }
 
 export interface GuardRuleMatcher {
@@ -22,11 +32,15 @@ export interface GuardRule {
 
 export interface GuardRuleMatch {
   ruleId: string;
+  subtype?: string | null;
   domain: string;
   severity: "info" | "warning" | "error";
   canonicalPaths: string[];
   recipe: GuardRecipe;
   validationCommands: string[];
+  tokenHints: string[];
+  preferredFixPatterns: string[];
+  forbiddenPatterns: string[];
   confidence: number;
   evidence: string[];
 }

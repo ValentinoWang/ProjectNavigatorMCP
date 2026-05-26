@@ -5,6 +5,7 @@ export function renderCapsule(context: TaskContext): string {
     `# Task Context Capsule`,
     "",
     `Task: ${context.task}`,
+    `Task Session: ${context.taskSessionId}`,
     `Interpretation: ${context.interpretation}`,
     `Domain: ${context.domain ? `${context.domain.name} (${context.domain.confidence.toFixed(2)})` : "unknown"}`,
     "",
@@ -34,11 +35,32 @@ export function renderCapsule(context: TaskContext): string {
       )
     ),
     "",
-    "## Read Order",
+    "## Minimal Repair Path",
     ...emptyAware(
-      context.readOrder.map(
-        (item) => `- ${item.path}${item.line ? `:${item.line}` : ""} (${item.score.toFixed(2)}) - ${item.why}`
+      context.minimalRepairPath.steps.map(
+        (step) =>
+          `- ${step.order}. ${step.action}${step.target ? ` ${step.target}` : ""}${step.command ? ` \`${step.command}\`` : ""}${step.instruction ? ` — ${step.instruction}` : ""} (${step.why})`
       )
+    ),
+    "",
+    "## Edit Boundary V2",
+    ...emptyAware(context.editBoundaryV2.mustEditFiles.map((file) => `- must_edit: ${file}`)),
+    ...context.editBoundaryV2.mayEditFiles.map((file) => `- may_edit: ${file}`),
+    ...context.editBoundaryV2.mayInspectFiles.map((file) => `- may_inspect: ${file}`),
+    ...context.editBoundaryV2.referenceOnlyFiles.map((file) => `- reference_only: ${file}`),
+    ...context.editBoundaryV2.doNotTouchFiles.map((file) => `- do_not_touch: ${file}`),
+    "",
+    "## Core Read Order",
+    ...emptyAware(
+      context.coreReadOrder.map(
+        (item) =>
+          `- ${item.path}${item.line ? `:${item.line}` : ""} (${item.score.toFixed(2)}; ${item.editTier ?? "inspect"}) - ${item.why}`
+      )
+    ),
+    "",
+    "## Reference Read Order",
+    ...emptyAware(
+      context.referenceReadOrder.slice(0, 10).map((item) => `- ${item.path} (${item.score.toFixed(2)}) - ${item.why}`)
     ),
     "",
     "## Execution Plan",

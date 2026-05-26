@@ -45,10 +45,10 @@ Scores are relevance values. Confidence describes relationship reliability.
 
 ## Deterministic Ranking
 
-v0.3 uses deterministic navigation signals before broad keyword matching:
+v0.4 uses deterministic navigation signals before broad keyword matching:
 
 1. Guard output `file:line`.
-2. Guard Rule Registry canonical paths and repair recipes.
+2. Guard Rule Registry canonical paths, recipe subtypes, and repair recipes.
 3. `source_doc` frontmatter `sync_targets`.
 4. `source_doc` validation command targets.
 5. `source_doc` `depends_on`.
@@ -258,7 +258,38 @@ Data shape:
     }
   ],
   "guardRecipes": [{ "ruleId": "DS-BREAKPOINT", "canonicalPaths": [], "validationCommands": [] }],
-  "readOrder": [{ "path": "frontend/lib/page.dart", "why": "Guard failure location", "score": 1 }],
+  "minimalRepairPath": {
+    "confidence": 0.92,
+    "steps": [
+      {
+        "order": 1,
+        "action": "open",
+        "target": "frontend/lib/page.dart:9",
+        "tier": "must_edit",
+        "why": "Direct guard failure location."
+      }
+    ],
+    "warnings": []
+  },
+  "editBoundaryV2": {
+    "mustEditFiles": ["frontend/lib/page.dart"],
+    "mayEditFiles": [],
+    "mayInspectFiles": ["frontend/lib/modules/design_system/theme/experience_theme.dart"],
+    "referenceOnlyFiles": [],
+    "doNotTouchFiles": ["backend/**", "database/**"],
+    "warnings": []
+  },
+  "coreReadOrder": [
+    {
+      "path": "frontend/lib/page.dart",
+      "why": "Guard failure location",
+      "score": 1,
+      "contextTier": "core",
+      "editTier": "must_edit",
+      "evidenceTier": "direct_guard"
+    }
+  ],
+  "referenceReadOrder": [],
   "executionPlan": [
     {
       "order": 1,
@@ -268,7 +299,6 @@ Data shape:
       "penalties": []
     }
   ],
-  "editBoundary": { "preferredFiles": ["frontend/lib/page.dart"], "doNotTouchWithoutReason": [] },
   "worktreeBoundary": {
     "allowedEditFiles": ["frontend/lib/page.dart"],
     "preExistingDirtyFiles": [],
@@ -282,10 +312,13 @@ Data shape:
   "relatedTests": { "commands": [], "testFiles": [] },
   "projectRules": [],
   "memoryHits": [],
-  "debug": { "demotedFiles": [], "droppedCommands": [] },
+  "taskSessionId": "tsk_20260526_000000_abc123",
+  "debug": { "demotedFiles": [], "droppedCommands": [], "dedupedPlanItems": [], "suppressedCandidates": [] },
   "nextSteps": []
 }
 ```
+
+`minimalRepairPath`, `editBoundaryV2`, `coreReadOrder`, and `referenceReadOrder` are the v0.4 navigation facts new agents should use. `worktreeBoundary.allowedEditFiles` is derived from `editBoundaryV2.mustEditFiles + editBoundaryV2.mayEditFiles`.
 
 ### `analyze_source_doc`
 
@@ -374,10 +407,14 @@ Data shape:
 ```json
 {
   "ruleId": "DS-BREAKPOINT",
+  "subtype": "breakpoint",
   "domain": "frontend_design_system",
   "canonicalPaths": ["frontend/lib/modules/design_system/theme/experience_theme.dart"],
   "recipe": { "title": "Replace raw breakpoint or magic width with design-system breakpoint token" },
   "validationCommands": ["python scripts/quality/check_role_visual_system_guard.py"],
+  "tokenHints": ["DSBreakpoints", "ExperienceBreakpoints", "experienceTheme.breakpoints"],
+  "preferredFixPatterns": ["Use existing design-system breakpoint token/API."],
+  "forbiddenPatterns": ["Do not add per-widget private breakpoint constants."],
   "confidence": 0.91
 }
 ```
@@ -456,8 +493,35 @@ Data shape:
 }
 ```
 
+### `audit_task_result`
+
+Input:
+
+```json
+{
+  "taskSessionId": "tsk_20260526_000000_abc123",
+  "validationResults": [{ "command": "python scripts/quality/check_role_visual_system_guard.py", "result": "passed" }]
+}
+```
+
 Data shape:
 
 ```json
-{ "stored": true, "memoryId": 12 }
+{
+  "audit": {
+    "result": "pass",
+    "score": 1,
+    "violations": [],
+    "changedFilesByTier": {
+      "mustEdit": ["frontend/lib/page.dart"],
+      "mayEdit": [],
+      "mayInspectTouched": [],
+      "referenceTouched": [],
+      "forbiddenTouched": [],
+      "unknownTouched": []
+    },
+    "missingValidations": [],
+    "recommendedNextAction": "Record the task result."
+  }
+}
 ```

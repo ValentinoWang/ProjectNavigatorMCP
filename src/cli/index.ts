@@ -14,6 +14,7 @@ import { scanRepo } from "../scanner/scanRepo.js";
 import { getDoctorReport, renderDoctorReport } from "./commands/doctor.js";
 import { initProject, renderInitResult } from "./commands/init.js";
 import { PACKAGE_NAME, PACKAGE_VERSION } from "../shared/packageInfo.js";
+import { auditTaskResult } from "../tasks/taskAudit.js";
 
 const program = new Command();
 
@@ -123,6 +124,8 @@ program
   .option("--validation <command...>", "Validation command")
   .option("--result <result>", "Task result status")
   .option("--summary <summary>", "Task result summary")
+  .option("--audit", "Run finish-time audit after recording")
+  .option("--session <id>", "Task session id for audit")
   .action(
     (
       repo: string,
@@ -135,26 +138,63 @@ program
         validation?: string[];
         result?: string;
         summary?: string;
+        audit?: boolean;
+        session?: string;
       }
     ) => {
+      const recorded = recordTaskResult(repo, {
+        title: options.title,
+        task: options.task,
+        sourceDoc: options.sourceDoc,
+        guardLog: options.guardLog,
+        guardCommand: options.guardCommand,
+        validations: options.validation ?? [],
+        result: options.result,
+        summary: options.summary
+      });
       console.log(
         JSON.stringify(
-          recordTaskResult(repo, {
-            title: options.title,
-            task: options.task,
-            sourceDoc: options.sourceDoc,
-            guardLog: options.guardLog,
-            guardCommand: options.guardCommand,
-            validations: options.validation ?? [],
-            result: options.result,
-            summary: options.summary
-          }),
+          {
+            ...recorded,
+            audit:
+              options.audit && options.session
+                ? auditTaskResult(repo, {
+                    taskSessionId: options.session,
+                    validationResults: (options.validation ?? []).map((command) => ({
+                      command,
+                      result: options.result ?? "passed"
+                    }))
+                  }).audit
+                : undefined
+          },
           null,
           2
         )
       );
     }
   );
+
+program
+  .command("audit")
+  .description("Audit current diff against a task session boundary")
+  .argument("<repo>", "Target repository path")
+  .requiredOption("--session <id>", "Task session id from prepare_task_context / pnav capsule")
+  .option("--validation <entry...>", "Validation result as command=passed or command=failed")
+  .action((repo: string, options: { session: string; validation?: string[] }) => {
+    console.log(
+      JSON.stringify(
+        auditTaskResult(repo, {
+          taskSessionId: options.session,
+          validationResults: (options.validation ?? []).map((entry) => {
+            const [command, result = "passed"] = entry.split("=");
+            return { command, result };
+          })
+        }),
+        null,
+        2
+      )
+    );
+  });
 
 program
   .command("remember")
