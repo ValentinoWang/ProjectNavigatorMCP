@@ -95,6 +95,14 @@ Production Discovery Gate:
 - `impact_analysis_v3`.
 - `pnav eval` production discovery harness.
 
+## v0.8.1
+
+Production Gate Hardening:
+
+- `chainDepth` and `chainCompleteness` clarify whether the handoff reached route/page, main widget, section/card, or test-covered depth.
+- `authoritativeHandoff.reuseDecision` uses Reuse Decision Engine V2 with API-fit and recommended-action output.
+- Historical migrations are idempotent when old SQLite databases already contain added columns.
+
 ## v0.9
 
 Scanner accuracy and optional language intelligence backends:

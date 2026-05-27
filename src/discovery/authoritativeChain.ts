@@ -1,4 +1,5 @@
 import type { FileHit } from "../graph/types.js";
+import { decideReuseV2, type ReuseDecisionV2 } from "../reuse/reuseDecisionEngineV2.js";
 import { findFlutterRouteToWidgetChain, type RouteToWidgetChain } from "../ui/flutterRouteChain.js";
 import type { SimilarCodeHit } from "./types.js";
 import { strictMustReadGate, type HandoffFile, type SuppressedCandidate } from "./strictMustReadGate.js";
@@ -7,9 +8,11 @@ export interface AuthoritativeHandoff {
   mode: "strict_discovery";
   confidence: number;
   chainStatus: RouteToWidgetChain["status"];
+  chainDepth: number;
+  chainCompleteness: RouteToWidgetChain["completeness"];
   mustRead: HandoffFile[];
   coreChain: RouteToWidgetChain["steps"];
-  reuseDecision: SimilarCodeHit | null;
+  reuseDecision: ReuseDecisionV2;
   impactSummary: {
     affectedTests: string[];
     criticalFiles: string[];
@@ -43,17 +46,19 @@ export function buildAuthoritativeHandoff(
     evidence: ["ranked_discovery"]
   }));
   const gate = strictMustReadGate(task, [...chainCandidates, ...readCandidates], reuseCandidates, 5);
-  const reuseDecision =
-    reuseCandidates.find((hit) => hit.verdict && hit.verdict !== "create_new_allowed") ?? reuseCandidates[0] ?? null;
+  const reuseDecision = decideReuseV2(repoPath, task, 5, reuseCandidates);
   const confidence = Number(
-    Math.min(0.98, chain.confidence * 0.55 + (gate.mustRead.length > 0 ? 0.25 : 0) + (reuseDecision ? 0.1 : 0)).toFixed(
-      2
-    )
+    Math.min(
+      0.98,
+      chain.confidence * 0.55 + (gate.mustRead.length > 0 ? 0.25 : 0) + (reuseDecision.path ? 0.1 : 0)
+    ).toFixed(2)
   );
   return {
     mode: "strict_discovery",
     confidence,
     chainStatus: chain.status,
+    chainDepth: chain.depth,
+    chainCompleteness: chain.completeness,
     mustRead: gate.mustRead,
     coreChain: chain.steps,
     reuseDecision,

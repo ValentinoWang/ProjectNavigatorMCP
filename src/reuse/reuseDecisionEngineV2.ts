@@ -12,8 +12,13 @@ export interface ReuseDecisionV2 {
   evidence: string[];
 }
 
-export function decideReuseV2(repoPath: string, task: string, limit = 5): ReuseDecisionV2 {
-  const candidates = findReusableComponents(repoPath, task, limit).reuseCandidates;
+export function decideReuseV2(
+  repoPath: string,
+  task: string,
+  limit = 5,
+  reuseCandidates?: SimilarCodeHit[]
+): ReuseDecisionV2 {
+  const candidates = reuseCandidates ?? findReusableComponents(repoPath, task, limit).reuseCandidates;
   const best = candidates.find((hit) => hit.verdict && hit.verdict !== "create_new_allowed") ?? candidates[0];
   if (!best) {
     return {

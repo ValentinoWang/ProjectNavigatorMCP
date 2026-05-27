@@ -100,4 +100,37 @@ describe("migrate", () => {
       db.close();
     }
   });
+
+  it.each([1, 3, 6])("replays migrations after a legacy v%s schema without duplicate-column failures", (version) => {
+    const db = openDatabase(tempDbPath());
+    try {
+      migrate(db);
+
+      db.prepare("DELETE FROM schema_migrations WHERE version > ?").run(version);
+
+      const result = migrate(db);
+      expect(result.applied).toEqual(Array.from({ length: 8 - version }, (_, index) => version + index + 1));
+
+      const symbolColumns = db
+        .prepare("PRAGMA table_info(symbols)")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      const documentColumns = db
+        .prepare("PRAGMA table_info(documents)")
+        .all()
+        .map((row) => (row as { name: string }).name);
+      const targetColumns = db
+        .prepare("PRAGMA table_info(document_targets)")
+        .all()
+        .map((row) => (row as { name: string }).name);
+
+      expect(symbolColumns).toContain("qualified_name");
+      expect(symbolColumns).toContain("language_kind");
+      expect(documentColumns).toContain("parse_mode");
+      expect(targetColumns).toContain("evidence_tier");
+      expect(db.prepare("SELECT COUNT(*) AS count FROM schema_migrations").get()).toMatchObject({ count: 8 });
+    } finally {
+      db.close();
+    }
+  });
 });

@@ -15,9 +15,13 @@ export interface RouteToWidgetStep {
 export interface RouteToWidgetChain {
   status: "verified_chain" | "partial_chain" | "candidate_chain";
   steps: RouteToWidgetStep[];
+  depth: number;
+  completeness: ChainCompleteness;
   confidence: number;
   warnings: string[];
 }
+
+export type ChainCompleteness = "route_page_only" | "route_main_widget" | "route_section_card" | "route_test_covered";
 
 interface SymbolRow {
   id: number;
@@ -90,6 +94,7 @@ export function findFlutterRouteToWidgetChain(repoPath: string, task: string): R
         appendCompositionSteps(repoPath, task, page, byName, steps, 3);
       }
     }
+    const completeness = classifyCompleteness(steps);
     const confidence = Number(
       Math.min(0.98, steps.reduce((total, step) => total + step.confidence, 0) / Math.max(1, steps.length)).toFixed(2)
     );
@@ -101,12 +106,24 @@ export function findFlutterRouteToWidgetChain(repoPath: string, task: string): R
             ? "partial_chain"
             : "candidate_chain",
       steps,
+      depth: steps.length,
+      completeness,
       confidence,
       warnings: steps.length === 0 ? ["No Flutter route-to-widget chain found."] : []
     };
   } finally {
     project.db.close();
   }
+}
+
+export function classifyCompleteness(steps: RouteToWidgetStep[]): ChainCompleteness {
+  if (steps.some((step) => step.kind === "section_or_card")) {
+    return "route_section_card";
+  }
+  if (steps.some((step) => step.kind === "widget")) {
+    return "route_main_widget";
+  }
+  return "route_page_only";
 }
 
 function appendCompositionSteps(

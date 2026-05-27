@@ -37,10 +37,15 @@ export function scoreDiscoveryResult(result: DiscoveryResult, expected: EvalExpe
   const reuseDecisionAccuracy =
     (expected.reuseCandidatesAny ?? []).length === 0
       ? 1
-      : ratio(expected.reuseCandidatesAny ?? [], (needle) =>
-          result.reuseCandidates.some((hit) =>
-            `${hit.symbol ?? ""} ${hit.qualifiedName ?? ""} ${hit.path}`.includes(needle)
-          )
+      : ratio(
+          expected.reuseCandidatesAny ?? [],
+          (needle) =>
+            `${result.authoritativeHandoff.reuseDecision.candidate ?? ""} ${result.authoritativeHandoff.reuseDecision.path ?? ""} ${result.authoritativeHandoff.reuseDecision.recommendedAction}`
+              .toLowerCase()
+              .includes(needle.toLowerCase()) ||
+            result.reuseCandidates.some((hit) =>
+              `${hit.symbol ?? ""} ${hit.qualifiedName ?? ""} ${hit.path}`.toLowerCase().includes(needle.toLowerCase())
+            )
         );
   const impactCriticalCoverage =
     (expected.testsAny ?? []).length === 0

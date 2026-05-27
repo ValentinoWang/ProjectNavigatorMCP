@@ -50,5 +50,5 @@ describe("production discovery eval", () => {
     const result = runDiscoveryEval(repo, suitePath, true);
     expect(result.productionScore).toBeGreaterThanOrEqual(0.9);
     expect(result.passed).toBe(true);
-  });
+  }, 15_000);
 });

@@ -22,14 +22,6 @@ const MIGRATIONS: Migration[] = [
     version: 2,
     name: "fts_and_memory_contract",
     sql: `
-      ALTER TABLE symbols ADD COLUMN signature TEXT;
-      ALTER TABLE symbols ADD COLUMN qualified_name TEXT;
-      ALTER TABLE memories ADD COLUMN memory_type TEXT NOT NULL DEFAULT 'task';
-      ALTER TABLE memories ADD COLUMN decisions_json TEXT NOT NULL DEFAULT '[]';
-      ALTER TABLE memories ADD COLUMN pitfalls_json TEXT NOT NULL DEFAULT '[]';
-      ALTER TABLE memories ADD COLUMN validation_json TEXT NOT NULL DEFAULT '[]';
-      ALTER TABLE memories ADD COLUMN confidence REAL NOT NULL DEFAULT 1.0;
-      ALTER TABLE memories ADD COLUMN stale_after TEXT;
       CREATE TABLE IF NOT EXISTS memory_tags (
         memory_id INTEGER NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
         tag TEXT NOT NULL,
@@ -145,9 +137,6 @@ const MIGRATIONS: Migration[] = [
       );
       CREATE INDEX IF NOT EXISTS idx_guard_rules_repo_rule ON guard_rules(repo_id, rule_id);
       CREATE INDEX IF NOT EXISTS idx_task_runs_repo_created ON task_runs(repo_id, created_at);
-      ALTER TABLE documents ADD COLUMN parse_mode TEXT NOT NULL DEFAULT 'frontmatter';
-      ALTER TABLE documents ADD COLUMN doc_confidence REAL NOT NULL DEFAULT 1.0;
-      ALTER TABLE documents ADD COLUMN source_warnings_json TEXT NOT NULL DEFAULT '[]';
     `
   },
   {
@@ -192,23 +181,12 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_task_sessions_repo_created ON task_sessions(repo_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_task_session_files_session ON task_session_files(session_id);
       CREATE INDEX IF NOT EXISTS idx_finish_audits_session ON finish_audits(session_id);
-      ALTER TABLE document_targets ADD COLUMN evidence_tier TEXT NOT NULL DEFAULT 'fallback_keyword';
     `
   },
   {
     version: 6,
     name: "code_discovery_reuse_intelligence",
     sql: `
-      ALTER TABLE symbols ADD COLUMN container_name TEXT;
-      ALTER TABLE symbols ADD COLUMN parameters_json TEXT NOT NULL DEFAULT '[]';
-      ALTER TABLE symbols ADD COLUMN return_type TEXT;
-      ALTER TABLE symbols ADD COLUMN visibility TEXT;
-      ALTER TABLE symbols ADD COLUMN body_start_line INTEGER;
-      ALTER TABLE symbols ADD COLUMN body_end_line INTEGER;
-      ALTER TABLE symbols ADD COLUMN body_hash TEXT;
-      ALTER TABLE symbols ADD COLUMN normalized_fingerprint TEXT;
-      ALTER TABLE symbols ADD COLUMN language_kind TEXT;
-
       CREATE TABLE IF NOT EXISTS code_blocks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
@@ -382,6 +360,35 @@ export function migrate(db: ProjectDatabase): MigrationResult {
   };
 
   const runMigration = db.transaction((migration: Migration) => {
+    if (migration.version === 2) {
+      addColumnIfMissing("symbols", "signature", "TEXT");
+      addColumnIfMissing("symbols", "qualified_name", "TEXT");
+      addColumnIfMissing("memories", "memory_type", "TEXT NOT NULL DEFAULT 'task'");
+      addColumnIfMissing("memories", "decisions_json", "TEXT NOT NULL DEFAULT '[]'");
+      addColumnIfMissing("memories", "pitfalls_json", "TEXT NOT NULL DEFAULT '[]'");
+      addColumnIfMissing("memories", "validation_json", "TEXT NOT NULL DEFAULT '[]'");
+      addColumnIfMissing("memories", "confidence", "REAL NOT NULL DEFAULT 1.0");
+      addColumnIfMissing("memories", "stale_after", "TEXT");
+    }
+    if (migration.version === 4) {
+      addColumnIfMissing("documents", "parse_mode", "TEXT NOT NULL DEFAULT 'frontmatter'");
+      addColumnIfMissing("documents", "doc_confidence", "REAL NOT NULL DEFAULT 1.0");
+      addColumnIfMissing("documents", "source_warnings_json", "TEXT NOT NULL DEFAULT '[]'");
+    }
+    if (migration.version === 5) {
+      addColumnIfMissing("document_targets", "evidence_tier", "TEXT NOT NULL DEFAULT 'fallback_keyword'");
+    }
+    if (migration.version === 6) {
+      addColumnIfMissing("symbols", "container_name", "TEXT");
+      addColumnIfMissing("symbols", "parameters_json", "TEXT NOT NULL DEFAULT '[]'");
+      addColumnIfMissing("symbols", "return_type", "TEXT");
+      addColumnIfMissing("symbols", "visibility", "TEXT");
+      addColumnIfMissing("symbols", "body_start_line", "INTEGER");
+      addColumnIfMissing("symbols", "body_end_line", "INTEGER");
+      addColumnIfMissing("symbols", "body_hash", "TEXT");
+      addColumnIfMissing("symbols", "normalized_fingerprint", "TEXT");
+      addColumnIfMissing("symbols", "language_kind", "TEXT");
+    }
     if (migration.version === 7) {
       addColumnIfMissing("files", "last_scanned_at", "TEXT");
       addColumnIfMissing("files", "deleted_at", "TEXT");

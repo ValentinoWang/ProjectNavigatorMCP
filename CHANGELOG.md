@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.8.1
+
+Production Gate Hardening release.
+
+- Added `chainDepth` and `chainCompleteness` to the authoritative handoff so `verified_chain` no longer hides how far the route/page/widget evidence actually reaches.
+- Wired `authoritativeHandoff.reuseDecision` to Reuse Decision Engine V2 with API-fit, missing-params, and recommended-action output.
+- Hardened historical SQLite migrations so replayed v2/v4/v5/v6/v7 column additions skip existing columns instead of failing with duplicate-column errors.
+- Added legacy schema replay tests for v1, v3, and v6 databases.
+
 ## v0.8.0
 
 Production Discovery Gate release.
