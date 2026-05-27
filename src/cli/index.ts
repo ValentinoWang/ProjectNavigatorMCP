@@ -12,10 +12,12 @@ import { moduleMap } from "../discovery/moduleMap.js";
 import { findReusableComponents, findSimilarCode } from "../discovery/reuse.js";
 import { findCallers, findCallees, traceSymbol } from "../discovery/symbolGraph.js";
 import { whyRelated } from "../discovery/whyRelated.js";
+import { runDiscoveryEval } from "../eval/evalRunner.js";
 import { analyzeGuardOutput } from "../guard/analyzeGuardOutput.js";
 import { explainGuardRule } from "../guard/ruleRegistry.js";
 import { getWorktreeStatus } from "../git/worktreeStatus.js";
 import { impactAnalysisV2 } from "../graph/impactAnalysisV2.js";
+import { impactAnalysisV3 } from "../graph/impactAnalysisV3.js";
 import { getRepoMap, renderRepoMap } from "../graph/repoMap.js";
 import { startMcpServer } from "../mcp/server.js";
 import { rememberTask, searchProjectMemory } from "../memory/memory.js";
@@ -235,6 +237,26 @@ program
   .argument("<target>", "File, route, or symbol target")
   .action((repo: string, target: string) => {
     console.log(JSON.stringify(impactAnalysisV2(repo, target), null, 2));
+  });
+
+program
+  .command("impact-v3")
+  .description("Run production impact analysis with UI composition and critical impact layers")
+  .argument("<repo>", "Target repository path")
+  .argument("<target>", "File, route, or symbol target")
+  .option("--task <task>", "Optional task wording")
+  .action((repo: string, target: string, options: { task?: string }) => {
+    console.log(JSON.stringify(impactAnalysisV3(repo, target, options.task ?? target), null, 2));
+  });
+
+program
+  .command("eval")
+  .description("Run a production discovery eval suite")
+  .argument("<repo>", "Target repository path")
+  .requiredOption("--suite <json>", "Discovery eval suite JSON")
+  .option("--strict", "Require production_score >= 0.90")
+  .action((repo: string, options: { suite: string; strict?: boolean }) => {
+    console.log(JSON.stringify(runDiscoveryEval(repo, options.suite, Boolean(options.strict)), null, 2));
   });
 
 program

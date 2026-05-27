@@ -157,3 +157,34 @@ Call graph tools return confidence-scored edges. Low-confidence ambiguous result
 
 - `verified_chain`: backed by route/page evidence plus import/test evidence.
 - `candidate_chain`: useful but not yet a strict call/import/test chain.
+
+## v0.8 Production Discovery Gate Fields
+
+`discover_code.data.authoritativeHandoff` is the primary production handoff:
+
+- `mode`: `strict_discovery`.
+- `confidence`: handoff confidence.
+- `chainStatus`: `verified_chain`, `partial_chain`, or `candidate_chain`.
+- `mustRead`: the strict primary file list, capped at five by default.
+- `coreChain`: route/page/widget chain steps.
+- `reuseDecision`: best reuse decision for avoiding duplicated implementation.
+- `impactSummary`: critical tests and files.
+- `supportingContext`: useful support dependencies excluded from `mustRead`.
+- `suppressedCandidates`: files removed from primary context with reasons.
+- `strictGate`: budget and dropped-file audit.
+
+`trace_feature.data.routeToWidgetChain` returns the route/page/widget chain independent of wider candidate chains.
+
+`impact_analysis_v3.data.impact` adds production impact layers:
+
+- `directConsumers`
+- `affectedEntrypoints`
+- `affectedRoles`
+- `affectedWidgets`
+- `affectedViewModels`
+- `affectedTests`
+- `affectedGuards`
+- `reuseClusterImpact`
+- `cochangeOnly`
+- `riskLevel`
+- `why`

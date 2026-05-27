@@ -11,10 +11,12 @@ import { moduleMap } from "../discovery/moduleMap.js";
 import { findReusableComponents, findSimilarCode } from "../discovery/reuse.js";
 import { findCallers, findCallees, traceSymbol } from "../discovery/symbolGraph.js";
 import { whyRelated } from "../discovery/whyRelated.js";
+import { runDiscoveryEval } from "../eval/evalRunner.js";
 import { loadSourceDoc } from "../docs/sourceDocQuery.js";
 import { getWorktreeStatus } from "../git/worktreeStatus.js";
 import { impactAnalysis } from "../graph/impactAnalysis.js";
 import { impactAnalysisV2 } from "../graph/impactAnalysisV2.js";
+import { impactAnalysisV3 } from "../graph/impactAnalysisV3.js";
 import { findRelatedFiles } from "../graph/relatedFiles.js";
 import { relatedTests } from "../graph/relatedTests.js";
 import { getRepoMap } from "../graph/repoMap.js";
@@ -330,6 +332,31 @@ export function createMcpServer(repoPath: string): McpServer {
           impactAnalysisV2(repoPath, query, { includeTests, includeEntrypoints, includeReuseRisks })
         )
       )
+  );
+
+  server.registerTool(
+    "impact_analysis_v3",
+    {
+      description: "Production impact analysis with UI composition, critical impact layers, and risk level.",
+      inputSchema: {
+        query: z.string(),
+        task: z.string().optional()
+      }
+    },
+    async ({ query, task }) => textJson(toolResponse(repoPath, impactAnalysisV3(repoPath, query, task ?? query)))
+  );
+
+  server.registerTool(
+    "production_discovery_eval",
+    {
+      description: "Run a production discovery eval suite from a local JSON file.",
+      inputSchema: {
+        suitePath: z.string(),
+        strict: z.boolean().optional()
+      }
+    },
+    async ({ suitePath, strict }) =>
+      textJson(toolResponse(repoPath, runDiscoveryEval(repoPath, suitePath, strict ?? false)))
   );
 
   server.registerTool(

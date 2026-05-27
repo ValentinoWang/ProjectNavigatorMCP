@@ -3,6 +3,7 @@ import { parseImportBindings, resolveImportPathV2 } from "../analysis/importReso
 import { extractCallTokens } from "../analysis/callEdgeExtractor.js";
 import { extractBody } from "../analysis/bodyExtractor.js";
 import { fingerprintCode } from "../analysis/codeFingerprint.js";
+import { structuralFingerprintForCode } from "../analysis/structuralFingerprint.js";
 import { loadProjectConfig } from "../config/projectConfig.js";
 import type { ProjectDatabase } from "../db/connection.js";
 import { openProject } from "../db/project.js";
@@ -161,6 +162,8 @@ function clearScannedData(db: ProjectDatabase, repoId: number): void {
     .all(repoId)
     .map((row) => (row as { id: number }).id);
   db.prepare("DELETE FROM edges WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM semantic_edges WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM structural_fingerprints WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM import_bindings WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM symbol_edges WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM code_blocks WHERE repo_id = ?").run(repoId);
@@ -257,6 +260,11 @@ function insertCodeBlocks(
        body_hash, normalized_hash, fingerprint, tokens_json)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
+  const structuralStmt = db.prepare(
+    `INSERT INTO structural_fingerprints
+      (repo_id, block_id, shape_kind, shape_hash, shape_json, tokens_json)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  );
   const updateSymbol = db.prepare("UPDATE symbols SET body_hash = ?, normalized_fingerprint = ? WHERE id = ?");
   const calls: BlockCalls[] = [];
   const insert = db.transaction(() => {
@@ -272,7 +280,7 @@ function insertCodeBlocks(
       const endLine = symbol.body_end_line ?? symbol.end_line;
       const body = extractBody(content, startLine, endLine);
       const fingerprint = fingerprintCode(body);
-      stmt.run(
+      const inserted = stmt.run(
         repoId,
         symbol.file_id,
         symbol.id,
@@ -286,6 +294,15 @@ function insertCodeBlocks(
         fingerprint.normalizedHash,
         fingerprint.fingerprint,
         JSON.stringify(fingerprint.tokens.slice(0, 300))
+      );
+      const structural = structuralFingerprintForCode(symbol.language, body);
+      structuralStmt.run(
+        repoId,
+        Number(inserted.lastInsertRowid),
+        structural.shapeKind,
+        structural.shapeHash,
+        JSON.stringify(structural.shapeJson),
+        JSON.stringify(structural.tokens.slice(0, 200))
       );
       updateSymbol.run(fingerprint.bodyHash, fingerprint.fingerprint, symbol.id);
       calls.push({ symbolId: symbol.id, fileId: symbol.file_id, calls: extractCallTokens(body) });

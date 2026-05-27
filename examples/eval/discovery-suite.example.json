@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {
+      "id": "flutter-dashboard-training-trend",
+      "task": "新增 athlete dashboard training trend card",
+      "mode": "discovery",
+      "expected": {
+        "mustReadAny": [
+          "frontend/lib/core/router/app_router.dart",
+          "frontend/lib/modules/user_core/dashboard/athlete_dashboard_page.dart",
+          "frontend/lib/modules/user_core/dashboard/athlete_dashboard_home_widgets.dart"
+        ],
+        "mustNotRead": ["backend/**", "database/**", "**/maestro/**", "**/screenshot/**"],
+        "chainContains": ["route", "page", "widget"],
+        "reuseCandidatesAny": ["TrainingTrendCard"],
+        "testsAny": ["dashboard"]
+      }
+    }
+  ]
+}

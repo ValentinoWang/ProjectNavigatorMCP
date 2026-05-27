@@ -1,6 +1,7 @@
 import { findRelatedFiles } from "../graph/relatedFiles.js";
 import { relatedTests } from "../graph/relatedTests.js";
 import { findSymbol } from "../graph/symbolSearch.js";
+import { buildAuthoritativeHandoff } from "./authoritativeChain.js";
 import { discoveryReadScore, tierReadOrder } from "./discoveryQuality.js";
 import { findEntrypoints } from "./entrypoints.js";
 import { findReusableComponents } from "./reuse.js";
@@ -29,10 +30,18 @@ export function discoverCode(repoPath: string, task: string, limit = 15): Discov
   );
   const recommendedReadOrder = rankReadOrder(task, entrypoints, related, reuse.reuseCandidates);
   const tiers = tierReadOrder(task, recommendedReadOrder, limit);
+  const authoritativeHandoff = buildAuthoritativeHandoff(
+    repoPath,
+    task,
+    recommendedReadOrder,
+    reuse.reuseCandidates,
+    tests
+  );
 
   return {
     mode: "discovery",
     task,
+    authoritativeHandoff,
     entrypoints,
     coreSymbols,
     callGraphPreview,

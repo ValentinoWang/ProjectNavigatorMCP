@@ -171,3 +171,15 @@ For Discovery Quality Hardening work:
 - Reuse candidates must provide a verdict before an agent creates new code.
 - Flutter/frontend UI discovery must demote backend, database, infra, screenshot, and E2E noise unless explicit evidence requires it.
 - Ranking changes need deterministic tests; do not add LLM-based reranking.
+
+## v0.8 Development Rules
+
+For Production Discovery Gate work:
+
+- `authoritativeHandoff.mustRead` is the primary context. Keep it short, strict, and evidence-backed.
+- `mustRead` should be capped at five files by default.
+- Import-only files, l10n, API error wrappers, auth caches, loggers, generic helpers, screenshots, and E2E artifacts cannot enter `mustRead` without explicit evidence.
+- Route/page/widget composition edges outrank import edges.
+- Unverified chains must be labeled `partial_chain` or `candidate_chain`.
+- Every dropped candidate needs a deterministic suppression reason.
+- Production eval must be deterministic and must not call an LLM.

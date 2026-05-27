@@ -1,4 +1,5 @@
 import type { CommandHit, FileHit, RouteHit, SymbolHit } from "../graph/types.js";
+import type { AuthoritativeHandoff } from "./authoritativeChain.js";
 
 export interface EvidenceItem {
   type: string;
@@ -65,6 +66,7 @@ export interface WhyRelatedResult {
 export interface DiscoveryResult {
   mode: "discovery";
   task: string;
+  authoritativeHandoff: AuthoritativeHandoff;
   entrypoints: EntrypointHit[];
   coreSymbols: SymbolHit[];
   callGraphPreview: Array<{ from: string; to: string; kind: string; confidence: number; evidence: EvidenceItem[] }>;

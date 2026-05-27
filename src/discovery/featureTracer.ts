@@ -5,15 +5,18 @@ import { discoveryReadScore } from "./discoveryQuality.js";
 import { findEntrypoints } from "./entrypoints.js";
 import { findReusableComponents } from "./reuse.js";
 import { chainConfidence, type DiscoveryChain, type EvidenceChainStep } from "./evidenceChain.js";
+import { findFlutterRouteToWidgetChain, type RouteToWidgetChain } from "../ui/flutterRouteChain.js";
 
 export interface TraceFeatureResult {
   task: string;
+  routeToWidgetChain: RouteToWidgetChain;
   chains: DiscoveryChain[];
   warnings: string[];
 }
 
 export function traceFeature(repoPath: string, task: string, limit = 5): TraceFeatureResult {
   const entrypoints = findEntrypoints(repoPath, task, limit).entrypoints;
+  const routeToWidgetChain = findFlutterRouteToWidgetChain(repoPath, task);
   const reuse = findReusableComponents(repoPath, task, 5).reuseCandidates;
   const tests = relatedTests(
     repoPath,
@@ -76,7 +79,7 @@ export function traceFeature(repoPath: string, task: string, limit = 5): TraceFe
       a.entrypoint.localeCompare(b.entrypoint)
   );
   storeChains(repoPath, task, chains);
-  return { task, chains, warnings: chains.length === 0 ? ["No discovery chain found."] : [] };
+  return { task, routeToWidgetChain, chains, warnings: chains.length === 0 ? ["No discovery chain found."] : [] };
 }
 
 function importedFiles(repoPath: string, filePath: string, task: string): string[] {

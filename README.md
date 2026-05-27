@@ -43,7 +43,7 @@ business data.
 Postgres can be introduced later only if the product needs team-shared memory,
 centralized dashboards, permissions, or SaaS-style multi-project management.
 
-## v0.7 Capabilities
+## v0.8 Capabilities
 
 The current release supports:
 
@@ -90,6 +90,11 @@ The current release supports:
 41. Verified vs candidate feature chains through `trace_feature`.
 42. Explicit reuse verdicts: `reuse_as_is`, `extend_existing`, `extract_shared`, and `create_new_allowed`.
 43. Score breakdowns for entrypoint and reuse ranking decisions.
+44. `authoritativeHandoff`: strict production discovery handoff with `mustRead`, `coreChain`, `reuseDecision`, `supportingContext`, and `suppressedCandidates`.
+45. Route-to-widget chain extraction for Flutter GoRoute/page/widget composition.
+46. Strict MustRead Gate: import-only and supporting dependencies are downgraded out of primary context.
+47. `impact_analysis_v3` / `pnav impact-v3` with UI composition and critical impact layers.
+48. `production_discovery_eval` / `pnav eval` for production-score based discovery evaluation.
 
 MCP tools:
 

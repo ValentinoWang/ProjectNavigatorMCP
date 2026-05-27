@@ -306,6 +306,51 @@ const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_import_bindings_resolved ON import_bindings(repo_id, resolved_file_id);
       CREATE INDEX IF NOT EXISTS idx_discovery_chains_repo_task ON discovery_chains(repo_id, task_hash);
     `
+  },
+  {
+    version: 8,
+    name: "production_discovery_gate",
+    sql: `
+      CREATE TABLE IF NOT EXISTS semantic_edges (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        from_type TEXT NOT NULL,
+        from_id INTEGER NOT NULL,
+        to_type TEXT NOT NULL,
+        to_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        tier TEXT NOT NULL DEFAULT 'supporting_dependency',
+        confidence REAL NOT NULL DEFAULT 0.5,
+        evidence_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS structural_fingerprints (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        block_id INTEGER NOT NULL REFERENCES code_blocks(id) ON DELETE CASCADE,
+        shape_kind TEXT NOT NULL,
+        shape_hash TEXT NOT NULL,
+        shape_json TEXT NOT NULL DEFAULT '{}',
+        tokens_json TEXT NOT NULL DEFAULT '[]',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS discovery_eval_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+        suite_path TEXT,
+        score REAL NOT NULL DEFAULT 0,
+        metrics_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_semantic_edges_repo_kind ON semantic_edges(repo_id, kind, tier);
+      CREATE INDEX IF NOT EXISTS idx_structural_fingerprints_repo_shape
+        ON structural_fingerprints(repo_id, shape_kind, shape_hash);
+      CREATE INDEX IF NOT EXISTS idx_discovery_eval_runs_repo_created
+        ON discovery_eval_runs(repo_id, created_at);
+    `
   }
 ];
 

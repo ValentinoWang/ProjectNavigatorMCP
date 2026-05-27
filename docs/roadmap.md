@@ -84,6 +84,19 @@ Discovery Quality Hardening:
 
 ## v0.8
 
+Production Discovery Gate:
+
+- `authoritativeHandoff` as the primary strict handoff for coding agents.
+- Flutter route-to-widget chain extraction.
+- Implementation edge tiering: core implementation, supporting dependency, framework dependency, irrelevant import.
+- Strict MustRead Gate with max 5 primary files and suppression explanations.
+- Reuse Decision Engine V2 with component API fit.
+- Structural Fingerprint V2 for widget/service shape.
+- `impact_analysis_v3`.
+- `pnav eval` production discovery harness.
+
+## v0.9
+
 Scanner accuracy and optional language intelligence backends:
 
 - Richer import alias resolution.

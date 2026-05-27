@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.8.0
+
+Production Discovery Gate release.
+
+- Added `authoritativeHandoff` for strict Discovery Mode handoff.
+- Added route-to-widget chain extraction for Flutter route/page/widget composition.
+- Added Strict MustRead Gate with `supportingContext`, `suppressedCandidates`, and `strictGate`.
+- Added implementation dependency tiering so import-only support files do not enter primary context.
+- Added Reuse Decision Engine V2 with component API fit checks.
+- Added structural fingerprints for code blocks and SQLite schema v8 tables.
+- Added `impact_analysis_v3` and `pnav impact-v3`.
+- Added production discovery eval harness with `production_discovery_eval` and `pnav eval`.
+
 ## v0.7.0
 
 Discovery Quality Hardening release.

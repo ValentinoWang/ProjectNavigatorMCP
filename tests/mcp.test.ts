@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -26,6 +26,19 @@ describe("MCP server", () => {
   it("registers the documented tools and returns the shared envelope", async () => {
     const repo = copyFixtureRepo();
     scanRepo(repo);
+    const suitePath = path.join(repo, ".pnav", "mcp-eval-suite.json");
+    writeFileSync(
+      suitePath,
+      JSON.stringify({
+        cases: [
+          {
+            id: "mcp-smoke",
+            task: "add auth test",
+            expected: { mustReadAny: ["src/main.ts"], mustNotRead: ["backend/**"] }
+          }
+        ]
+      })
+    );
 
     const client = new Client({ name: "pnav-test-client", version: "0.1.0" });
     const server = createMcpServer(repo);
@@ -53,8 +66,10 @@ describe("MCP server", () => {
         "git_worktree_status",
         "impact_analysis",
         "impact_analysis_v2",
+        "impact_analysis_v3",
         "module_map",
         "prepare_task_context",
+        "production_discovery_eval",
         "record_task_result",
         "related_tests",
         "remember_task",
@@ -81,6 +96,8 @@ describe("MCP server", () => {
         ["module_map", {}],
         ["why_related", { target: "src/main.ts", task: "add auth test" }],
         ["impact_analysis_v2", { query: "add" }],
+        ["impact_analysis_v3", { query: "add" }],
+        ["production_discovery_eval", { suitePath }],
         ["find_symbol", { query: "add" }],
         ["find_related_files", { task: "add test" }],
         ["trace_route", { query: "/" }],

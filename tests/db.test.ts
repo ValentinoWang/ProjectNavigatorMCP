@@ -26,8 +26,8 @@ describe("migrate", () => {
       const first = migrate(db);
       const second = migrate(db);
 
-      expect(first.applied).toEqual([1, 2, 3, 4, 5, 6, 7]);
-      expect(first.currentVersion).toBe(7);
+      expect(first.applied).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+      expect(first.currentVersion).toBe(8);
       expect(second.applied).toEqual([]);
 
       const tables = db
@@ -60,6 +60,9 @@ describe("migrate", () => {
       expect(tables).toContain("modules");
       expect(tables).toContain("import_bindings");
       expect(tables).toContain("discovery_chains");
+      expect(tables).toContain("semantic_edges");
+      expect(tables).toContain("structural_fingerprints");
+      expect(tables).toContain("discovery_eval_runs");
       expect(tables).toContain("schema_migrations");
     } finally {
       db.close();

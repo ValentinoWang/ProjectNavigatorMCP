@@ -518,6 +518,18 @@ Data shape:
 {
   "mode": "discovery",
   "task": "新增 athlete dashboard training trend card",
+  "authoritativeHandoff": {
+    "mode": "strict_discovery",
+    "confidence": 0.88,
+    "chainStatus": "verified_chain",
+    "mustRead": [],
+    "coreChain": [],
+    "reuseDecision": null,
+    "impactSummary": {},
+    "supportingContext": [],
+    "suppressedCandidates": [],
+    "strictGate": {}
+  },
   "entrypoints": [],
   "coreSymbols": [],
   "callGraphPreview": [],
@@ -554,6 +566,7 @@ Data shape:
 ```json
 {
   "task": "新增 athlete dashboard trend card",
+  "routeToWidgetChain": { "status": "verified_chain", "steps": [], "confidence": 0.86, "warnings": [] },
   "chains": [
     {
       "entrypoint": "AthleteDashboardPage",
@@ -661,6 +674,26 @@ Input:
 ```
 
 Returns callers, callees, impacted files, affected entrypoints, related tests, reuse risks, and risk notes.
+
+### `impact_analysis_v3`
+
+Input:
+
+```json
+{ "query": "frontend/lib/modules/user_core/dashboard/athlete_dashboard_home_view.dart", "task": "dashboard trend card" }
+```
+
+Returns production impact layers: direct consumers, affected entrypoints, roles, widgets, view models, tests, guards, reuse cluster impact, secondary co-change neighbors, risk level, and evidence notes.
+
+### `production_discovery_eval`
+
+Input:
+
+```json
+{ "suitePath": ".pnav/eval/discovery-suite.json", "strict": true }
+```
+
+Runs a deterministic discovery eval suite and returns `productionScore` plus per-case metrics.
 
 Data shape:
 
