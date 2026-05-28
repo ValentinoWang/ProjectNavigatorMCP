@@ -56,9 +56,11 @@ program
     "Only skip work when the file hash index is unchanged; changed repos use a conservative graph rebuild"
   )
   .option("--full", "Force a full scan rebuild")
-  .action((repo: string, options: { incremental?: boolean; full?: boolean }) => {
+  .option("--metadata-only", "Refresh metadata planes and mark source changes stale without rebuilding the code graph")
+  .action((repo: string, options: { incremental?: boolean; full?: boolean; metadataOnly?: boolean }) => {
     const result = scanRepo(repo, {
       mode: options.incremental && !options.full ? "incremental" : "full",
+      metadataOnly: Boolean(options.metadataOnly),
       progress: {
         stage: (name, payload) => {
           const suffix = payload ? ` ${JSON.stringify(payload)}` : "";
@@ -263,9 +265,26 @@ program
   .argument("<repo>", "Target repository path")
   .requiredOption("--suite <json>", "Discovery eval suite JSON")
   .option("--strict", "Require production_score >= 0.90")
-  .action((repo: string, options: { suite: string; strict?: boolean }) => {
-    console.log(JSON.stringify(runDiscoveryEval(repo, options.suite, Boolean(options.strict)), null, 2));
-  });
+  .option("--metadata-only", "Refresh metadata planes before eval and allow stale code graph")
+  .option("--allow-stale-code-graph", "Allow eval to run when code graph freshness cannot be guaranteed")
+  .action(
+    (
+      repo: string,
+      options: { suite: string; strict?: boolean; metadataOnly?: boolean; allowStaleCodeGraph?: boolean }
+    ) => {
+      console.log(
+        JSON.stringify(
+          runDiscoveryEval(repo, options.suite, {
+            strict: Boolean(options.strict),
+            metadataOnly: Boolean(options.metadataOnly),
+            allowStaleCodeGraph: Boolean(options.allowStaleCodeGraph)
+          }),
+          null,
+          2
+        )
+      );
+    }
+  );
 
 program
   .command("memory")

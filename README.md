@@ -107,6 +107,8 @@ The current release supports:
 58. Workflow-mode `trace-feature` for repo-local workflow profiles, so non-route tasks do not get fake route/page chains.
 59. Eval latency breakdowns, fallback-command assertions, and lightweight incremental scan change kinds for workflow profile, eval, command, and docs changes.
 60. Strict production eval can assert workflow protocol fields such as actions, commands, read-only generated output, gate steps, and repo-local profile source.
+61. Incremental scan `changePlanes`, metadata-only mode, code-graph stale reporting, and file-level graph update v1 for small source changes.
+62. Eval metadata-only preflight and runtime cache stats for large dirty-worktree eval suites.
 
 MCP tools:
 

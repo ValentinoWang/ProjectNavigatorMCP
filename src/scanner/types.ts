@@ -56,6 +56,24 @@ export interface CoChange {
   weight: number;
 }
 
+export type IncrementalChangeKind =
+  | "none"
+  | "workflow_profiles_only"
+  | "eval_only"
+  | "commands_only"
+  | "docs_only"
+  | "code_graph"
+  | "mixed";
+
+export interface IncrementalChangePlanes {
+  workflowProfiles: string[];
+  evalSuites: string[];
+  commandSources: string[];
+  docs: string[];
+  codeGraph: string[];
+  deleted: string[];
+}
+
 export interface ScanResult {
   repoRoot: string;
   gitSha: string | null;
@@ -77,7 +95,13 @@ export interface ScanResult {
     durationMs: number;
     changedPaths: string[];
     deletedPaths: string[];
-    changeKind: "none" | "workflow_profiles_only" | "eval_only" | "commands_only" | "docs_only" | "code_graph";
+    changeKind: IncrementalChangeKind;
+    changePlanes: IncrementalChangePlanes;
+    changePlaneCounts: Record<keyof IncrementalChangePlanes, number>;
+    actions: string[];
+    codeGraphStale: boolean;
+    codeGraphStaleReason?: string;
+    partialGraphUpdate: boolean;
     stages: string[];
     conservativeFullRebuild: boolean;
   };

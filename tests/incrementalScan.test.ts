@@ -2,6 +2,7 @@ import { appendFileSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync }
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { openProject } from "../src/db/project.js";
 import { scanRepo } from "../src/scanner/scanRepo.js";
 
 const tempDirs: string[] = [];
@@ -20,12 +21,12 @@ afterEach(() => {
 });
 
 describe("incremental scan", () => {
-  it("reports changed and skipped files by hash", () => {
+  it("uses file-level graph update for small source changes", () => {
     const repo = copyDiscoveryRepo();
     scanRepo(repo);
     appendFileSync(
       path.join(repo, "frontend/lib/modules/user_core/dashboard/athlete_dashboard_home_widgets.dart"),
-      "\n// changed\n"
+      "\nclass PartialIncrementalWidget {}\n"
     );
     const result = scanRepo(repo, { mode: "incremental" });
 
@@ -33,7 +34,17 @@ describe("incremental scan", () => {
     expect(result.incremental?.filesChanged).toBeGreaterThan(0);
     expect(result.incremental?.filesSkipped).toBeGreaterThan(0);
     expect(result.incremental?.changeKind).toBe("code_graph");
-    expect(result.incremental?.conservativeFullRebuild).toBe(true);
+    expect(result.incremental?.partialGraphUpdate).toBe(true);
+    expect(result.incremental?.conservativeFullRebuild).toBe(false);
+    const project = openProject(repo);
+    try {
+      const row = project.db
+        .prepare("SELECT COUNT(*) AS count FROM symbols WHERE name = 'PartialIncrementalWidget'")
+        .get() as { count: number };
+      expect(row.count).toBe(1);
+    } finally {
+      project.db.close();
+    }
   });
 
   it("does not rebuild the graph for workflow profile changes", () => {
@@ -45,6 +56,7 @@ describe("incremental scan", () => {
     const result = scanRepo(repo, { mode: "incremental" });
 
     expect(result.incremental?.changeKind).toBe("workflow_profiles_only");
+    expect(result.incremental?.changePlanes.workflowProfiles).toContain(".agents/pnav/workflow-profiles.json");
     expect(result.incremental?.conservativeFullRebuild).toBe(false);
   });
 
@@ -57,6 +69,7 @@ describe("incremental scan", () => {
     const result = scanRepo(repo, { mode: "incremental" });
 
     expect(result.incremental?.changeKind).toBe("eval_only");
+    expect(result.incremental?.changePlanes.evalSuites).toContain(".agents/pnav/discovery-suite.json");
     expect(result.incremental?.conservativeFullRebuild).toBe(false);
   });
 
@@ -68,6 +81,7 @@ describe("incremental scan", () => {
     const result = scanRepo(repo, { mode: "incremental" });
 
     expect(result.incremental?.changeKind).toBe("commands_only");
+    expect(result.incremental?.changePlanes.commandSources).toContain("Makefile");
     expect(result.incremental?.conservativeFullRebuild).toBe(false);
     expect(result.commands).toBeGreaterThan(0);
   });
@@ -81,5 +95,70 @@ describe("incremental scan", () => {
 
     expect(result.incremental?.changeKind).toBe("docs_only");
     expect(result.incremental?.conservativeFullRebuild).toBe(false);
+  });
+
+  it("reports mixed metadata planes without rebuilding the graph", () => {
+    const repo = copyDiscoveryRepo();
+    scanRepo(repo);
+    mkdirSync(path.join(repo, ".agents", "pnav"), { recursive: true });
+    writeFileSync(path.join(repo, ".agents", "pnav", "workflow-profiles.json"), JSON.stringify({ profiles: [] }));
+    appendFileSync(path.join(repo, "Makefile"), "\nmetadata-guard:\n\techo ok\n");
+    appendFileSync(path.join(repo, "AGENTS.md"), "\nMetadata-only rule.\n");
+
+    const result = scanRepo(repo, { mode: "incremental" });
+
+    expect(result.incremental?.changeKind).toBe("mixed");
+    expect(result.incremental?.changePlanes.workflowProfiles).toContain(".agents/pnav/workflow-profiles.json");
+    expect(result.incremental?.changePlanes.commandSources).toContain("Makefile");
+    expect(result.incremental?.changePlanes.docs).toContain("AGENTS.md");
+    expect(result.incremental?.conservativeFullRebuild).toBe(false);
+  });
+
+  it("marks code graph stale for mixed dirty metadata-only scans", () => {
+    const repo = copyDiscoveryRepo();
+    scanRepo(repo);
+    mkdirSync(path.join(repo, ".agents", "pnav"), { recursive: true });
+    writeFileSync(path.join(repo, ".agents", "pnav", "workflow-profiles.json"), JSON.stringify({ profiles: [] }));
+    appendFileSync(
+      path.join(repo, "frontend/lib/modules/user_core/dashboard/athlete_dashboard_home_widgets.dart"),
+      "\nclass MetadataOnlyStaleWidget {}\n"
+    );
+
+    const result = scanRepo(repo, { mode: "incremental", metadataOnly: true });
+
+    expect(result.incremental?.changeKind).toBe("mixed");
+    expect(result.incremental?.codeGraphStale).toBe(true);
+    expect(result.incremental?.codeGraphStaleReason).toContain("--metadata-only");
+    expect(result.incremental?.partialGraphUpdate).toBe(false);
+    expect(result.incremental?.conservativeFullRebuild).toBe(false);
+  });
+
+  it("falls back to conservative rebuild when too many source files changed", () => {
+    const repo = copyDiscoveryRepo();
+    scanRepo(repo);
+    mkdirSync(path.join(repo, "src", "generated"), { recursive: true });
+    for (let index = 0; index < 21; index += 1) {
+      writeFileSync(
+        path.join(repo, "src", "generated", `file_${index}.ts`),
+        `export const value${index} = ${index};\n`
+      );
+    }
+
+    const result = scanRepo(repo, { mode: "incremental" });
+
+    expect(result.incremental?.changeKind).toBe("code_graph");
+    expect(result.incremental?.partialGraphUpdate).toBe(false);
+    expect(result.incremental?.conservativeFullRebuild).toBe(true);
+  });
+
+  it("falls back to conservative rebuild for deleted source files", () => {
+    const repo = copyDiscoveryRepo();
+    scanRepo(repo);
+    rmSync(path.join(repo, "web", "src", "DashboardTrendCard.tsx"));
+
+    const result = scanRepo(repo, { mode: "incremental" });
+
+    expect(result.incremental?.changeKind).toBe("code_graph");
+    expect(result.incremental?.conservativeFullRebuild).toBe(true);
   });
 });

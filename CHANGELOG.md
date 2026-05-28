@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.8.5
+
+Incremental Graph & Eval Runtime Hardening release.
+
+- Added incremental `changePlanes`, action reporting, stale-code-graph status, and partial graph update metadata to scan results.
+- Added `pnav scan --incremental --metadata-only` so workflow/eval/command/doc metadata can refresh without forcing a code graph rebuild in dirty worktrees.
+- Added file-level graph update v1 for small source changes, with conservative fallback for source deletions and large change sets.
+- Added `pnav eval --metadata-only` and `--allow-stale-code-graph`, plus eval `indexStatus` and runtime `cacheStats`.
+- Added MCP `production_discovery_eval` support for metadata-only and stale-code-graph eval options.
+- Added regression coverage for mixed metadata changes, metadata-only stale graph reporting, partial source updates, conservative fallback, and eval cache hits.
+
 ## v0.8.4
 
 Repo-local Workflow Runtime Hardening release.

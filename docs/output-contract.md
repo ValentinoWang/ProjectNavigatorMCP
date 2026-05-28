@@ -135,9 +135,16 @@ Call graph tools return confidence-scored edges. Low-confidence ambiguous result
 - `riskSummary`
 
 `pnav scan --incremental` returns `incremental` stats in the scan result, including changed,
-skipped, deleted, duration, `changedPaths`, `deletedPaths`, `changeKind`, `stages`, and whether
-a conservative graph rebuild was used. Workflow profile, eval-suite, command-source, and docs-only
-changes can avoid a code graph rebuild.
+skipped, deleted, duration, `changedPaths`, `deletedPaths`, `changeKind`, `changePlanes`,
+`changePlaneCounts`, `actions`, `stages`, `codeGraphStale`, `codeGraphStaleReason`,
+`partialGraphUpdate`, and whether a conservative graph rebuild was used. Workflow profile,
+eval-suite, command-source, and docs-only changes can avoid a code graph rebuild. Mixed metadata
+changes report `changeKind: "mixed"` and expose each changed plane separately.
+
+`pnav scan --incremental --metadata-only` refreshes metadata planes and leaves source graph changes
+unrebuilt. When source files are dirty in this mode, `codeGraphStale` is true and
+`codeGraphStaleReason` explains that the graph rebuild was skipped because metadata-only mode was
+requested.
 
 ## v0.7 Discovery Quality Fields
 
@@ -206,8 +213,13 @@ Only existing files from a profile can enter `mustRead` or `supportingContext`.
 
 The eval metric `suppressionReasonQuality` defaults to `1` when no suppression reason expectations are provided.
 
-`production_discovery_eval.data` includes `totalLatencyMs` and `slowestStages`.
+`production_discovery_eval.data` includes `totalLatencyMs`, `slowestStages`, `indexStatus`, and
+`cacheStats`.
 `production_discovery_eval.data.cases[]` includes `latencyBreakdown` and `hardFailures` in strict mode. Strict cases fail when mustRead is missing expected `mustReadAny` paths, contains forbidden paths, exceeds `maxMustRead`, has incomplete suppression reason expectations, falls below `minChainCompleteness`, misses workflow protocol expectations, or violates fallback-command rules.
+
+`pnav eval --metadata-only` runs a metadata-only incremental preflight before the suite. Its
+`indexStatus` reports metadata freshness and code graph staleness; stale code graph status is
+non-fatal in metadata-only mode.
 
 `trace_feature.data` includes `mode`, `routeToWidgetChainApplicability`, `workflowProtocol`, and
 `workflowChain`. In `route` mode, `routeToWidgetChain` returns the route/page/widget chain

@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -95,6 +95,53 @@ describe("production noise eval", () => {
     expect(result.cases[0]?.latencyBreakdown.workflowProfilesMs).toBeGreaterThanOrEqual(0);
     expect(result.slowestStages.length).toBeGreaterThan(0);
     expect(result.passed).toBe(false);
+  }, 15_000);
+
+  it("reports metadata-only eval index status when code graph is stale", () => {
+    const repo = copyNoiseRepo();
+    mkdirSync(path.join(repo, ".agents", "pnav"), { recursive: true });
+    writeFileSync(
+      path.join(repo, ".agents", "pnav", "workflow-profiles.json"),
+      JSON.stringify({
+        profiles: [
+          {
+            name: "dashboard_metadata_only",
+            match: { any: ["dashboard"] },
+            mustRead: ["frontend/lib/core/router/app_router.dart"]
+          }
+        ]
+      })
+    );
+    appendFileSync(
+      path.join(repo, "frontend/lib/modules/user_core/dashboard/athlete_dashboard_page.dart"),
+      "\nclass MetadataOnlyEvalStaleWidget {}\n"
+    );
+    const suitePath = path.join(repo, ".pnav", "metadata-only-suite.json");
+    writeFileSync(suitePath, JSON.stringify({ cases: [strictEvalCase()] }));
+
+    const result = runDiscoveryEval(repo, suitePath, { strict: true, metadataOnly: true });
+
+    expect(result.indexStatus.workflowProfilesFresh).toBe(true);
+    expect(result.indexStatus.evalSuitesFresh).toBe(true);
+    expect(result.indexStatus.codeGraphStale).toBe(true);
+    expect(result.indexStatus.codeGraphStaleReason).toContain("--metadata-only");
+    expect(result.indexStatus.scanIncremental?.conservativeFullRebuild).toBe(false);
+  }, 15_000);
+
+  it("reports eval runtime cache hits within a suite", () => {
+    const repo = copyNoiseRepo();
+    const suitePath = path.join(repo, ".pnav", "cache-suite.json");
+    writeFileSync(
+      suitePath,
+      JSON.stringify({
+        cases: [strictEvalCase(), { ...strictEvalCase(), id: "dashboard-noise-suppression-repeat" }]
+      })
+    );
+
+    const result = runDiscoveryEval(repo, suitePath, true);
+    const totalHits = Object.values(result.cacheStats).reduce((total, stats) => total + stats.hits, 0);
+
+    expect(totalHits).toBeGreaterThan(0);
   }, 15_000);
 });
 

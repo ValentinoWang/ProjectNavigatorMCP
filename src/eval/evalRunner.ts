@@ -2,7 +2,13 @@ import { readFileSync } from "node:fs";
 import { openProject } from "../db/project.js";
 import type { DiscoveryResult, DiscoveryTimingBreakdown } from "../discovery/types.js";
 import type { ChainCompleteness } from "../ui/flutterRouteChain.js";
-import { discoverCodeWithTiming } from "../discovery/discoverCode.js";
+import {
+  createDiscoveryRuntimeContext,
+  discoverCodeWithTiming,
+  type DiscoveryRuntimeContext
+} from "../discovery/discoverCode.js";
+import { scanRepo } from "../scanner/scanRepo.js";
+import type { ScanResult } from "../scanner/types.js";
 import { scoreDiscoveryResult, type EvalExpected, type EvalMetrics } from "./metrics.js";
 
 export interface EvalCase {
@@ -31,17 +37,45 @@ export interface EvalRunResult {
   productionScore: number;
   totalLatencyMs: number;
   slowestStages: Array<{ stage: keyof DiscoveryTimingBreakdown; latencyMs: number }>;
+  indexStatus: EvalIndexStatus;
+  cacheStats: DiscoveryRuntimeContext["cacheStats"];
   cases: EvalCaseResult[];
   passed: boolean;
 }
 
-export function runDiscoveryEval(repoPath: string, suitePath: string, strict = false): EvalRunResult {
+export interface EvalRunOptions {
+  strict?: boolean;
+  metadataOnly?: boolean;
+  allowStaleCodeGraph?: boolean;
+}
+
+export interface EvalIndexStatus {
+  workflowProfilesFresh: boolean;
+  evalSuitesFresh: boolean;
+  commandsFresh: boolean;
+  documentsFresh: boolean;
+  codeGraphFresh: boolean;
+  codeGraphStale: boolean;
+  codeGraphStaleReason?: string;
+  scanIncremental?: ScanResult["incremental"];
+}
+
+export function runDiscoveryEval(
+  repoPath: string,
+  suitePath: string,
+  strictOrOptions: boolean | EvalRunOptions = false
+): EvalRunResult {
+  const options = normalizeEvalOptions(strictOrOptions);
+  const preflightScan = options.metadataOnly
+    ? scanRepo(repoPath, { mode: "incremental", metadataOnly: true })
+    : undefined;
+  const context = createDiscoveryRuntimeContext();
   const suite = JSON.parse(readFileSync(suitePath, "utf8")) as EvalSuite;
   const cases = suite.cases.map((item) => {
-    const { result, timing } = discoverCodeWithTiming(repoPath, item.task, 15);
+    const { result, timing } = discoverCodeWithTiming(repoPath, item.task, 15, context);
     const latencyMs = timing.totalMs;
     const metrics = scoreDiscoveryResult(result, item.expected, latencyMs);
-    const hardFailures = strict ? strictHardFailures(metrics, item.expected, result) : [];
+    const hardFailures = options.strict ? strictHardFailures(metrics, item.expected, result) : [];
     return {
       id: item.id,
       task: item.task,
@@ -49,7 +83,9 @@ export function runDiscoveryEval(repoPath: string, suitePath: string, strict = f
       latencyBreakdown: timing,
       metrics,
       hardFailures,
-      passed: strict ? hardFailures.length === 0 && metrics.productionScore >= 0.9 : metrics.productionScore >= 0.75
+      passed: options.strict
+        ? hardFailures.length === 0 && metrics.productionScore >= 0.9
+        : metrics.productionScore >= 0.75
     };
   });
   const productionScore = Number(
@@ -60,11 +96,38 @@ export function runDiscoveryEval(repoPath: string, suitePath: string, strict = f
     productionScore,
     totalLatencyMs: cases.reduce((total, item) => total + item.latencyMs, 0),
     slowestStages: slowestStages(cases),
+    indexStatus: buildEvalIndexStatus(preflightScan),
+    cacheStats: context.cacheStats,
     cases,
-    passed: cases.every((item) => item.passed) && productionScore >= (strict ? 0.9 : 0.75)
+    passed: cases.every((item) => item.passed) && productionScore >= (options.strict ? 0.9 : 0.75)
   };
   storeEvalRun(repoPath, suitePath, productionScore, output);
   return output;
+}
+
+function normalizeEvalOptions(strictOrOptions: boolean | EvalRunOptions): Required<EvalRunOptions> {
+  if (typeof strictOrOptions === "boolean") {
+    return { strict: strictOrOptions, metadataOnly: false, allowStaleCodeGraph: false };
+  }
+  return {
+    strict: Boolean(strictOrOptions.strict),
+    metadataOnly: Boolean(strictOrOptions.metadataOnly),
+    allowStaleCodeGraph: Boolean(strictOrOptions.allowStaleCodeGraph) || Boolean(strictOrOptions.metadataOnly)
+  };
+}
+
+function buildEvalIndexStatus(preflightScan: ScanResult | undefined): EvalIndexStatus {
+  const incremental = preflightScan?.incremental;
+  return {
+    workflowProfilesFresh: true,
+    evalSuitesFresh: true,
+    commandsFresh: true,
+    documentsFresh: true,
+    codeGraphFresh: !incremental?.codeGraphStale,
+    codeGraphStale: Boolean(incremental?.codeGraphStale),
+    codeGraphStaleReason: incremental?.codeGraphStaleReason,
+    scanIncremental: incremental
+  };
 }
 
 function strictHardFailures(metrics: EvalMetrics, expected: EvalExpected, result: DiscoveryResult): string[] {

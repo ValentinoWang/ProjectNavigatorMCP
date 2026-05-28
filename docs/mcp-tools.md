@@ -758,10 +758,18 @@ Returns production impact layers: direct consumers, affected entrypoints, roles,
 Input:
 
 ```json
-{ "suitePath": ".pnav/eval/discovery-suite.json", "strict": true }
+{
+  "suitePath": ".pnav/eval/discovery-suite.json",
+  "strict": true,
+  "metadataOnly": true,
+  "allowStaleCodeGraph": true
+}
 ```
 
 Runs a deterministic discovery eval suite and returns `productionScore` plus per-case metrics.
+`metadataOnly` runs a metadata-only incremental preflight before eval so workflow/eval/command/doc
+metadata can refresh without rebuilding a dirty source graph. `allowStaleCodeGraph` explicitly
+allows eval to proceed when the code graph is stale.
 
 Strict suites can assert workflow protocol fields such as `actionContains`,
 `recommendedCommandContains`, `newFileExpected`, `readOnlyContains`, `editPolicyContains`,
@@ -776,6 +784,19 @@ Data shape:
   "productionScore": 0.93,
   "totalLatencyMs": 120,
   "slowestStages": [{ "stage": "relatedFilesMs", "latencyMs": 44 }],
+  "indexStatus": {
+    "workflowProfilesFresh": true,
+    "evalSuitesFresh": true,
+    "commandsFresh": true,
+    "documentsFresh": true,
+    "codeGraphFresh": false,
+    "codeGraphStale": true,
+    "codeGraphStaleReason": "2 code graph path(s) changed; skipped graph rebuild because --metadata-only was used."
+  },
+  "cacheStats": {
+    "workflowProfiles": { "hits": 1, "misses": 1 },
+    "entrypoints": { "hits": 1, "misses": 1 }
+  },
   "passed": true,
   "cases": [
     {
