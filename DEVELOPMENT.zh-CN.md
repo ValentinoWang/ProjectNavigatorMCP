@@ -1067,6 +1067,10 @@ v0.8.4 进一步要求：
 - profile 中只有已存在文件可以进入 `mustRead` / `supportingContext`；未来文件、证据目录、migration pair、反例记录应放入 `newFileExpectations`。
 - `authoritativeHandoff.workflowProtocol` 必须暴露 `profiles`、`actions`、`recommendedCommands`、`newFileExpectations`、`editPolicies`、`gateSteps`。
 - strict eval 可以断言 workflow protocol，不改变旧 production score，但缺失 action、command、read-only policy、gate step 或 repo-local source 时必须 hard fail。
+- repo-local `mustRead` seed 支持 `mustReadPolicy: "force" | "normal"`；字符串 seed 默认 force，只绕过 generic noise，不绕过 mustRead 预算。
+- `trace-feature` 命中 workflow profile 时必须输出 `mode: "workflow"` 和 `workflowChain`，不要为 OpenAPI、DB、guard、visual matrix 任务伪造 route/page chain。
+- 当 workflow commands 存在时，generic related-test commands 只能作为 `fallbackCommands`。
+- incremental scan 必须区分 workflow profile、eval suite、command source、docs 和 code graph 变化，只有 code graph 变化才 conservative full rebuild。
 
 ## 18. 完成 MVP 的定义
 

@@ -19,7 +19,9 @@ export interface EvalExpected {
   recommendedCommandContains?: string[];
   newFileExpected?: string[];
   readOnlyContains?: string[];
+  editPolicyContains?: Array<{ path: string; policy: "read_only" | "create" | "inspect_only" | "do_not_touch" }>;
   gateStepContains?: string[];
+  fallbackCommandNotContains?: string[];
   profileSourcesAny?: Array<"repo_local" | "built_in">;
 }
 

@@ -149,6 +149,19 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
     preferredFiles.length > 0 ? preferredFiles : readOrder.map((item) => item.path),
     task
   );
+  const workflowCommands = discovery
+    ? workflowCommandsToCommandHits(discovery.authoritativeHandoff.workflowProtocol.recommendedCommands)
+    : [];
+  const primaryCommands = workflowCommands.length > 0 ? workflowCommands : tests.commands;
+  const workflowCommandText = new Set(workflowCommands.map((command) => command.command.toLowerCase()));
+  const relatedTestsForOutput =
+    workflowCommands.length > 0
+      ? {
+          ...tests,
+          commands: [],
+          fallbackCommands: tests.commands.filter((command) => !workflowCommandText.has(command.command.toLowerCase()))
+        }
+      : tests;
   const dirtyWorktree = options.includeDirtyStatus === false ? null : getWorktreeStatus(repoPath);
   if (dirtyWorktree?.warnings) {
     warnings.push(...dirtyWorktree.warnings);
@@ -163,13 +176,13 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
   const likelyFiles = toLikelyFiles(readOrder, related).slice(0, options.maxFiles ?? 20);
   const projectRules = options.includeRules === false ? [] : selectProjectRules(repoPath, task);
   const memoryHits = options.includeMemory === false ? [] : searchProjectMemory(repoPath, task, 5);
-  const rawExecutionPlan = buildExecutionPlan(sourceDoc, guardAnalysis, tests.commands);
+  const rawExecutionPlan = buildExecutionPlan(sourceDoc, guardAnalysis, primaryCommands);
   const rankedPlan = rerankExecutionPlan({
     repoPath,
     plan: rawExecutionPlan,
     guardAnalysis,
     domain,
-    recommendedCommands: tests.commands,
+    recommendedCommands: primaryCommands,
     maxSteps: options.planMaxSteps ?? 8
   });
   const minimalRepairPath = buildMinimalRepairPath({ guardAnalysis, editBoundaryV2 });
@@ -213,9 +226,9 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
     relatedFiles: likelyFiles,
     symbols: findSymbol(repoPath, task, options.maxSymbols ?? 12),
     routes: traceRoute(repoPath, task, 12),
-    recommendedCommands: tests.commands,
+    recommendedCommands: primaryCommands,
     testFiles: tests.testFiles,
-    relatedTests: tests,
+    relatedTests: relatedTestsForOutput,
     projectRules,
     memoryHits,
     debug:
@@ -233,6 +246,19 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
     warnings: Array.from(new Set(warnings)),
     nextSteps: nextSteps(dirtyWorktree)
   };
+}
+
+function workflowCommandsToCommandHits(
+  commands: DiscoveryResult["authoritativeHandoff"]["workflowProtocol"]["recommendedCommands"]
+): CommandHit[] {
+  return commands.map((item) => ({
+    name: item.command,
+    command: item.command,
+    sourceFile: `workflow:${item.sourceProfile}`,
+    category: item.required ? "workflow_required" : "workflow_optional",
+    confidence: item.required ? 0.98 : 0.82,
+    reason: item.reason
+  }));
 }
 
 function resolveMode(options: TaskContextOptions): "discovery" | "repair" {

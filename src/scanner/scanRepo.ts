@@ -43,13 +43,34 @@ interface BlockCalls {
 
 export interface ScanRepoOptions {
   mode?: "full" | "incremental";
+  progress?: ScanProgressReporter | boolean;
+}
+
+export interface ScanProgressReporter {
+  stage(name: string, payload?: Record<string, unknown>): void;
+}
+
+function resolveProgressReporter(progress: ScanRepoOptions["progress"]): ScanProgressReporter | undefined {
+  if (!progress) {
+    return undefined;
+  }
+  if (progress === true) {
+    return { stage: () => undefined };
+  }
+  return progress;
 }
 
 export function scanRepo(repoPath: string, options: ScanRepoOptions = {}): ScanResult {
   initProject(repoPath);
   const project = openProject(repoPath);
   try {
-    return scanIntoDatabase(project.db, project.repo.id, project.repoRoot, options.mode ?? "full");
+    return scanIntoDatabase(
+      project.db,
+      project.repo.id,
+      project.repoRoot,
+      options.mode ?? "full",
+      resolveProgressReporter(options.progress)
+    );
   } finally {
     project.db.close();
   }
@@ -59,7 +80,8 @@ function scanIntoDatabase(
   db: ProjectDatabase,
   repoId: number,
   repoRoot: string,
-  mode: "full" | "incremental"
+  mode: "full" | "incremental",
+  progress?: ScanProgressReporter
 ): ScanResult {
   const startedAt = Date.now();
   const gitSha = getGitSha(repoRoot);
@@ -69,11 +91,18 @@ function scanIntoDatabase(
   const scanRunId = Number(scanRun.lastInsertRowid);
 
   try {
+    progress?.stage("loading_config");
     const config = loadProjectConfig(repoRoot);
     rebuildFtsTables(db);
     const oldHashes = loadExistingHashes(db, repoId);
+    progress?.stage("hashing_files");
     const files = scanFiles(repoRoot, config);
     const incremental = incrementalStats(mode, oldHashes, files, startedAt);
+    progress?.stage("incremental_diff", {
+      changed: incremental.filesChanged,
+      deleted: incremental.filesDeleted,
+      changeKind: incremental.changeKind
+    });
     if (mode === "incremental" && incremental.filesChanged === 0 && incremental.filesDeleted === 0) {
       db.prepare("UPDATE scan_runs SET finished_at = CURRENT_TIMESTAMP, status = 'success' WHERE id = ?").run(
         scanRunId
@@ -83,10 +112,25 @@ function scanIntoDatabase(
         incremental: { ...incremental, durationMs: Date.now() - startedAt }
       };
     }
+    if (mode === "incremental" && incremental.changeKind !== "code_graph") {
+      progress?.stage("lightweight_incremental", { changeKind: incremental.changeKind });
+      applyLightweightIncremental(db, repoId, repoRoot, files, incremental);
+      db.prepare("UPDATE scan_runs SET finished_at = CURRENT_TIMESTAMP, status = 'success' WHERE id = ?").run(
+        scanRunId
+      );
+      return {
+        ...previousScanResult(db, repoId, repoRoot, gitSha),
+        incremental: { ...incremental, durationMs: Date.now() - startedAt }
+      };
+    }
+    progress?.stage("conservative_rebuild");
+    progress?.stage("clearing_scanned_data");
     clearScannedData(db, repoId);
+    progress?.stage("inserting_files", { files: files.length });
     insertFiles(db, repoId, files);
     const fileRows = loadFileRows(db, repoId);
 
+    progress?.stage("scanning_symbols_imports_routes", { files: files.length });
     const symbols: ScannedSymbol[] = [];
     const imports: ScannedImport[] = [];
     const routes: ScannedRoute[] = [];
@@ -116,15 +160,18 @@ function scanIntoDatabase(
     insertRoutes(db, repoId, fileRows, symbolRows, routes);
     const testCount = insertTestEdges(db, repoId, fileRows);
 
+    progress?.stage("scanning_commands");
     const commands = scanCommands(repoRoot);
     insertCommands(db, repoId, commands);
 
+    progress?.stage("scanning_rules_documents");
     const rules = scanRules(repoRoot);
     insertRules(db, repoId, rules);
 
     const documents = scanSourceDocuments(repoRoot, files);
     insertSourceDocuments(db, repoId, fileRows, documents);
 
+    progress?.stage("scanning_cochanges_duplicates");
     const coChanges = scanCoChanges(repoRoot, new Set(files.map((file) => file.path)));
     insertCoChanges(db, repoId, fileRows, coChanges);
     insertDuplicateClusters(db, repoId);
@@ -156,11 +203,62 @@ function rebuildFtsTables(db: ProjectDatabase): void {
   }
 }
 
+function applyLightweightIncremental(
+  db: ProjectDatabase,
+  repoId: number,
+  repoRoot: string,
+  files: ScannedFile[],
+  incremental: NonNullable<ScanResult["incremental"]>
+): void {
+  upsertChangedFiles(db, repoId, files, incremental.changedPaths);
+  markDeletedFiles(db, repoId, incremental.deletedPaths);
+  if (incremental.changeKind === "commands_only") {
+    db.prepare("DELETE FROM commands WHERE repo_id = ?").run(repoId);
+    insertCommands(db, repoId, scanCommands(repoRoot));
+  }
+  if (incremental.changeKind === "docs_only") {
+    db.prepare("DELETE FROM project_rules WHERE repo_id = ?").run(repoId);
+    db.prepare("DELETE FROM document_steps WHERE repo_id = ?").run(repoId);
+    db.prepare("DELETE FROM document_targets WHERE repo_id = ?").run(repoId);
+    db.prepare("DELETE FROM documents WHERE repo_id = ?").run(repoId);
+    insertRules(db, repoId, scanRules(repoRoot));
+    insertSourceDocuments(db, repoId, loadFileRows(db, repoId), scanSourceDocuments(repoRoot, files));
+  }
+}
+
+function upsertChangedFiles(db: ProjectDatabase, repoId: number, files: ScannedFile[], changedPaths: string[]): void {
+  const changed = new Set(changedPaths);
+  const stmt = db.prepare(
+    `INSERT INTO files (repo_id, path, language, size, hash, last_scanned_at, deleted_at)
+     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)
+     ON CONFLICT(repo_id, path) DO UPDATE SET
+       language = excluded.language,
+       size = excluded.size,
+       hash = excluded.hash,
+       last_scanned_at = CURRENT_TIMESTAMP,
+       deleted_at = NULL`
+  );
+  const insert = db.transaction(() => {
+    for (const file of files) {
+      if (changed.has(file.path)) {
+        stmt.run(repoId, file.path, file.language, file.size, file.hash);
+      }
+    }
+  });
+  insert();
+}
+
+function markDeletedFiles(db: ProjectDatabase, repoId: number, deletedPaths: string[]): void {
+  const stmt = db.prepare("UPDATE files SET deleted_at = CURRENT_TIMESTAMP WHERE repo_id = ? AND path = ?");
+  const update = db.transaction(() => {
+    for (const filePath of deletedPaths) {
+      stmt.run(repoId, filePath);
+    }
+  });
+  update();
+}
+
 function clearScannedData(db: ProjectDatabase, repoId: number): void {
-  const fileIds = db
-    .prepare("SELECT id FROM files WHERE repo_id = ?")
-    .all(repoId)
-    .map((row) => (row as { id: number }).id);
   db.prepare("DELETE FROM edges WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM semantic_edges WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM structural_fingerprints WHERE repo_id = ?").run(repoId);
@@ -179,9 +277,7 @@ function clearScannedData(db: ProjectDatabase, repoId: number): void {
   db.prepare("DELETE FROM document_steps WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM document_targets WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM documents WHERE repo_id = ?").run(repoId);
-  for (const fileId of fileIds) {
-    db.prepare("DELETE FROM symbols WHERE file_id = ?").run(fileId);
-  }
+  db.prepare("DELETE FROM symbols WHERE file_id IN (SELECT id FROM files WHERE repo_id = ?)").run(repoId);
   db.prepare("DELETE FROM files WHERE repo_id = ?").run(repoId);
 }
 
@@ -681,17 +777,71 @@ function incrementalStats(
   startedAt: number
 ): NonNullable<ScanResult["incremental"]> {
   const newPaths = new Set(files.map((file) => file.path));
-  const filesChanged = files.filter((file) => oldHashes.get(file.path) !== file.hash).length;
-  const filesDeleted = Array.from(oldHashes.keys()).filter((oldPath) => !newPaths.has(oldPath)).length;
+  const changedPaths = files.filter((file) => oldHashes.get(file.path) !== file.hash).map((file) => file.path);
+  const deletedPaths = Array.from(oldHashes.keys()).filter((oldPath) => !newPaths.has(oldPath));
+  const changeKind =
+    mode === "incremental" && changedPaths.length === 0 && deletedPaths.length === 0
+      ? "none"
+      : classifyIncrementalChange(changedPaths, deletedPaths);
   return {
     mode,
     filesTotal: files.length,
-    filesChanged,
-    filesSkipped: Math.max(0, files.length - filesChanged),
-    filesDeleted,
+    filesChanged: changedPaths.length,
+    filesSkipped: Math.max(0, files.length - changedPaths.length),
+    filesDeleted: deletedPaths.length,
     durationMs: Date.now() - startedAt,
-    conservativeFullRebuild: mode === "incremental" && (filesChanged > 0 || filesDeleted > 0)
+    changedPaths: changedPaths.slice(0, 100),
+    deletedPaths: deletedPaths.slice(0, 100),
+    changeKind,
+    stages: changeKind === "code_graph" ? ["conservative_rebuild"] : [changeKind],
+    conservativeFullRebuild: mode === "incremental" && changeKind === "code_graph"
   };
+}
+
+function classifyIncrementalChange(
+  changedPaths: string[],
+  deletedPaths: string[]
+): NonNullable<ScanResult["incremental"]>["changeKind"] {
+  const paths = [...changedPaths, ...deletedPaths];
+  if (paths.length === 0) {
+    return "none";
+  }
+  if (paths.every(isWorkflowProfilePath)) {
+    return "workflow_profiles_only";
+  }
+  if (paths.every(isEvalOnlyPath)) {
+    return "eval_only";
+  }
+  if (paths.every(isCommandSourcePath)) {
+    return "commands_only";
+  }
+  if (paths.every(isDocsOnlyPath)) {
+    return "docs_only";
+  }
+  return "code_graph";
+}
+
+function isWorkflowProfilePath(filePath: string): boolean {
+  return /^(\.agents\/pnav|\.pnav)\/workflow-profiles\.json$/.test(filePath);
+}
+
+function isEvalOnlyPath(filePath: string): boolean {
+  return (
+    /^(\.agents\/pnav|\.pnav)\/.*(eval|suite|discovery-suite).*\.json$/.test(filePath) ||
+    /^agents-results\//.test(filePath)
+  );
+}
+
+function isCommandSourcePath(filePath: string): boolean {
+  return /(^|\/)(Makefile|package\.json|package-lock\.json|pubspec\.ya?ml|pyproject\.toml)$/.test(filePath);
+}
+
+function isDocsOnlyPath(filePath: string): boolean {
+  return (
+    /(^|\/)(AGENTS|CLAUDE|README)\.md$/.test(filePath) ||
+    /^docs\//.test(filePath) ||
+    /^\.agents\/skills\/.*\.md$/.test(filePath)
+  );
 }
 
 function previousScanResult(db: ProjectDatabase, repoId: number, repoRoot: string, gitSha: string | null): ScanResult {

@@ -104,7 +104,9 @@ The current release supports:
 55. Design-system token/theme tasks keep theme and breakpoint files task-relevant instead of demoting them as generic support.
 56. Repo-local workflow profiles through `.agents/pnav/workflow-profiles.json` or `.pnav/workflow-profiles.json`, with built-in profiles as fallback.
 57. `authoritativeHandoff.workflowProtocol` exposes structured actions, commands, new-file expectations, edit policies, gate steps, and profile provenance.
-58. Strict production eval can assert workflow protocol fields such as actions, commands, read-only generated output, gate steps, and repo-local profile source.
+58. Workflow-mode `trace-feature` for repo-local workflow profiles, so non-route tasks do not get fake route/page chains.
+59. Eval latency breakdowns, fallback-command assertions, and lightweight incremental scan change kinds for workflow profile, eval, command, and docs changes.
+60. Strict production eval can assert workflow protocol fields such as actions, commands, read-only generated output, gate steps, and repo-local profile source.
 
 MCP tools:
 

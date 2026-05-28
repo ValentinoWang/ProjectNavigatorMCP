@@ -89,10 +89,11 @@ export function strictMustReadGate(
   for (const candidate of Array.from(best.values()).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))) {
     const workflowDirectTarget =
       candidate.evidence.includes("workflow_profile") && candidate.evidence.includes("direct_target");
-    const tier =
-      workflowDirectTarget
-        ? "core_implementation"
-        : (candidate.tier ?? classifyDependencyTier(task, candidate.path, candidate.evidence));
+    const forceMustRead =
+      candidate.evidence.includes("workflow_force_must_read") || candidate.evidence.includes("force_must_read");
+    const tier = workflowDirectTarget
+      ? "core_implementation"
+      : (candidate.tier ?? classifyDependencyTier(task, candidate.path, candidate.evidence));
     const authoritative = candidate.evidence.some((item) =>
       /route_match|route_builds_page|page_composes_widget|widget_composes_widget|direct_target|reuse_verdict/.test(item)
     );
@@ -100,14 +101,15 @@ export function strictMustReadGate(
     const testNoise =
       isNonTestTask(task) &&
       /(^|\/)(test|tests)\//.test(candidate.path) &&
+      !forceMustRead &&
       !(workflowDirectTarget && isValidationArtifactTask(task));
-    const domainNoise = isNoisyDiscoveryPath(task, candidate.path) && !workflowDirectTarget;
-    const noisy = domainNoise || testNoise;
+    const domainNoise = isNoisyDiscoveryPath(task, candidate.path) && !workflowDirectTarget && !forceMustRead;
+    const noisy = !forceMustRead && (domainNoise || testNoise);
     const canEnterMustRead =
       mustRead.length < maxMustReadFiles &&
       !noisy &&
       tier === "core_implementation" &&
-      (candidate.score >= 0.72 || authoritative) &&
+      (candidate.score >= 0.72 || authoritative || forceMustRead) &&
       evidenceEnough;
     if (canEnterMustRead) {
       mustRead.push({

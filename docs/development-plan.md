@@ -257,3 +257,10 @@ v0.8.2 keeps the MVP local-first but hardens Discovery Mode output:
 - `authoritativeHandoff.workflowProtocol` carries executable handoff guidance: actions,
   commands, new-file expectations, edit policies, gate steps, and profile provenance.
 - Strict eval can assert workflow protocol fields without changing the legacy production score.
+- Repo-local direct targets can use `mustReadPolicy: "force"` to override generic noise while
+  keeping the strict mustRead budget.
+- `trace-feature` uses workflow mode for matched workflow profiles and marks route-to-widget chains
+  as not applicable for non-route work.
+- Eval output includes latency breakdowns and slowest stages.
+- Incremental scan avoids conservative graph rebuilds for workflow profile, eval suite, command
+  source, and docs-only changes.

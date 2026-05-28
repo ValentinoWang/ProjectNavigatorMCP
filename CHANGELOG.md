@@ -2,9 +2,14 @@
 
 ## v0.8.4
 
-Repo-local Workflow Discovery release.
+Repo-local Workflow Runtime Hardening release.
 
 - Added strict gate support for repo-local workflow profile direct targets so explicit guard, visual, screenshot, manifest, and DTO source files can enter `authoritativeHandoff.mustRead` when they are the real execution path.
+- Added `mustReadPolicy` for repo-local workflow seeds so explicit `force` targets override generic noise suppression while still respecting the strict mustRead budget.
+- Added workflow-mode `trace-feature` output with `workflowProtocol`, `workflowChain`, and `routeToWidgetChainApplicability` for non-route workflow tasks.
+- Added eval timing breakdowns, slowest-stage reporting, workflow edit-policy assertions, and fallback-command assertions.
+- Demoted generic `relatedTests.commands` to `fallbackCommands` when workflow `recommendedCommands` are available.
+- Added lightweight incremental scan handling for workflow-profile, eval-suite, command-source, and docs-only changes, with CLI progress messages on stderr.
 - Kept generic dependency-tier and noisy-path suppression for non-explicit candidates so broad Markdown, generated artifacts, tests, screenshots, and infrastructure still stay out of `mustRead` without evidence.
 - Added regression coverage for visual matrix artifacts and cross-stack exercise read DTO tasks.
 - Validated the `flutter-transfer` production discovery suite across 12 realistic frontend, backend, contract, database, guard, and E2E scenarios.

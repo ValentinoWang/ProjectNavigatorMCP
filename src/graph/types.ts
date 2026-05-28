@@ -80,5 +80,6 @@ export interface ImpactResult {
 
 export interface RelatedTestsResult {
   commands: CommandHit[];
+  fallbackCommands: CommandHit[];
   testFiles: string[];
 }

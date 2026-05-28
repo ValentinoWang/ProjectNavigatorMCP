@@ -20,7 +20,9 @@ Each case compares `discover_code.data.authoritativeHandoff` against expected pr
 - `recommendedCommandContains`
 - `newFileExpected`
 - `readOnlyContains`
+- `editPolicyContains`
 - `gateStepContains`
+- `fallbackCommandNotContains`
 - `profileSourcesAny`
 
 The score is:
@@ -53,8 +55,12 @@ In strict mode, a case also fails when any hard gate is violated:
 - `orderedBefore` paths are missing or appear in the wrong order.
 - Required warnings, workflow actions, commands, new-file expectations, read-only policies,
   gate steps, or profile sources are missing.
+- Required edit policies are missing.
+- A forbidden generic fallback command appears in `relatedTests.fallbackCommands`.
 
-Case results include `hardFailures` for these strict failures.
+Case results include `latencyBreakdown` and `hardFailures` for these strict failures. Suite
+results include `totalLatencyMs` and `slowestStages` so production eval runs can identify the
+expensive discovery stages.
 
 The additional workflow assertions do not change the legacy production score. They only add
 strict-mode hard failures so old suites stay compatible while production suites can verify that

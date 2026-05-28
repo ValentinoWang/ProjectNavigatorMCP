@@ -106,7 +106,7 @@ New integrations should treat `editBoundaryV2` as the single source of truth.
 - `impactPreview`: relevant files for first-pass impact review.
 - `recommendedReadOrder`: compact file order for agent reading.
 - `whyRelated`: evidence chains explaining why files are related.
-- `relatedTests`: recommended test files and commands.
+- `relatedTests`: recommended test files, primary commands, and optional `fallbackCommands`.
 
 `prepare_task_context.data.mode` is `discovery` or `repair`.
 When `mode` is `discovery`, `prepare_task_context.data.discovery` contains the same shape as `discover_code.data`.
@@ -134,7 +134,10 @@ Call graph tools return confidence-scored edges. Low-confidence ambiguous result
 - `cochangeImpact`
 - `riskSummary`
 
-`pnav scan --incremental` returns `incremental` stats in the scan result, including changed, skipped, deleted, duration, and whether a conservative graph rebuild was used.
+`pnav scan --incremental` returns `incremental` stats in the scan result, including changed,
+skipped, deleted, duration, `changedPaths`, `deletedPaths`, `changeKind`, `stages`, and whether
+a conservative graph rebuild was used. Workflow profile, eval-suite, command-source, and docs-only
+changes can avoid a code graph rebuild.
 
 ## v0.7 Discovery Quality Fields
 
@@ -197,13 +200,23 @@ Only existing files from a profile can enter `mustRead` or `supportingContext`.
 - `warningContains` for required handoff warnings.
 - `actionContains`, `recommendedCommandContains`, `newFileExpected`, `readOnlyContains`, and
   `gateStepContains` for workflow protocol assertions.
+- `editPolicyContains` for exact workflow edit-policy assertions.
+- `fallbackCommandNotContains` to prevent noisy generic commands from becoming fallback suggestions.
 - `profileSourcesAny` to require `repo_local` or `built_in` profile provenance.
 
 The eval metric `suppressionReasonQuality` defaults to `1` when no suppression reason expectations are provided.
 
-`production_discovery_eval.data.cases[]` includes `hardFailures` in strict mode. Strict cases fail when mustRead is missing expected `mustReadAny` paths, contains forbidden paths, exceeds `maxMustRead`, has incomplete suppression reason expectations, or falls below `minChainCompleteness`.
+`production_discovery_eval.data` includes `totalLatencyMs` and `slowestStages`.
+`production_discovery_eval.data.cases[]` includes `latencyBreakdown` and `hardFailures` in strict mode. Strict cases fail when mustRead is missing expected `mustReadAny` paths, contains forbidden paths, exceeds `maxMustRead`, has incomplete suppression reason expectations, falls below `minChainCompleteness`, misses workflow protocol expectations, or violates fallback-command rules.
 
-`trace_feature.data.routeToWidgetChain` returns the route/page/widget chain independent of wider candidate chains.
+`trace_feature.data` includes `mode`, `routeToWidgetChainApplicability`, `workflowProtocol`, and
+`workflowChain`. In `route` mode, `routeToWidgetChain` returns the route/page/widget chain
+independent of wider candidate chains. In `workflow` mode, non-route workflow tasks do not pretend
+to have a verified route chain.
+
+When `workflowProtocol.recommendedCommands` is non-empty, generic related-test command matches are
+reported under `relatedTests.fallbackCommands` and primary execution should use the workflow
+commands.
 
 `impact_analysis_v3.data.impact` adds production impact layers:
 

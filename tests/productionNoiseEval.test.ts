@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -52,6 +52,48 @@ describe("production noise eval", () => {
     expect(result.cases[0]?.metrics.suppressionReasonQuality).toBeLessThan(1);
     expect(result.cases[0]?.hardFailures).toContain("suppression_reason_mismatch");
     expect(result.cases[0]?.passed).toBe(false);
+    expect(result.passed).toBe(false);
+  }, 15_000);
+
+  it("fails strict eval when expected workflow commands are missing", () => {
+    const repo = copyNoiseRepo();
+    mkdirSync(path.join(repo, ".agents", "pnav"), { recursive: true });
+    writeFileSync(
+      path.join(repo, ".agents", "pnav", "workflow-profiles.json"),
+      JSON.stringify({
+        profiles: [
+          {
+            name: "dashboard_profile_command",
+            match: { any: ["dashboard"] },
+            mustRead: ["frontend/lib/core/router/app_router.dart"],
+            recommendedCommands: [{ command: "make dashboard-profile-guard", required: true }]
+          }
+        ]
+      })
+    );
+    const suitePath = path.join(repo, ".pnav", "workflow-command-hard-fail-suite.json");
+    writeFileSync(
+      suitePath,
+      JSON.stringify({
+        cases: [
+          {
+            id: "workflow-command-missing",
+            task: "新增 athlete dashboard training trend card",
+            expected: {
+              mustReadAny: ["frontend/lib/core/router/app_router.dart"],
+              recommendedCommandContains: ["make missing-profile-guard"],
+              maxMustRead: 5
+            }
+          }
+        ]
+      })
+    );
+
+    const result = runDiscoveryEval(repo, suitePath, true);
+
+    expect(result.cases[0]?.hardFailures).toContain("recommended_command_missing");
+    expect(result.cases[0]?.latencyBreakdown.workflowProfilesMs).toBeGreaterThanOrEqual(0);
+    expect(result.slowestStages.length).toBeGreaterThan(0);
     expect(result.passed).toBe(false);
   }, 15_000);
 });

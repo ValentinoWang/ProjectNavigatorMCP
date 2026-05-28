@@ -6,15 +6,29 @@ import { findEntrypoints } from "./entrypoints.js";
 import { findReusableComponents } from "./reuse.js";
 import { chainConfidence, type DiscoveryChain, type EvidenceChainStep } from "./evidenceChain.js";
 import { findFlutterRouteToWidgetChain, type RouteToWidgetChain } from "../ui/flutterRouteChain.js";
+import { buildWorkflowProtocol } from "./authoritativeChain.js";
+import {
+  resolveWorkflowDiscoveryProfiles,
+  type WorkflowDiscoveryProfile,
+  type WorkflowProtocol
+} from "./workflowProfiles.js";
 
 export interface TraceFeatureResult {
   task: string;
+  mode: "route" | "workflow";
+  routeToWidgetChainApplicability: "applicable" | "not_applicable";
   routeToWidgetChain: RouteToWidgetChain;
+  workflowProtocol: WorkflowProtocol;
+  workflowChain: EvidenceChainStep[];
   chains: DiscoveryChain[];
   warnings: string[];
 }
 
 export function traceFeature(repoPath: string, task: string, limit = 5): TraceFeatureResult {
+  const workflowProfiles = resolveWorkflowDiscoveryProfiles(repoPath, task);
+  if (workflowProfiles.length > 0) {
+    return traceWorkflowFeature(repoPath, task, workflowProfiles, limit);
+  }
   const entrypoints = findEntrypoints(repoPath, task, limit).entrypoints;
   const routeToWidgetChain = findFlutterRouteToWidgetChain(repoPath, task);
   const reuse = findReusableComponents(repoPath, task, 5).reuseCandidates;
@@ -79,7 +93,97 @@ export function traceFeature(repoPath: string, task: string, limit = 5): TraceFe
       a.entrypoint.localeCompare(b.entrypoint)
   );
   storeChains(repoPath, task, chains);
-  return { task, routeToWidgetChain, chains, warnings: chains.length === 0 ? ["No discovery chain found."] : [] };
+  return {
+    task,
+    mode: "route",
+    routeToWidgetChainApplicability: "applicable",
+    routeToWidgetChain,
+    workflowProtocol: buildWorkflowProtocol([]),
+    workflowChain: [],
+    chains,
+    warnings: chains.length === 0 ? ["No discovery chain found."] : []
+  };
+}
+
+function traceWorkflowFeature(
+  repoPath: string,
+  task: string,
+  workflowProfiles: WorkflowDiscoveryProfile[],
+  limit: number
+): TraceFeatureResult {
+  const workflowProtocol = buildWorkflowProtocol(workflowProfiles);
+  const workflowChain = workflowTraceSteps(workflowProfiles, limit);
+  const chains: DiscoveryChain[] = workflowProfiles.map((profile) => {
+    const profileSteps = workflowTraceSteps([profile], limit);
+    return {
+      entrypoint: profile.name,
+      chainType: "verified_chain",
+      path: profileSteps,
+      confidence: Math.max(profile.confidence, chainConfidence(profileSteps))
+    };
+  });
+  storeChains(repoPath, task, chains);
+  return {
+    task,
+    mode: "workflow",
+    routeToWidgetChainApplicability: "not_applicable",
+    routeToWidgetChain: {
+      status: "candidate_chain",
+      steps: [],
+      depth: 0,
+      completeness: "route_page_only",
+      confidence: 0,
+      warnings: ["Route-to-widget chain is not applicable because a repo-local workflow profile matched this task."]
+    },
+    workflowProtocol,
+    workflowChain,
+    chains,
+    warnings: Array.from(
+      new Set([
+        ...workflowProfiles.flatMap((profile) => profile.warnings),
+        "trace-feature used repo-local workflow profile mode."
+      ])
+    )
+  };
+}
+
+function workflowTraceSteps(profiles: WorkflowDiscoveryProfile[], limit: number): EvidenceChainStep[] {
+  const steps: EvidenceChainStep[] = [];
+  for (const profile of profiles) {
+    for (const item of profile.readOrder.slice(0, limit)) {
+      steps.push({
+        type: "workflow_profile",
+        target: item.path,
+        why: item.reason,
+        evidence: [{ type: "workflow_profile", detail: profile.name, score: item.score }]
+      });
+    }
+    for (const command of profile.recommendedCommands.filter((item) => item.required).slice(0, 3)) {
+      steps.push({
+        type: "command",
+        target: command.command,
+        why: command.reason,
+        evidence: [{ type: "workflow_recommended_command", detail: profile.name, score: profile.confidence }]
+      });
+    }
+    for (const policy of profile.editPolicies.slice(0, 3)) {
+      steps.push({
+        type: "edit_policy",
+        target: policy.path,
+        why: `${policy.policy}: ${policy.reason}`,
+        evidence: [{ type: "workflow_edit_policy", detail: profile.name, score: profile.confidence }]
+      });
+    }
+    for (const step of profile.gateSteps.filter((item) => item.required).slice(0, 3)) {
+      steps.push({
+        type: "gate_step",
+        target: step.command ?? step.id,
+        why: step.description,
+        evidence: [{ type: "workflow_gate_step", detail: profile.name, score: profile.confidence }]
+      });
+    }
+  }
+  return steps.slice(0, Math.max(limit, 1) * 4);
 }
 
 function importedFiles(repoPath: string, filePath: string, task: string): string[] {

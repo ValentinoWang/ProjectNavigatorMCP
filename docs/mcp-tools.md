@@ -625,7 +625,11 @@ Data shape:
 ```json
 {
   "task": "新增 athlete dashboard trend card",
+  "mode": "route",
+  "routeToWidgetChainApplicability": "applicable",
   "routeToWidgetChain": { "status": "verified_chain", "steps": [], "confidence": 0.86, "warnings": [] },
+  "workflowProtocol": { "profiles": [], "actions": [], "recommendedCommands": [] },
+  "workflowChain": [],
   "chains": [
     {
       "entrypoint": "AthleteDashboardPage",
@@ -645,6 +649,11 @@ Data shape:
   "warnings": []
 }
 ```
+
+When a repo-local workflow profile matches a non-route task, `trace_feature` returns
+`mode: "workflow"`, `routeToWidgetChainApplicability: "not_applicable"`, a populated
+`workflowProtocol`, and a `workflowChain` instead of pretending the task has a verified
+route/page/widget chain.
 
 ### `find_callers` / `find_callees` / `trace_symbol`
 
@@ -755,9 +764,9 @@ Input:
 Runs a deterministic discovery eval suite and returns `productionScore` plus per-case metrics.
 
 Strict suites can assert workflow protocol fields such as `actionContains`,
-`recommendedCommandContains`, `newFileExpected`, `readOnlyContains`, `gateStepContains`, and
-`profileSourcesAny`. These assertions add hard failures without changing the legacy production
-score.
+`recommendedCommandContains`, `newFileExpected`, `readOnlyContains`, `editPolicyContains`,
+`gateStepContains`, `fallbackCommandNotContains`, and `profileSourcesAny`. These assertions add hard
+failures without changing the legacy production score.
 
 Data shape:
 
@@ -765,11 +774,14 @@ Data shape:
 {
   "suitePath": ".pnav/eval/discovery-suite.json",
   "productionScore": 0.93,
+  "totalLatencyMs": 120,
+  "slowestStages": [{ "stage": "relatedFilesMs", "latencyMs": 44 }],
   "passed": true,
   "cases": [
     {
       "id": "dashboard-noise-suppression",
       "latencyMs": 120,
+      "latencyBreakdown": { "workflowProfilesMs": 2, "relatedFilesMs": 44, "totalMs": 120 },
       "metrics": { "suppressionReasonQuality": 1, "productionScore": 0.93 },
       "hardFailures": [],
       "passed": true

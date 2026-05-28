@@ -112,34 +112,49 @@ describe("production gate suppression reasons", () => {
   });
 
   it("allows explicit workflow cross-stack source files for DTO tasks", () => {
-    const result = strictMustReadGate("调整 exercise prescription engine 输出结构，并确保 workspace exercise builder 和 read DTO 一致", [
+    const result = strictMustReadGate(
+      "调整 exercise prescription engine 输出结构，并确保 workspace exercise builder 和 read DTO 一致",
+      [
+        {
+          path: "backend/app/services/exercise_prescription_engine.py",
+          score: 0.99,
+          role: "exercise_dto_profile",
+          why: "engine source",
+          evidence: ["workflow_profile", "direct_target", "exercise_prescription_engine_source"]
+        },
+        {
+          path: "backend/app/schemas/exercise_prescription_contract.py",
+          score: 0.98,
+          role: "exercise_dto_profile",
+          why: "read dto contract",
+          evidence: ["workflow_profile", "direct_target", "exercise_read_dto_contract"]
+        },
+        {
+          path: "frontend/lib/modules/workspace/widgets/exercise/builder/workspace_exercise_builder_runtime.dart",
+          score: 0.97,
+          role: "exercise_dto_profile",
+          why: "frontend consumer",
+          evidence: ["workflow_profile", "direct_target", "workspace_builder_runtime_consumer"]
+        }
+      ]
+    );
+
+    expect(result.mustRead.map((file) => file.path)).toContain("backend/app/services/exercise_prescription_engine.py");
+    expect(result.mustRead.map((file) => file.path)).toContain("backend/app/schemas/exercise_prescription_contract.py");
+  });
+
+  it("lets repo-local force mustRead override generic screenshot noise", () => {
+    const result = strictMustReadGate("修复 athlete dashboard card 布局", [
       {
-        path: "backend/app/services/exercise_prescription_engine.py",
-        score: 0.99,
-        role: "exercise_dto_profile",
-        why: "engine source",
-        evidence: ["workflow_profile", "direct_target", "exercise_prescription_engine_source"]
-      },
-      {
-        path: "backend/app/schemas/exercise_prescription_contract.py",
-        score: 0.98,
-        role: "exercise_dto_profile",
-        why: "read dto contract",
-        evidence: ["workflow_profile", "direct_target", "exercise_read_dto_contract"]
-      },
-      {
-        path: "frontend/lib/modules/workspace/widgets/exercise/builder/workspace_exercise_builder_runtime.dart",
-        score: 0.97,
-        role: "exercise_dto_profile",
-        why: "frontend consumer",
-        evidence: ["workflow_profile", "direct_target", "workspace_builder_runtime_consumer"]
+        path: "tests/screen-shot/iOS/screenshot-manifest.json",
+        score: 0.2,
+        role: "repo_local_visual_manifest",
+        why: "explicit repo-local visual acceptance target",
+        evidence: ["workflow_profile", "direct_target", "workflow_force_must_read", "visual_manifest"]
       }
     ]);
 
-    expect(result.mustRead.map((file) => file.path)).toContain("backend/app/services/exercise_prescription_engine.py");
-    expect(result.mustRead.map((file) => file.path)).toContain(
-      "backend/app/schemas/exercise_prescription_contract.py"
-    );
+    expect(result.mustRead.map((file) => file.path)).toContain("tests/screen-shot/iOS/screenshot-manifest.json");
   });
 });
 
