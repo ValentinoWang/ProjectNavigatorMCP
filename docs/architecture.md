@@ -1,5 +1,95 @@
 # Architecture
 
+## 中文架构总览
+
+本次同步范围：在《架构文档》中补充 Mermaid 架构图，并同步更新《输出契约》、
+《MCP 工具文档》、《生产评测文档》、《README》、《开发计划》和示例评测套件。
+
+```mermaid
+flowchart TB
+  User["使用者\nCodex / Claude Code / 人类开发者"]
+
+  subgraph Entry["入口层"]
+    CLI["pnav CLI\npnav scan / discover / eval"]
+    MCP["pnav MCP server\ndiscover_code / production_discovery_eval"]
+  end
+
+  subgraph Repo["目标仓库"]
+    Source["源码、测试、文档、脚本"]
+    Rules["仓库规则\nAGENTS.md / README / docs / skills"]
+    RepoProfile["持久 workflow profile\n.agents/pnav/workflow-profiles.json"]
+    LocalProfile["本地 override profile\n.pnav/workflow-profiles.json"]
+    SQLite["本地索引数据库\n.pnav/project.sqlite"]
+  end
+
+  subgraph Scanner["扫描与索引"]
+    FileScan["文件与语言扫描"]
+    RuleScan["规则扫描"]
+    CommandScan["命令扫描"]
+    SymbolScan["符号与 import 扫描"]
+    GitScan["Git sha 与 co-change 扫描"]
+  end
+
+  subgraph Discovery["Discovery 生产导航"]
+    Related["相关文件、入口、符号、复用候选"]
+    ProfileResolver["workflow profile 解析\n优先 .agents/pnav\n其次 .pnav\n最后 built-in fallback"]
+    Ranker["确定性排序与噪声压制"]
+    StrictGate["Strict MustRead Gate\n最多 5 个 mustRead\nsupporting/suppressed 给出原因"]
+  end
+
+  subgraph Handoff["结构化交接"]
+    MustRead["authoritativeHandoff.mustRead\n先读的主路径"]
+    Supporting["supportingContext / suppressedCandidates\n辅助上下文与压制原因"]
+    Protocol["workflowProtocol\nprofiles / actions / commands\nnewFileExpectations / editPolicies / gateSteps"]
+  end
+
+  subgraph Consumers["消费与验收"]
+    Agent["AI agent 执行任务\n按 action / command / gate 开工"]
+    StrictEval["strict production eval\n断言 mustRead、顺序、actions、commands、new files、read-only、gate steps"]
+    Docs["文档与示例\noutput contract / MCP docs / production eval / README / development plan / suite"]
+  end
+
+  User --> CLI
+  User --> MCP
+  CLI --> Source
+  MCP --> SQLite
+  Source --> FileScan
+  Source --> RuleScan
+  Source --> CommandScan
+  Source --> SymbolScan
+  Source --> GitScan
+  Rules --> RuleScan
+  FileScan --> SQLite
+  RuleScan --> SQLite
+  CommandScan --> SQLite
+  SymbolScan --> SQLite
+  GitScan --> SQLite
+  SQLite --> Related
+  RepoProfile --> ProfileResolver
+  LocalProfile --> ProfileResolver
+  ProfileResolver --> Ranker
+  Related --> Ranker
+  Ranker --> StrictGate
+  StrictGate --> MustRead
+  StrictGate --> Supporting
+  ProfileResolver --> Protocol
+  MustRead --> Agent
+  Supporting --> Agent
+  Protocol --> Agent
+  Protocol --> StrictEval
+  MustRead --> StrictEval
+  Supporting --> StrictEval
+  Protocol --> Docs
+```
+
+关键约束：
+
+- `mustRead` 和 `supportingContext` 只接收目标仓库中已经存在的文件。
+- 未来文件、证据目录、migration pair、临时反例记录放入 `newFileExpectations`。
+- generated SDK 等生成物通过 `editPolicies` 标记为 `read_only`，由推荐命令生成。
+- strict eval 不只检查平均分，也检查读文件顺序、warning、action、command、new file、
+  read-only policy、gate step 和 profile source。
+
 ProjectNavigatorMCP has two responsibilities:
 
 1. Provide a globally installable CLI and MCP server named `pnav`.
