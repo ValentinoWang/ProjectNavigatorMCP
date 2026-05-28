@@ -1,0 +1,4 @@
+[scan] loading_config
+[scan] hashing_files
+[scan] incremental_diff {"changed":22,"deleted":0,"changeKind":"code_graph","changePlanes":{"workflowProfiles":0,"evalSuites":0,"commandSources":0,"docs":0,"codeGraph":22,"deleted":0},"actions":["mark_code_graph_stale"]}
+[scan] metadata_only_incremental {"changeKind":"code_graph","codeGraphStale":true}

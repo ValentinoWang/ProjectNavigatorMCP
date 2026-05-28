@@ -15,6 +15,7 @@ export interface EvalCase {
   id: string;
   task: string;
   mode?: "discovery";
+  requiresFreshCodeGraph?: boolean;
   expected: EvalExpected;
 }
 
@@ -38,6 +39,7 @@ export interface EvalRunResult {
   totalLatencyMs: number;
   slowestStages: Array<{ stage: keyof DiscoveryTimingBreakdown; latencyMs: number }>;
   indexStatus: EvalIndexStatus;
+  evalValidity: EvalValidity;
   cacheStats: DiscoveryRuntimeContext["cacheStats"];
   cases: EvalCaseResult[];
   passed: boolean;
@@ -60,6 +62,13 @@ export interface EvalIndexStatus {
   scanIncremental?: ScanResult["incremental"];
 }
 
+export interface EvalValidity {
+  scoreScope: "full_graph" | "metadata_only";
+  freshCodeGraphRequired: boolean;
+  validFor: string[];
+  notValidFor: string[];
+}
+
 export function runDiscoveryEval(
   repoPath: string,
   suitePath: string,
@@ -69,13 +78,16 @@ export function runDiscoveryEval(
   const preflightScan = options.metadataOnly
     ? scanRepo(repoPath, { mode: "incremental", metadataOnly: true })
     : undefined;
+  const indexStatus = buildEvalIndexStatus(preflightScan);
   const context = createDiscoveryRuntimeContext();
   const suite = JSON.parse(readFileSync(suitePath, "utf8")) as EvalSuite;
   const cases = suite.cases.map((item) => {
-    const { result, timing } = discoverCodeWithTiming(repoPath, item.task, 15, context);
+    const { result, timing } = discoverCodeWithTiming(repoPath, item.task, 15, context, {
+      requireRouteChain: requiresRouteChain(item)
+    });
     const latencyMs = timing.totalMs;
     const metrics = scoreDiscoveryResult(result, item.expected, latencyMs);
-    const hardFailures = options.strict ? strictHardFailures(metrics, item.expected, result) : [];
+    const hardFailures = options.strict ? strictHardFailures(metrics, item, result, indexStatus) : [];
     return {
       id: item.id,
       task: item.task,
@@ -96,13 +108,50 @@ export function runDiscoveryEval(
     productionScore,
     totalLatencyMs: cases.reduce((total, item) => total + item.latencyMs, 0),
     slowestStages: slowestStages(cases),
-    indexStatus: buildEvalIndexStatus(preflightScan),
+    indexStatus,
+    evalValidity: buildEvalValidity(indexStatus, suite),
     cacheStats: context.cacheStats,
     cases,
     passed: cases.every((item) => item.passed) && productionScore >= (options.strict ? 0.9 : 0.75)
   };
   storeEvalRun(repoPath, suitePath, productionScore, output);
   return output;
+}
+
+function requiresRouteChain(item: EvalCase): boolean {
+  return Boolean(item.expected.minChainCompleteness) || (item.expected.chainContains ?? []).length > 0;
+}
+
+function buildEvalValidity(indexStatus: EvalIndexStatus, suite: EvalSuite): EvalValidity {
+  const freshCodeGraphRequired = suite.cases.some(
+    (item) => Boolean(item.requiresFreshCodeGraph) || Boolean(item.expected.requiresFreshCodeGraph)
+  );
+  const metadataOnly = indexStatus.codeGraphStale;
+  return {
+    scoreScope: metadataOnly ? "metadata_only" : "full_graph",
+    freshCodeGraphRequired,
+    validFor: metadataOnly
+      ? [
+          "workflow profile matching",
+          "workflowProtocol assertions",
+          "mustRead direct-target policy",
+          "recommendedCommands / gateSteps"
+        ]
+      : [
+          "fresh route and symbol discovery",
+          "fresh symbol graph",
+          "fresh impact analysis",
+          "workflow profile matching"
+        ],
+    notValidFor: metadataOnly
+      ? [
+          "fresh symbol graph",
+          "fresh incoming edges",
+          "fresh route-to-widget chain from changed source",
+          "fresh impact analysis"
+        ]
+      : []
+  };
 }
 
 function normalizeEvalOptions(strictOrOptions: boolean | EvalRunOptions): Required<EvalRunOptions> {
@@ -130,8 +179,17 @@ function buildEvalIndexStatus(preflightScan: ScanResult | undefined): EvalIndexS
   };
 }
 
-function strictHardFailures(metrics: EvalMetrics, expected: EvalExpected, result: DiscoveryResult): string[] {
+function strictHardFailures(
+  metrics: EvalMetrics,
+  item: EvalCase,
+  result: DiscoveryResult,
+  indexStatus: EvalIndexStatus
+): string[] {
+  const expected = item.expected;
   const failures: string[] = [];
+  if ((item.requiresFreshCodeGraph || expected.requiresFreshCodeGraph) && indexStatus.codeGraphStale) {
+    failures.push("fresh_code_graph_required_but_stale");
+  }
   const mustReadPaths = result.authoritativeHandoff.mustRead.map((item) => item.path);
   if (expected.maxMustRead !== undefined && mustReadPaths.length > expected.maxMustRead) {
     failures.push("max_must_read_exceeded");

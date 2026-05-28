@@ -23,6 +23,7 @@ export interface EvalExpected {
   gateStepContains?: string[];
   fallbackCommandNotContains?: string[];
   profileSourcesAny?: Array<"repo_local" | "built_in">;
+  requiresFreshCodeGraph?: boolean;
 }
 
 export interface EvalMetrics {

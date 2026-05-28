@@ -1,0 +1,607 @@
+{
+  "suitePath": "/Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer/.agents/pnav/discovery-suite.json",
+  "productionScore": 1,
+  "totalLatencyMs": 3402,
+  "slowestStages": [
+    {
+      "stage": "entrypointsMs",
+      "latencyMs": 1801
+    },
+    {
+      "stage": "handoffMs",
+      "latencyMs": 1263
+    },
+    {
+      "stage": "relatedTestsMs",
+      "latencyMs": 140
+    },
+    {
+      "stage": "workflowProfilesMs",
+      "latencyMs": 13
+    },
+    {
+      "stage": "readOrderMs",
+      "latencyMs": 1
+    }
+  ],
+  "indexStatus": {
+    "workflowProfilesFresh": true,
+    "evalSuitesFresh": true,
+    "commandsFresh": true,
+    "documentsFresh": true,
+    "codeGraphFresh": false,
+    "codeGraphStale": true,
+    "codeGraphStaleReason": "22 code graph path(s) changed; skipped graph rebuild because --metadata-only was used.",
+    "scanIncremental": {
+      "mode": "incremental",
+      "filesTotal": 5572,
+      "filesChanged": 22,
+      "filesSkipped": 5550,
+      "filesDeleted": 0,
+      "durationMs": 6947,
+      "changedPaths": [
+        "develop/前后端沟通/语言包治理/copy_contract.yaml",
+        "frontend/lib/core/router/auth_guard.dart",
+        "frontend/lib/core/router/router_provider.dart",
+        "frontend/lib/l10n/app_localizations_en.dart",
+        "frontend/lib/l10n/app_localizations_zh.dart",
+        "frontend/lib/l10n/app_localizations.dart",
+        "frontend/lib/modules/workspace/core/workspace_exercise_builder.dart",
+        "frontend/lib/modules/workspace/core/workspace_global_context.dart",
+        "frontend/lib/modules/workspace/widgets/exercise/builder/exercise_insight_panels.dart",
+        "frontend/lib/modules/workspace/widgets/exercise/builder/motivation/exercise_builder_completion.dart",
+        "frontend/lib/modules/workspace/widgets/exercise/workspace_selected_exercise_metadata_panel.dart",
+        "frontend/test/core/router/auth_route_stability_test.dart",
+        "frontend/test/modules/workspace/exercise_builder_completion_test.dart",
+        "frontend/test/modules/workspace/workspace_exercise_builder_auth_resync_test.dart",
+        "frontend/test/modules/workspace/workspace_selected_exercise_metadata_panel_test.dart",
+        "frontend/test/router/auth_guard_test.dart",
+        "scripts/qa/frontend_visual_acceptance_harness.md",
+        "scripts/qa/maestro_visual_android.py",
+        "scripts/qa/maestro_visual_ios.py",
+        "tests/quality/test_i18n_copy_contract_guard.py",
+        "tests/quality/test_maestro_visual_android_runner.py",
+        "tests/quality/test_maestro_visual_ios_runner.py"
+      ],
+      "deletedPaths": [],
+      "changeKind": "code_graph",
+      "changePlanes": {
+        "workflowProfiles": [],
+        "evalSuites": [],
+        "commandSources": [],
+        "docs": [],
+        "codeGraph": [
+          "develop/前后端沟通/语言包治理/copy_contract.yaml",
+          "frontend/lib/core/router/auth_guard.dart",
+          "frontend/lib/core/router/router_provider.dart",
+          "frontend/lib/l10n/app_localizations_en.dart",
+          "frontend/lib/l10n/app_localizations_zh.dart",
+          "frontend/lib/l10n/app_localizations.dart",
+          "frontend/lib/modules/workspace/core/workspace_exercise_builder.dart",
+          "frontend/lib/modules/workspace/core/workspace_global_context.dart",
+          "frontend/lib/modules/workspace/widgets/exercise/builder/exercise_insight_panels.dart",
+          "frontend/lib/modules/workspace/widgets/exercise/builder/motivation/exercise_builder_completion.dart",
+          "frontend/lib/modules/workspace/widgets/exercise/workspace_selected_exercise_metadata_panel.dart",
+          "frontend/test/core/router/auth_route_stability_test.dart",
+          "frontend/test/modules/workspace/exercise_builder_completion_test.dart",
+          "frontend/test/modules/workspace/workspace_exercise_builder_auth_resync_test.dart",
+          "frontend/test/modules/workspace/workspace_selected_exercise_metadata_panel_test.dart",
+          "frontend/test/router/auth_guard_test.dart",
+          "scripts/qa/frontend_visual_acceptance_harness.md",
+          "scripts/qa/maestro_visual_android.py",
+          "scripts/qa/maestro_visual_ios.py",
+          "tests/quality/test_i18n_copy_contract_guard.py",
+          "tests/quality/test_maestro_visual_android_runner.py",
+          "tests/quality/test_maestro_visual_ios_runner.py"
+        ],
+        "deleted": []
+      },
+      "changePlaneCounts": {
+        "workflowProfiles": 0,
+        "evalSuites": 0,
+        "commandSources": 0,
+        "docs": 0,
+        "codeGraph": 22,
+        "deleted": 0
+      },
+      "actions": ["mark_code_graph_stale"],
+      "stages": ["mark_code_graph_stale"],
+      "codeGraphStale": true,
+      "codeGraphStaleReason": "22 code graph path(s) changed; skipped graph rebuild because --metadata-only was used.",
+      "conservativeFullRebuild": false,
+      "partialGraphUpdate": false,
+      "changedCodeFiles": 22,
+      "deletedCodeFiles": 0,
+      "invalidatedFiles": 22,
+      "reindexedFiles": 0,
+      "staleEdges": 0,
+      "affectedCallerExpansion": {
+        "enabled": false,
+        "changedFiles": 22,
+        "candidateCallers": 0,
+        "reindexedCallers": 0,
+        "skippedCallers": 0,
+        "staleIncomingEdges": 0,
+        "reason": "not_applicable"
+      },
+      "freshness": {
+        "fileCatalog": "fresh",
+        "symbolGraph": "stale",
+        "importGraph": "stale",
+        "routeGraph": "stale",
+        "testGraph": "stale",
+        "duplicateClusters": "stale",
+        "coChangeGraph": "stale_until_full_scan"
+      }
+    }
+  },
+  "evalValidity": {
+    "scoreScope": "metadata_only",
+    "freshCodeGraphRequired": false,
+    "validFor": [
+      "workflow profile matching",
+      "workflowProtocol assertions",
+      "mustRead direct-target policy",
+      "recommendedCommands / gateSteps"
+    ],
+    "notValidFor": [
+      "fresh symbol graph",
+      "fresh incoming edges",
+      "fresh route-to-widget chain from changed source",
+      "fresh impact analysis"
+    ]
+  },
+  "cacheStats": {
+    "fileCatalog": {
+      "hits": 11,
+      "misses": 1
+    },
+    "symbolCatalog": {
+      "hits": 11,
+      "misses": 1
+    },
+    "routeCatalog": {
+      "hits": 11,
+      "misses": 1
+    },
+    "testCatalog": {
+      "hits": 11,
+      "misses": 1
+    },
+    "commandCatalog": {
+      "hits": 11,
+      "misses": 1
+    },
+    "workflowProfiles": {
+      "hits": 0,
+      "misses": 12
+    },
+    "entrypointCatalog": {
+      "hits": 11,
+      "misses": 1
+    },
+    "entrypoints": {
+      "hits": 0,
+      "misses": 12
+    },
+    "relatedFiles": {
+      "hits": 0,
+      "misses": 12
+    },
+    "symbols": {
+      "hits": 0,
+      "misses": 12
+    },
+    "reuse": {
+      "hits": 0,
+      "misses": 12
+    },
+    "relatedTests": {
+      "hits": 0,
+      "misses": 12
+    },
+    "callGraph": {
+      "hits": 0,
+      "misses": 12
+    },
+    "readOrder": {
+      "hits": 0,
+      "misses": 12
+    },
+    "handoffBase": {
+      "hits": 0,
+      "misses": 12
+    },
+    "whyRelated": {
+      "hits": 0,
+      "misses": 12
+    }
+  },
+  "cases": [
+    {
+      "id": "dashboard-training-trend-card",
+      "task": "新增 athlete dashboard training trend card，展示最近训练负荷趋势，并接入现有 dashboard 布局",
+      "latencyMs": 1012,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 5,
+        "entrypointsMs": 188,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 18,
+        "callGraphMs": 0,
+        "readOrderMs": 1,
+        "handoffMs": 619,
+        "whyRelatedMs": 0,
+        "totalMs": 1012
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "workspace-microplan-scroll-sliver",
+      "task": "修复 workspace microplan 页面窄屏滚动和 sliver 布局问题",
+      "latencyMs": 768,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 2,
+        "entrypointsMs": 114,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 9,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 642,
+        "whyRelatedMs": 0,
+        "totalMs": 768
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "identity-switch-navigation-state",
+      "task": "修复 personal/org identity switch 后 dashboard、bottom nav、identity capsule 显示旧角色的问题",
+      "latencyMs": 176,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 1,
+        "entrypointsMs": 164,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 10,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 1,
+        "whyRelatedMs": 0,
+        "totalMs": 176
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "cycle-plan-builder-stepper-save",
+      "task": "修复 cycle plan builder stepper 在移动端溢出，并确认保存流程不破坏 template detail",
+      "latencyMs": 155,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 0,
+        "entrypointsMs": 148,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 7,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 155
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "training-summary-api-trend-slope",
+      "task": "给 athlete training summary API 增加 trendSlope 字段，并让 dashboard 使用生成 SDK 消费",
+      "latencyMs": 187,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 1,
+        "entrypointsMs": 173,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 13,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 187
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "data-sharing-coach-request-authz",
+      "task": "修复 coach 请求 athlete 数据共享时，未授权 workspace 能看到申请入口的问题",
+      "latencyMs": 126,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 0,
+        "entrypointsMs": 117,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 8,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 1,
+        "whyRelatedMs": 0,
+        "totalMs": 126
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "competition-detail-mobile-density",
+      "task": "修复 competition detail hub 在 iOS 窄屏下信息密度过低、CTA 重复、截图验收失败",
+      "latencyMs": 136,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 1,
+        "entrypointsMs": 125,
+        "relatedFilesMs": 1,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 9,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 136
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "exercise-prescription-read-dto",
+      "task": "调整 exercise prescription engine 输出结构，并确保 workspace exercise builder 和 read DTO 一致",
+      "latencyMs": 175,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 2,
+        "entrypointsMs": 164,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 9,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 175
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "session-plan-start-time-index",
+      "task": "给 session plan start time 查询新增索引，并确认 migration、model、runtime schema guard 一致",
+      "latencyMs": 202,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 0,
+        "entrypointsMs": 179,
+        "relatedFilesMs": 0,
+        "symbolsMs": 1,
+        "reuseMs": 0,
+        "relatedTestsMs": 22,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 202
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "frontend-card-layout-guard-triage",
+      "task": "frontend card layout guard 失败，定位真实页面、修复 source layer，并补测试",
+      "latencyMs": 152,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 0,
+        "entrypointsMs": 143,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 9,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 152
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "auth-401-dashboard-stale-data",
+      "task": "修复 dashboard API 401 后页面继续显示旧数据而不是触发 auth boundary 的问题",
+      "latencyMs": 128,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 0,
+        "entrypointsMs": 119,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 9,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 128
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "role-visual-web-full-matrix-gap",
+      "task": "补齐 role visual web full matrix 中 athlete dashboard 和 competitions 页面缺失截图，并更新 manifest",
+      "latencyMs": 185,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 1,
+        "entrypointsMs": 167,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 17,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 185
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    }
+  ],
+  "passed": true
+}

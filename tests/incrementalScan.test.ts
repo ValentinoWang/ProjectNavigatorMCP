@@ -35,6 +35,7 @@ describe("incremental scan", () => {
     expect(result.incremental?.filesSkipped).toBeGreaterThan(0);
     expect(result.incremental?.changeKind).toBe("code_graph");
     expect(result.incremental?.partialGraphUpdate).toBe(true);
+    expect(result.incremental?.partialGraphVersion).toBe(2);
     expect(result.incremental?.conservativeFullRebuild).toBe(false);
     const project = openProject(repo);
     try {
@@ -133,7 +134,7 @@ describe("incremental scan", () => {
     expect(result.incremental?.conservativeFullRebuild).toBe(false);
   });
 
-  it("falls back to conservative rebuild when too many source files changed", () => {
+  it("uses batch partial graph update for medium source changes", () => {
     const repo = copyDiscoveryRepo();
     scanRepo(repo);
     mkdirSync(path.join(repo, "src", "generated"), { recursive: true });
@@ -147,11 +148,30 @@ describe("incremental scan", () => {
     const result = scanRepo(repo, { mode: "incremental" });
 
     expect(result.incremental?.changeKind).toBe("code_graph");
-    expect(result.incremental?.partialGraphUpdate).toBe(false);
-    expect(result.incremental?.conservativeFullRebuild).toBe(true);
+    expect(result.incremental?.partialGraphUpdate).toBe(true);
+    expect(result.incremental?.actions).toContain("batch_partial_graph_update");
+    expect(result.incremental?.conservativeFullRebuild).toBe(false);
   });
 
-  it("falls back to conservative rebuild for deleted source files", () => {
+  it("falls back to conservative rebuild when source changes exceed the batch threshold", () => {
+    const repo = copyDiscoveryRepo();
+    scanRepo(repo);
+    mkdirSync(path.join(repo, "src", "generated"), { recursive: true });
+    for (let index = 0; index < 101; index += 1) {
+      writeFileSync(
+        path.join(repo, "src", "generated", `file_${index}.ts`),
+        `export const value${index} = ${index};\n`
+      );
+    }
+
+    const result = scanRepo(repo, { mode: "incremental" });
+
+    expect(result.incremental?.partialGraphUpdate).toBe(false);
+    expect(result.incremental?.conservativeFullRebuild).toBe(true);
+    expect(result.incremental?.fallbackReason).toContain("100");
+  });
+
+  it("invalidates deleted source files without a conservative rebuild", () => {
     const repo = copyDiscoveryRepo();
     scanRepo(repo);
     rmSync(path.join(repo, "web", "src", "DashboardTrendCard.tsx"));
@@ -159,6 +179,61 @@ describe("incremental scan", () => {
     const result = scanRepo(repo, { mode: "incremental" });
 
     expect(result.incremental?.changeKind).toBe("code_graph");
-    expect(result.incremental?.conservativeFullRebuild).toBe(true);
+    expect(result.incremental?.deletedCodeFiles).toBe(1);
+    expect(result.incremental?.partialGraphUpdate).toBe(true);
+    expect(result.incremental?.actions).toContain("invalidate_deleted_source");
+    expect(result.incremental?.conservativeFullRebuild).toBe(false);
+    const project = openProject(repo);
+    try {
+      const deleted = project.db
+        .prepare("SELECT deleted_at FROM files WHERE path = 'web/src/DashboardTrendCard.tsx'")
+        .get() as { deleted_at: string | null };
+      expect(deleted.deleted_at).not.toBeNull();
+      const outgoingSymbols = project.db
+        .prepare(
+          `SELECT COUNT(*) AS count
+           FROM symbols s JOIN files f ON f.id = s.file_id
+           WHERE f.path = 'web/src/DashboardTrendCard.tsx'`
+        )
+        .get() as { count: number };
+      expect(outgoingSymbols.count).toBe(0);
+    } finally {
+      project.db.close();
+    }
+  });
+
+  it("expands affected callers and drops stale exact incoming edges after a callee rename", () => {
+    const repo = copyDiscoveryRepo();
+    writeFileSync(
+      path.join(repo, "web", "src", "DashboardPage.tsx"),
+      "import { DashboardTrendCard } from './DashboardTrendCard';\nexport function DashboardPage() { return DashboardTrendCard({ title: 'load', value: 1 }); }\n"
+    );
+    scanRepo(repo);
+    writeFileSync(
+      path.join(repo, "web", "src", "DashboardTrendCard.tsx"),
+      "export function RenamedTrendCard() { return null; }\n"
+    );
+
+    const result = scanRepo(repo, { mode: "incremental" });
+
+    expect(result.incremental?.partialGraphUpdate).toBe(true);
+    expect(result.incremental?.affectedCallerExpansion.enabled).toBe(true);
+    expect(result.incremental?.affectedCallerExpansion.candidateCallers).toBeGreaterThan(0);
+    const project = openProject(repo);
+    try {
+      const stale = project.db
+        .prepare(
+          `SELECT COUNT(*) AS count
+           FROM symbol_edges se
+           JOIN symbols target ON target.id = se.to_symbol_id
+           JOIN files target_file ON target_file.id = target.file_id
+           WHERE target_file.path = 'web/src/DashboardTrendCard.tsx'
+             AND target.name = 'DashboardTrendCard'`
+        )
+        .get() as { count: number };
+      expect(stale.count).toBe(0);
+    } finally {
+      project.db.close();
+    }
   });
 });

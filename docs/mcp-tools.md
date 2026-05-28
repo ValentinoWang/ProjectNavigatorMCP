@@ -773,8 +773,10 @@ allows eval to proceed when the code graph is stale.
 
 Strict suites can assert workflow protocol fields such as `actionContains`,
 `recommendedCommandContains`, `newFileExpected`, `readOnlyContains`, `editPolicyContains`,
-`gateStepContains`, `fallbackCommandNotContains`, and `profileSourcesAny`. These assertions add hard
-failures without changing the legacy production score.
+`gateStepContains`, `fallbackCommandNotContains`, `profileSourcesAny`, and
+`requiresFreshCodeGraph`. These assertions add hard failures without changing the legacy production
+score. A stale metadata-only eval with `requiresFreshCodeGraph` fails with
+`fresh_code_graph_required_but_stale`.
 
 Data shape:
 
@@ -793,9 +795,21 @@ Data shape:
     "codeGraphStale": true,
     "codeGraphStaleReason": "2 code graph path(s) changed; skipped graph rebuild because --metadata-only was used."
   },
+  "evalValidity": {
+    "scoreScope": "metadata_only",
+    "freshCodeGraphRequired": false,
+    "validFor": ["workflow profile matching", "workflowProtocol assertions"],
+    "notValidFor": ["fresh symbol graph", "fresh incoming edges", "fresh impact analysis"]
+  },
   "cacheStats": {
+    "fileCatalog": { "hits": 1, "misses": 1 },
+    "symbolCatalog": { "hits": 1, "misses": 1 },
+    "routeCatalog": { "hits": 1, "misses": 1 },
     "workflowProfiles": { "hits": 1, "misses": 1 },
-    "entrypoints": { "hits": 1, "misses": 1 }
+    "relatedFiles": { "hits": 1, "misses": 1 },
+    "handoffBase": { "hits": 1, "misses": 1 },
+    "relatedTests": { "hits": 1, "misses": 1 },
+    "entrypointCatalog": { "hits": 1, "misses": 1 }
   },
   "passed": true,
   "cases": [

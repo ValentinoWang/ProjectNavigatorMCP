@@ -25,6 +25,7 @@ Expected commands:
 pnav init /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
 pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --incremental
 pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --incremental --metadata-only
+pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --incremental --verify-partial
 pnav map /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
 ```
 
@@ -139,8 +140,9 @@ Expected result should include:
 - every case has `hardFailures: []`
 - every case has `latencyBreakdown`
 - top-level `slowestStages`
-- top-level `indexStatus` and `cacheStats`
+- top-level `indexStatus`, `evalValidity`, and expanded `cacheStats`
 - mixed dirty worktrees can report `indexStatus.codeGraphStale: true` without forcing a full rebuild
+- metadata-only stale graph runs report `evalValidity.scoreScope: "metadata_only"`
 - workflow protocol assertions for commands, edit policies, gate steps, and profile provenance
 
 For each task in the suite, also run:

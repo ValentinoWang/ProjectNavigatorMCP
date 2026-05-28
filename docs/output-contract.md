@@ -137,14 +137,21 @@ Call graph tools return confidence-scored edges. Low-confidence ambiguous result
 `pnav scan --incremental` returns `incremental` stats in the scan result, including changed,
 skipped, deleted, duration, `changedPaths`, `deletedPaths`, `changeKind`, `changePlanes`,
 `changePlaneCounts`, `actions`, `stages`, `codeGraphStale`, `codeGraphStaleReason`,
-`partialGraphUpdate`, and whether a conservative graph rebuild was used. Workflow profile,
-eval-suite, command-source, and docs-only changes can avoid a code graph rebuild. Mixed metadata
-changes report `changeKind: "mixed"` and expose each changed plane separately.
+`partialGraphUpdate`, `partialGraphVersion`, `changedCodeFiles`, `deletedCodeFiles`,
+`invalidatedFiles`, `reindexedFiles`, `staleEdges`, `fallbackReason`,
+`affectedCallerExpansion`, `freshness`, and whether a conservative graph rebuild was used.
+Workflow profile, eval-suite, command-source, and docs-only changes can avoid a code graph
+rebuild. Mixed metadata changes report `changeKind: "mixed"` and expose each changed plane
+separately.
 
 `pnav scan --incremental --metadata-only` refreshes metadata planes and leaves source graph changes
 unrebuilt. When source files are dirty in this mode, `codeGraphStale` is true and
 `codeGraphStaleReason` explains that the graph rebuild was skipped because metadata-only mode was
 requested.
+
+`pnav scan --incremental --verify-partial` adds `partialVerification` when a partial update is
+attempted. The verifier output documents allowed differences such as stale co-change evidence and
+partial duplicate clusters.
 
 ## v0.7 Discovery Quality Fields
 
@@ -210,16 +217,19 @@ Only existing files from a profile can enter `mustRead` or `supportingContext`.
 - `editPolicyContains` for exact workflow edit-policy assertions.
 - `fallbackCommandNotContains` to prevent noisy generic commands from becoming fallback suggestions.
 - `profileSourcesAny` to require `repo_local` or `built_in` profile provenance.
+- `requiresFreshCodeGraph` to make strict metadata-only eval fail when the source graph is stale.
 
 The eval metric `suppressionReasonQuality` defaults to `1` when no suppression reason expectations are provided.
 
-`production_discovery_eval.data` includes `totalLatencyMs`, `slowestStages`, `indexStatus`, and
-`cacheStats`.
+`production_discovery_eval.data` includes `totalLatencyMs`, `slowestStages`, `indexStatus`,
+`evalValidity`, and `cacheStats`.
 `production_discovery_eval.data.cases[]` includes `latencyBreakdown` and `hardFailures` in strict mode. Strict cases fail when mustRead is missing expected `mustReadAny` paths, contains forbidden paths, exceeds `maxMustRead`, has incomplete suppression reason expectations, falls below `minChainCompleteness`, misses workflow protocol expectations, or violates fallback-command rules.
 
 `pnav eval --metadata-only` runs a metadata-only incremental preflight before the suite. Its
 `indexStatus` reports metadata freshness and code graph staleness; stale code graph status is
-non-fatal in metadata-only mode.
+non-fatal in metadata-only mode unless a case declares `requiresFreshCodeGraph`. In stale
+metadata-only runs, `evalValidity.scoreScope` is `metadata_only` and `notValidFor` names graph
+uses that still require a fresh symbol/import/route graph.
 
 `trace_feature.data` includes `mode`, `routeToWidgetChainApplicability`, `workflowProtocol`, and
 `workflowChain`. In `route` mode, `routeToWidgetChain` returns the route/page/widget chain

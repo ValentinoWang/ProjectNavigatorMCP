@@ -1,6 +1,7 @@
 import { findRelatedFiles } from "../graph/relatedFiles.js";
 import { relatedTests } from "../graph/relatedTests.js";
 import { findSymbol } from "../graph/symbolSearch.js";
+import { openProject } from "../db/project.js";
 import { buildAuthoritativeHandoff } from "./authoritativeChain.js";
 import { discoveryReadScore, tierReadOrder } from "./discoveryQuality.js";
 import { findEntrypoints, loadEntrypointCatalog, rankEntrypointsFromCatalog } from "./entrypoints.js";
@@ -20,7 +21,16 @@ export interface TimedDiscoveryResult {
   timing: DiscoveryTimingBreakdown;
 }
 
+export interface DiscoveryTimingOptions {
+  requireRouteChain?: boolean;
+}
+
 export type DiscoveryCacheBucket =
+  | "fileCatalog"
+  | "symbolCatalog"
+  | "routeCatalog"
+  | "testCatalog"
+  | "commandCatalog"
   | "workflowProfiles"
   | "entrypointCatalog"
   | "entrypoints"
@@ -30,7 +40,7 @@ export type DiscoveryCacheBucket =
   | "relatedTests"
   | "callGraph"
   | "readOrder"
-  | "handoff"
+  | "handoffBase"
   | "whyRelated";
 
 export interface DiscoveryRuntimeContext {
@@ -40,6 +50,11 @@ export interface DiscoveryRuntimeContext {
 
 export function createDiscoveryRuntimeContext(): DiscoveryRuntimeContext {
   const buckets: DiscoveryCacheBucket[] = [
+    "fileCatalog",
+    "symbolCatalog",
+    "routeCatalog",
+    "testCatalog",
+    "commandCatalog",
     "workflowProfiles",
     "entrypointCatalog",
     "entrypoints",
@@ -49,7 +64,7 @@ export function createDiscoveryRuntimeContext(): DiscoveryRuntimeContext {
     "relatedTests",
     "callGraph",
     "readOrder",
-    "handoff",
+    "handoffBase",
     "whyRelated"
   ];
   return {
@@ -72,10 +87,14 @@ export function discoverCodeWithTiming(
   repoPath: string,
   task: string,
   limit = 15,
-  context?: DiscoveryRuntimeContext
+  context?: DiscoveryRuntimeContext,
+  options: DiscoveryTimingOptions = {}
 ): TimedDiscoveryResult {
   const startedAt = Date.now();
   const timing = emptyTiming();
+  if (context) {
+    warmRepoCatalogs(context, repoPath);
+  }
   const workflowProfiles = timed(timing, "workflowProfilesMs", () =>
     cached(context, "workflowProfiles", task, () => resolveWorkflowDiscoveryProfiles(repoPath, task))
   );
@@ -88,11 +107,10 @@ export function discoverCodeWithTiming(
     return cached(context, "entrypoints", `${task}:10`, () => rankEntrypointsFromCatalog(catalog, task, 10));
   });
   const related = timed(timing, "relatedFilesMs", () =>
-    cached(
-      context,
-      "relatedFiles",
-      `${task}:${hasWorkflowProfile ? Math.min(5, limit) : limit}`,
-      () => findRelatedFiles(repoPath, task, hasWorkflowProfile ? Math.min(5, limit) : limit).files
+    cached(context, "relatedFiles", `${task}:${hasWorkflowProfile ? Math.min(5, limit) : limit}`, () =>
+      hasWorkflowProfile
+        ? workflowProfiles.flatMap((profile) => profile.readOrder).slice(0, Math.min(5, limit))
+        : findRelatedFiles(repoPath, task, limit).files
     )
   );
   const coreSymbols = timed(timing, "symbolsMs", () =>
@@ -141,8 +159,10 @@ export function discoverCodeWithTiming(
   );
   const tiers = tierReadOrder(task, recommendedReadOrder, limit);
   const authoritativeHandoff = timed(timing, "handoffMs", () =>
-    cached(context, "handoff", task, () =>
-      buildAuthoritativeHandoff(repoPath, task, recommendedReadOrder, reuse.reuseCandidates, tests, workflowProfiles)
+    cached(context, "handoffBase", `${task}:${options.requireRouteChain ? "route" : "workflow"}`, () =>
+      buildAuthoritativeHandoff(repoPath, task, recommendedReadOrder, reuse.reuseCandidates, tests, workflowProfiles, {
+        buildRouteChain: !hasWorkflowProfile || Boolean(options.requireRouteChain)
+      })
     )
   );
   const workflowWarnings = workflowProfiles.flatMap((profile) => profile.warnings);
@@ -182,6 +202,40 @@ export function discoverCodeWithTiming(
     },
     timing
   };
+}
+
+function warmRepoCatalogs(context: DiscoveryRuntimeContext, repoPath: string): void {
+  cached(context, "fileCatalog", repoPath, () => loadCatalogCount(repoPath, "files"));
+  cached(context, "symbolCatalog", repoPath, () => loadSymbolCatalogCount(repoPath));
+  cached(context, "routeCatalog", repoPath, () => loadCatalogCount(repoPath, "routes"));
+  cached(context, "testCatalog", repoPath, () => loadCatalogCount(repoPath, "tests"));
+  cached(context, "commandCatalog", repoPath, () => loadCatalogCount(repoPath, "commands"));
+}
+
+function loadCatalogCount(repoPath: string, table: "files" | "routes" | "tests" | "commands"): number {
+  const project = openProject(repoPath);
+  try {
+    return (
+      project.db.prepare(`SELECT COUNT(*) AS count FROM ${table} WHERE repo_id = ?`).get(project.repo.id) as {
+        count: number;
+      }
+    ).count;
+  } finally {
+    project.db.close();
+  }
+}
+
+function loadSymbolCatalogCount(repoPath: string): number {
+  const project = openProject(repoPath);
+  try {
+    return (
+      project.db
+        .prepare("SELECT COUNT(*) AS count FROM symbols s JOIN files f ON f.id = s.file_id WHERE f.repo_id = ?")
+        .get(project.repo.id) as { count: number }
+    ).count;
+  } finally {
+    project.db.close();
+  }
 }
 
 function cached<T>(

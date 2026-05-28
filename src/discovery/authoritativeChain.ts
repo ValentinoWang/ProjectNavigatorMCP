@@ -40,9 +40,13 @@ export function buildAuthoritativeHandoff(
   recommendedReadOrder: FileHit[],
   reuseCandidates: SimilarCodeHit[],
   relatedTests: { testFiles: string[] },
-  workflowProfiles: WorkflowDiscoveryProfile[] = []
+  workflowProfiles: WorkflowDiscoveryProfile[] = [],
+  options: { buildRouteChain?: boolean } = {}
 ): AuthoritativeHandoff {
-  const chain = findFlutterRouteToWidgetChain(repoPath, task);
+  const chain =
+    (options.buildRouteChain ?? true)
+      ? findFlutterRouteToWidgetChain(repoPath, task)
+      : workflowOnlyChain(workflowProfiles);
   const chainCandidates = chain.steps.map((step) => ({
     path: step.path,
     score: step.confidence,
@@ -90,6 +94,17 @@ export function buildAuthoritativeHandoff(
     strictGate: gate.strictGate,
     workflowProtocol: buildWorkflowProtocol(workflowProfiles),
     warnings: Array.from(new Set([...chain.warnings, ...workflowProfiles.flatMap((profile) => profile.warnings)]))
+  };
+}
+
+function workflowOnlyChain(workflowProfiles: WorkflowDiscoveryProfile[]): RouteToWidgetChain {
+  return {
+    status: "candidate_chain",
+    steps: [],
+    depth: 0,
+    completeness: "route_page_only",
+    confidence: workflowProfiles.length > 0 ? 0.62 : 0,
+    warnings: workflowProfiles.length > 0 ? ["route_to_widget_chain_skipped_for_workflow_eval"] : []
   };
 }
 

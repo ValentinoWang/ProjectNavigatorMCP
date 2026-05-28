@@ -57,19 +57,26 @@ program
   )
   .option("--full", "Force a full scan rebuild")
   .option("--metadata-only", "Refresh metadata planes and mark source changes stale without rebuilding the code graph")
-  .action((repo: string, options: { incremental?: boolean; full?: boolean; metadataOnly?: boolean }) => {
-    const result = scanRepo(repo, {
-      mode: options.incremental && !options.full ? "incremental" : "full",
-      metadataOnly: Boolean(options.metadataOnly),
-      progress: {
-        stage: (name, payload) => {
-          const suffix = payload ? ` ${JSON.stringify(payload)}` : "";
-          console.error(`[scan] ${name}${suffix}`);
+  .option("--verify-partial", "After a partial incremental update, report partial-vs-full verification metadata")
+  .action(
+    (
+      repo: string,
+      options: { incremental?: boolean; full?: boolean; metadataOnly?: boolean; verifyPartial?: boolean }
+    ) => {
+      const result = scanRepo(repo, {
+        mode: options.incremental && !options.full ? "incremental" : "full",
+        metadataOnly: Boolean(options.metadataOnly),
+        verifyPartial: Boolean(options.verifyPartial),
+        progress: {
+          stage: (name, payload) => {
+            const suffix = payload ? ` ${JSON.stringify(payload)}` : "";
+            console.error(`[scan] ${name}${suffix}`);
+          }
         }
-      }
-    });
-    console.log(JSON.stringify(result, null, 2));
-  });
+      });
+      console.log(JSON.stringify(result, null, 2));
+    }
+  );
 
 program
   .command("map")

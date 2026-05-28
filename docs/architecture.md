@@ -186,6 +186,7 @@ sequenceDiagram
   CLI->>Symbols: parse basic symbols and imports
   Symbols->>DB: upsert symbols and edges
   CLI->>DB: metadata-only scans may mark codeGraphStale without rebuilding symbols
+  CLI->>DB: partial v2 scans invalidate changed/deleted source graph rows and reindex affected callers
   CLI->>DB: mark scan run finished
 ```
 

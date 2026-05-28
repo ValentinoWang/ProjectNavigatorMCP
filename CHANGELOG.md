@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.8.6
+
+Fresh Graph & Deep Runtime Cache release.
+
+- Added eval `evalValidity` with `scoreScope`, `validFor`, and `notValidFor` so metadata-only stale-graph scores are not mistaken for full fresh-graph validation.
+- Added `requiresFreshCodeGraph` strict eval support with the `fresh_code_graph_required_but_stale` hard failure.
+- Upgraded file-level incremental scan to partial graph invalidation v2, including deleted source invalidation, affected caller expansion, stable incoming edge rewiring, and batch partial updates up to 100 code graph paths.
+- Added scan freshness reporting for file, symbol, import, route, test, duplicate, and co-change graph planes.
+- Added `pnav scan --incremental --verify-partial` output metadata for partial update verification.
+- Expanded eval runtime `cacheStats` with file, symbol, route, test, command, workflow, related-file, handoff, related-test, and entrypoint cache buckets.
+
 ## v0.8.5
 
 Incremental Graph & Eval Runtime Hardening release.

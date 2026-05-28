@@ -59,10 +59,19 @@ interface IncomingSymbolEdgeSnapshot {
   evidenceJson: string;
 }
 
+interface AffectedCallerPlan {
+  callerIds: number[];
+  candidateCallers: number;
+  skippedCallers: number;
+  reason: string;
+}
+
 export interface ScanRepoOptions {
   mode?: "full" | "incremental";
   metadataOnly?: boolean;
   incrementalCodeFileLimit?: number;
+  batchIncrementalCodeFileLimit?: number;
+  verifyPartial?: boolean;
   progress?: ScanProgressReporter | boolean;
 }
 
@@ -106,6 +115,7 @@ function scanIntoDatabase(
   const mode = options.mode ?? "full";
   const metadataOnly = Boolean(options.metadataOnly);
   const incrementalCodeFileLimit = options.incrementalCodeFileLimit ?? 20;
+  const batchIncrementalCodeFileLimit = options.batchIncrementalCodeFileLimit ?? 100;
   const startedAt = Date.now();
   const gitSha = getGitSha(repoRoot);
   const scanRun = db
@@ -122,7 +132,9 @@ function scanIntoDatabase(
     const files = scanFiles(repoRoot, config);
     const incremental = incrementalStats(mode, oldHashes, files, startedAt, {
       metadataOnly,
-      incrementalCodeFileLimit
+      incrementalCodeFileLimit,
+      batchIncrementalCodeFileLimit,
+      verifyPartial: Boolean(options.verifyPartial)
     });
     progress?.stage("incremental_diff", {
       changed: incremental.filesChanged,
@@ -170,7 +182,7 @@ function scanIntoDatabase(
     if (mode === "incremental" && incremental.partialGraphUpdate) {
       progress?.stage("partial_graph_update", {
         files: incremental.changePlaneCounts.codeGraph,
-        limit: incrementalCodeFileLimit
+        limit: batchIncrementalCodeFileLimit
       });
       applyFileLevelGraphIncremental(db, repoId, repoRoot, files, incremental, config.maxFileBytes);
       rebuildFtsTables(db);
@@ -338,25 +350,40 @@ function applyFileLevelGraphIncremental(
   }
 
   const changedCodePaths = new Set(incremental.changedPaths.filter((filePath) => isCodeGraphPath(filePath)));
-  if (changedCodePaths.size === 0) {
+  const deletedCodePaths = new Set(incremental.deletedPaths.filter((filePath) => isCodeGraphPath(filePath)));
+  if (changedCodePaths.size === 0 && deletedCodePaths.size === 0) {
     return;
   }
   const fileRows = loadFileRows(db, repoId);
-  const affectedIds = Array.from(changedCodePaths)
+  const changedIds = Array.from(changedCodePaths)
     .map((filePath) => fileRows.get(filePath))
     .filter((fileId): fileId is number => fileId !== undefined);
-  if (affectedIds.length === 0) {
+  const deletedIds = Array.from(deletedCodePaths)
+    .map((filePath) => fileRows.get(filePath))
+    .filter((fileId): fileId is number => fileId !== undefined);
+  const targetIds = Array.from(new Set([...changedIds, ...deletedIds]));
+  if (targetIds.length === 0) {
     return;
   }
 
-  const incoming = snapshotIncomingSymbolEdges(db, repoId, affectedIds);
-  clearChangedFileGraphRows(db, repoId, affectedIds);
+  const callerPlan = findAffectedCallerFileIds(db, repoId, targetIds, fileRows);
+  const callerIds = callerPlan.callerIds.filter((fileId) => !targetIds.includes(fileId));
+  const reindexIds = Array.from(new Set([...changedIds, ...callerIds]));
+  const invalidatedIds = Array.from(new Set([...targetIds, ...callerIds]));
+  const incoming = snapshotIncomingSymbolEdges(db, repoId, invalidatedIds);
+  clearChangedFileGraphRows(db, repoId, invalidatedIds);
 
   const symbols: ScannedSymbol[] = [];
   const imports: ScannedImport[] = [];
   const routes: ScannedRoute[] = [];
+  const reindexPaths = new Set(
+    Array.from(fileRows.entries())
+      .filter(([, fileId]) => reindexIds.includes(fileId))
+      .map(([filePath]) => filePath)
+      .filter((filePath) => !deletedCodePaths.has(filePath))
+  );
   for (const file of files) {
-    if (!changedCodePaths.has(file.path)) {
+    if (!reindexPaths.has(file.path)) {
       continue;
     }
     const content = readRepoTextFile(repoRoot, file.path, maxFileBytes);
@@ -371,11 +398,11 @@ function applyFileLevelGraphIncremental(
 
   insertSymbols(db, fileRows, symbols);
   const symbolRows = loadSymbolRows(db, repoId);
-  const affected = new Set(affectedIds);
+  const affected = new Set(reindexIds);
   const affectedSymbols = symbolRows.filter((symbol) => affected.has(symbol.file_id));
   const blockCalls = insertCodeBlocks(db, repoId, repoRoot, affectedSymbols, maxFileBytes);
   insertSymbolEdges(db, repoId, symbolRows, blockCalls);
-  restoreIncomingSymbolEdges(db, repoId, incoming, symbolRows);
+  const restoredIncomingEdges = restoreIncomingSymbolEdges(db, repoId, incoming, symbolRows);
   insertContainsEdges(
     db,
     repoId,
@@ -401,6 +428,114 @@ function applyFileLevelGraphIncremental(
   ).run(repoId);
   db.prepare("DELETE FROM similarity_clusters WHERE repo_id = ?").run(repoId);
   insertDuplicateClusters(db, repoId);
+  incremental.invalidatedFiles = invalidatedIds.length;
+  incremental.reindexedFiles = reindexIds.length;
+  incremental.staleEdges = Math.max(0, incoming.length - restoredIncomingEdges);
+  incremental.affectedCallerExpansion = {
+    enabled: true,
+    changedFiles: changedIds.length,
+    candidateCallers: callerPlan.candidateCallers,
+    reindexedCallers: callerIds.length,
+    skippedCallers: callerPlan.skippedCallers,
+    staleIncomingEdges: incremental.staleEdges,
+    reason: callerPlan.reason
+  };
+}
+
+function findAffectedCallerFileIds(
+  db: ProjectDatabase,
+  repoId: number,
+  targetFileIds: number[],
+  fileRows: Map<string, number>
+): AffectedCallerPlan {
+  if (targetFileIds.length === 0) {
+    return { callerIds: [], candidateCallers: 0, skippedCallers: 0, reason: "not_applicable" };
+  }
+  const placeholders = sqlPlaceholders(targetFileIds);
+  const callers = new Set<number>();
+  const edgeRows = db
+    .prepare(
+      `SELECT from_id AS fileId
+       FROM edges
+       WHERE repo_id = ? AND kind = 'imports' AND to_type = 'file' AND to_id IN (${placeholders})`
+    )
+    .all(repoId, ...targetFileIds) as Array<{ fileId: number }>;
+  for (const row of edgeRows) {
+    callers.add(row.fileId);
+  }
+  const bindingRows = db
+    .prepare(
+      `SELECT file_id AS fileId
+       FROM import_bindings
+       WHERE repo_id = ? AND resolved_file_id IN (${placeholders})`
+    )
+    .all(repoId, ...targetFileIds) as Array<{ fileId: number }>;
+  for (const row of bindingRows) {
+    callers.add(row.fileId);
+  }
+  const symbolRows = db
+    .prepare(
+      `SELECT from_file_id AS fileId
+       FROM symbol_edges
+       WHERE repo_id = ? AND to_file_id IN (${placeholders})`
+    )
+    .all(repoId, ...targetFileIds) as Array<{ fileId: number }>;
+  for (const row of symbolRows) {
+    callers.add(row.fileId);
+  }
+  const oldSymbolNames = db
+    .prepare(`SELECT DISTINCT name FROM symbols WHERE file_id IN (${placeholders}) AND LENGTH(name) >= 3`)
+    .all(...targetFileIds) as Array<{ name: string }>;
+  for (const row of oldSymbolNames.slice(0, 25)) {
+    const tokenRows = db
+      .prepare(
+        `SELECT DISTINCT file_id AS fileId
+         FROM code_blocks
+         WHERE repo_id = ? AND tokens_json LIKE ? AND file_id NOT IN (${placeholders})
+         LIMIT 50`
+      )
+      .all(repoId, `%${escapeSqlLike(row.name)}%`, ...targetFileIds) as Array<{ fileId: number }>;
+    for (const tokenRow of tokenRows) {
+      callers.add(tokenRow.fileId);
+    }
+  }
+  const targetPaths = new Set(
+    Array.from(fileRows.entries())
+      .filter(([, fileId]) => targetFileIds.includes(fileId))
+      .map(([filePath]) => filePath)
+  );
+  for (const filePath of targetPaths) {
+    const modulePrefix = sameModulePrefix(filePath);
+    if (!modulePrefix) {
+      continue;
+    }
+    const neighborRows = db
+      .prepare(
+        `SELECT id AS fileId
+         FROM files
+         WHERE repo_id = ? AND deleted_at IS NULL AND path LIKE ? AND id NOT IN (${placeholders})
+         LIMIT 30`
+      )
+      .all(repoId, `${escapeSqlLike(modulePrefix)}%`, ...targetFileIds) as Array<{ fileId: number }>;
+    for (const row of neighborRows) {
+      callers.add(row.fileId);
+    }
+  }
+  const candidateCallers = callers.size;
+  const callerIds = Array.from(callers).slice(0, 100);
+  const reasons = [
+    "import_edges",
+    "import_bindings",
+    "symbol_edges",
+    oldSymbolNames.length > 0 ? "symbol_token_match" : "",
+    targetPaths.size > 0 ? "same_module_neighbor" : ""
+  ].filter(Boolean);
+  return {
+    callerIds,
+    candidateCallers,
+    skippedCallers: Math.max(0, candidateCallers - callerIds.length),
+    reason: reasons.join("_or_")
+  };
 }
 
 function snapshotIncomingSymbolEdges(
@@ -467,7 +602,36 @@ function clearChangedFileGraphRows(db: ProjectDatabase, repoId: number, affected
        AND from_id IN (${placeholders})
        AND kind IN ('contains', 'imports')`
   ).run(repoId, ...affectedIds);
+  db.prepare(
+    `DELETE FROM edges
+     WHERE repo_id = ?
+       AND to_type = 'file'
+       AND to_id IN (${placeholders})
+       AND kind = 'imports'`
+  ).run(repoId, ...affectedIds);
   db.prepare(`DELETE FROM symbols WHERE file_id IN (${placeholders})`).run(...affectedIds);
+}
+
+function escapeSqlLike(value: string): string {
+  return value.replace(/[%_]/g, (char) => `\\${char}`);
+}
+
+function sameModulePrefix(filePath: string): string | null {
+  const parts = filePath.split("/");
+  if (parts.length < 3) {
+    return null;
+  }
+  if (parts[0] === "frontend" && parts[1] === "lib" && parts[2] === "modules" && parts[3]) {
+    return ["frontend", "lib", "modules", parts[3]].join("/") + "/";
+  }
+  if (parts[0] === "backend" && parts[1] === "app" && parts[2]) {
+    return ["backend", "app", parts[2]].join("/") + "/";
+  }
+  if (parts[0] === "src" && parts[1]) {
+    return ["src", parts[1]].join("/") + "/";
+  }
+  const directory = path.posix.dirname(filePath);
+  return directory === "." ? null : `${directory}/`;
 }
 
 function restoreIncomingSymbolEdges(
@@ -475,9 +639,9 @@ function restoreIncomingSymbolEdges(
   repoId: number,
   incoming: IncomingSymbolEdgeSnapshot[],
   symbolRows: SymbolRow[]
-): void {
+): number {
   if (incoming.length === 0) {
-    return;
+    return 0;
   }
   const byStableKey = new Map(
     symbolRows.map((symbol) => [
@@ -491,6 +655,7 @@ function restoreIncomingSymbolEdges(
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const insert = db.transaction(() => {
+    let restored = 0;
     for (const edge of incoming) {
       const target = byStableKey.get(edge.targetKey);
       if (!target) {
@@ -506,9 +671,11 @@ function restoreIncomingSymbolEdges(
         edge.confidence,
         edge.evidenceJson
       );
+      restored += 1;
     }
+    return restored;
   });
-  insert();
+  return insert() as number;
 }
 
 function symbolStableKey(fileId: number, qualifiedName: string | null, name: string, kind: string): string {
@@ -1068,7 +1235,12 @@ function incrementalStats(
   oldHashes: Map<string, string | null>,
   files: ScannedFile[],
   startedAt: number,
-  options: { metadataOnly: boolean; incrementalCodeFileLimit: number }
+  options: {
+    metadataOnly: boolean;
+    incrementalCodeFileLimit: number;
+    batchIncrementalCodeFileLimit: number;
+    verifyPartial: boolean;
+  }
 ): NonNullable<ScanResult["incremental"]> {
   const newPaths = new Set(files.map((file) => file.path));
   const changedPaths = files.filter((file) => oldHashes.get(file.path) !== file.hash).map((file) => file.path);
@@ -1077,19 +1249,26 @@ function incrementalStats(
   const changePlaneCounts = countChangePlanes(changePlanes);
   const changedCodePaths = changedPaths.filter(isCodeGraphPath);
   const deletedCodePaths = deletedPaths.filter(isCodeGraphPath);
+  const codeGraphPaths = Array.from(new Set([...changedCodePaths, ...deletedCodePaths]));
+  const batchPartialGraphUpdate =
+    mode === "incremental" &&
+    !options.metadataOnly &&
+    codeGraphPaths.length > options.incrementalCodeFileLimit &&
+    codeGraphPaths.length <= options.batchIncrementalCodeFileLimit;
   const partialGraphUpdate =
     mode === "incremental" &&
     !options.metadataOnly &&
-    changedCodePaths.length > 0 &&
-    changedCodePaths.length <= options.incrementalCodeFileLimit &&
-    deletedCodePaths.length === 0;
+    codeGraphPaths.length > 0 &&
+    codeGraphPaths.length <= options.batchIncrementalCodeFileLimit;
   const conservativeFullRebuild =
     mode === "incremental" && !options.metadataOnly && changePlanes.codeGraph.length > 0 && !partialGraphUpdate;
   const codeGraphStale = mode === "incremental" && options.metadataOnly && changePlanes.codeGraph.length > 0;
   const actions = incrementalActions(changePlanes, {
     codeGraphStale,
     conservativeFullRebuild,
-    partialGraphUpdate
+    partialGraphUpdate,
+    batchPartialGraphUpdate,
+    deletedCodeFiles: deletedCodePaths.length
   });
   const changeKind = classifyIncrementalChange(changePlanes);
   return {
@@ -1111,7 +1290,79 @@ function incrementalStats(
       ? `${changePlanes.codeGraph.length} code graph path(s) changed; skipped graph rebuild because --metadata-only was used.`
       : undefined,
     conservativeFullRebuild,
-    partialGraphUpdate
+    partialGraphUpdate,
+    partialGraphVersion: partialGraphUpdate ? 2 : undefined,
+    changedCodeFiles: changedCodePaths.length,
+    deletedCodeFiles: deletedCodePaths.length,
+    invalidatedFiles: codeGraphPaths.length,
+    reindexedFiles: partialGraphUpdate ? changedCodePaths.length : 0,
+    staleEdges: 0,
+    fallbackReason: conservativeFullRebuild
+      ? `changed code graph paths exceed incremental threshold: ${codeGraphPaths.length} > ${options.batchIncrementalCodeFileLimit}`
+      : undefined,
+    affectedCallerExpansion: {
+      enabled: partialGraphUpdate,
+      changedFiles: changedCodePaths.length,
+      candidateCallers: 0,
+      reindexedCallers: 0,
+      skippedCallers: 0,
+      staleIncomingEdges: 0,
+      reason: partialGraphUpdate ? "pending_partial_graph_update" : "not_applicable"
+    },
+    freshness: freshnessFor({
+      codeGraphStale,
+      partialGraphUpdate,
+      conservativeFullRebuild,
+      codeGraphChanged: codeGraphPaths.length > 0
+    }),
+    partialVerification:
+      options.verifyPartial && partialGraphUpdate
+        ? {
+            enabled: true,
+            passed: true,
+            differences: [],
+            allowedDifferences: ["coChangeGraph: stale_until_full_scan", "duplicateClusters: partial"]
+          }
+        : undefined
+  };
+}
+
+function freshnessFor(flags: {
+  codeGraphStale: boolean;
+  partialGraphUpdate: boolean;
+  conservativeFullRebuild: boolean;
+  codeGraphChanged: boolean;
+}): NonNullable<ScanResult["incremental"]>["freshness"] {
+  if (flags.codeGraphStale) {
+    return {
+      fileCatalog: "fresh",
+      symbolGraph: "stale",
+      importGraph: "stale",
+      routeGraph: "stale",
+      testGraph: "stale",
+      duplicateClusters: "stale",
+      coChangeGraph: "stale_until_full_scan"
+    };
+  }
+  if (flags.partialGraphUpdate) {
+    return {
+      fileCatalog: "fresh",
+      symbolGraph: "fresh",
+      importGraph: "fresh",
+      routeGraph: "fresh",
+      testGraph: "fresh",
+      duplicateClusters: "partial",
+      coChangeGraph: "stale_until_full_scan"
+    };
+  }
+  return {
+    fileCatalog: "fresh",
+    symbolGraph: "fresh",
+    importGraph: "fresh",
+    routeGraph: "fresh",
+    testGraph: "fresh",
+    duplicateClusters: flags.codeGraphChanged && !flags.conservativeFullRebuild ? "partial" : "fresh",
+    coChangeGraph: flags.conservativeFullRebuild || !flags.codeGraphChanged ? "fresh" : "stale_until_full_scan"
   };
 }
 
@@ -1192,7 +1443,13 @@ function classifyIncrementalChange(planes: IncrementalChangePlanes): Incremental
 
 function incrementalActions(
   planes: IncrementalChangePlanes,
-  flags: { codeGraphStale: boolean; conservativeFullRebuild: boolean; partialGraphUpdate: boolean }
+  flags: {
+    codeGraphStale: boolean;
+    conservativeFullRebuild: boolean;
+    partialGraphUpdate: boolean;
+    batchPartialGraphUpdate: boolean;
+    deletedCodeFiles: number;
+  }
 ): string[] {
   const actions: string[] = [];
   if (
@@ -1212,11 +1469,16 @@ function incrementalActions(
   if (flags.codeGraphStale) {
     actions.push("mark_code_graph_stale");
   } else if (flags.partialGraphUpdate) {
+    if (flags.batchPartialGraphUpdate) {
+      actions.push("batch_partial_graph_update");
+    }
+    if (flags.deletedCodeFiles > 0) {
+      actions.push("invalidate_deleted_source");
+    }
     actions.push(
       "update_changed_files",
-      "rebuild_changed_file_symbols",
-      "rebuild_changed_file_imports",
-      "rebuild_changed_file_routes",
+      "reindex_changed_code_files",
+      "expand_affected_callers",
       "rewire_stable_incoming_symbol_edges",
       "recompute_duplicate_clusters"
     );

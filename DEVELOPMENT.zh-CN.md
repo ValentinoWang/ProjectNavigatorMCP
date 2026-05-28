@@ -1079,6 +1079,15 @@ v0.8.5 进一步要求：
 - 少量源码变化默认走 file-level graph update v1；超过阈值或删除源码文件时才 conservative full rebuild。
 - eval suite 应复用 runtime context，并输出 `indexStatus` 与 `cacheStats`，便于定位 suite 级性能瓶颈。
 
+v0.8.6 进一步要求：
+
+- metadata-only eval 必须输出 `evalValidity.scoreScope: "metadata_only"`，并说明只适合 workflow/profile/protocol 验证；不能把 stale code graph 的分数当成 full graph 可信度。
+- strict eval 支持 `requiresFreshCodeGraph`；当 code graph stale 时必须 hard fail：`fresh_code_graph_required_but_stale`。
+- incremental scan 使用 partial graph invalidation v2；`<=20` 个 code graph path 走 normal partial，`21-100` 走 batch partial，`>100` 才 conservative full rebuild。
+- 删除源码文件必须走 invalidate path：标记 `files.deleted_at`，清理 outgoing graph rows，移除 stale incoming references，并把 importers/callers 纳入 affected expansion。
+- partial scan 必须输出 graph-plane `freshness`；`coChangeGraph` 可以是 `stale_until_full_scan`，但不能把 stale co-change 当作唯一 critical evidence。
+- eval runtime cacheStats 不能只有 `entrypointCatalog`，还要暴露 file/symbol/route/workflow/relatedFiles/handoff/relatedTests 等 bucket。
+
 ## 18. 完成 MVP 的定义
 
 当以下流程能跑通时，可以认为 MVP 完成：

@@ -235,7 +235,7 @@ Add only after real target demo passes:
 
 1. Tree-sitter parser collectors.
 2. LSP/SCIP exact reference support.
-3. deeper file-level incremental graph invalidation beyond the v0.8.5 small-change path.
+3. exact reference support beyond partial graph invalidation v2.
 4. better scoring and graph traversal.
 5. Postgres team memory sync.
 6. web dashboard.

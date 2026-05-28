@@ -74,6 +74,33 @@ export interface IncrementalChangePlanes {
   deleted: string[];
 }
 
+export interface GraphFreshness {
+  fileCatalog: "fresh" | "partial" | "stale";
+  symbolGraph: "fresh" | "partial" | "stale";
+  importGraph: "fresh" | "partial" | "stale";
+  routeGraph: "fresh" | "partial" | "stale";
+  testGraph: "fresh" | "partial" | "stale";
+  duplicateClusters: "fresh" | "partial" | "stale";
+  coChangeGraph: "fresh" | "stale_until_full_scan";
+}
+
+export interface AffectedCallerExpansion {
+  enabled: boolean;
+  changedFiles: number;
+  candidateCallers: number;
+  reindexedCallers: number;
+  skippedCallers: number;
+  staleIncomingEdges: number;
+  reason: string;
+}
+
+export interface PartialVerification {
+  enabled: boolean;
+  passed: boolean;
+  differences: string[];
+  allowedDifferences: string[];
+}
+
 export interface ScanResult {
   repoRoot: string;
   gitSha: string | null;
@@ -102,6 +129,16 @@ export interface ScanResult {
     codeGraphStale: boolean;
     codeGraphStaleReason?: string;
     partialGraphUpdate: boolean;
+    partialGraphVersion?: 2;
+    changedCodeFiles: number;
+    deletedCodeFiles: number;
+    invalidatedFiles: number;
+    reindexedFiles: number;
+    staleEdges: number;
+    fallbackReason?: string;
+    affectedCallerExpansion: AffectedCallerExpansion;
+    freshness: GraphFreshness;
+    partialVerification?: PartialVerification;
     stages: string[];
     conservativeFullRebuild: boolean;
   };

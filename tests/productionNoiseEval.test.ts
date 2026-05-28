@@ -117,7 +117,22 @@ describe("production noise eval", () => {
       "\nclass MetadataOnlyEvalStaleWidget {}\n"
     );
     const suitePath = path.join(repo, ".pnav", "metadata-only-suite.json");
-    writeFileSync(suitePath, JSON.stringify({ cases: [strictEvalCase()] }));
+    writeFileSync(
+      suitePath,
+      JSON.stringify({
+        cases: [
+          {
+            id: "metadata-profile-only",
+            task: "dashboard profile metadata validation",
+            expected: {
+              mustReadAny: ["frontend/lib/core/router/app_router.dart"],
+              maxMustRead: 5,
+              profileSourcesAny: ["repo_local"]
+            }
+          }
+        ]
+      })
+    );
 
     const result = runDiscoveryEval(repo, suitePath, { strict: true, metadataOnly: true });
 
@@ -126,6 +141,32 @@ describe("production noise eval", () => {
     expect(result.indexStatus.codeGraphStale).toBe(true);
     expect(result.indexStatus.codeGraphStaleReason).toContain("--metadata-only");
     expect(result.indexStatus.scanIncremental?.conservativeFullRebuild).toBe(false);
+    expect(result.evalValidity.scoreScope).toBe("metadata_only");
+    expect(result.evalValidity.validFor).toContain("workflowProtocol assertions");
+    expect(result.evalValidity.notValidFor).toContain("fresh symbol graph");
+    expect(result.passed).toBe(true);
+  }, 15_000);
+
+  it("fails strict metadata-only eval when a case requires a fresh code graph", () => {
+    const repo = copyNoiseRepo();
+    appendFileSync(
+      path.join(repo, "frontend/lib/modules/user_core/dashboard/athlete_dashboard_page.dart"),
+      "\nclass RequiresFreshGraphWidget {}\n"
+    );
+    const suitePath = path.join(repo, ".pnav", "metadata-only-fresh-required-suite.json");
+    writeFileSync(
+      suitePath,
+      JSON.stringify({
+        cases: [{ ...strictEvalCase(), requiresFreshCodeGraph: true }]
+      })
+    );
+
+    const result = runDiscoveryEval(repo, suitePath, { strict: true, metadataOnly: true });
+
+    expect(result.evalValidity.scoreScope).toBe("metadata_only");
+    expect(result.evalValidity.freshCodeGraphRequired).toBe(true);
+    expect(result.cases[0]?.hardFailures).toContain("fresh_code_graph_required_but_stale");
+    expect(result.passed).toBe(false);
   }, 15_000);
 
   it("reports eval runtime cache hits within a suite", () => {
@@ -142,6 +183,9 @@ describe("production noise eval", () => {
     const totalHits = Object.values(result.cacheStats).reduce((total, stats) => total + stats.hits, 0);
 
     expect(totalHits).toBeGreaterThan(0);
+    expect(result.cacheStats.fileCatalog.hits).toBeGreaterThan(0);
+    expect(result.cacheStats.workflowProfiles.hits).toBeGreaterThan(0);
+    expect(result.cacheStats.entrypointCatalog.hits).toBeGreaterThan(0);
   }, 15_000);
 });
 

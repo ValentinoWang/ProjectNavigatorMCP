@@ -57,14 +57,18 @@ In strict mode, a case also fails when any hard gate is violated:
   gate steps, or profile sources are missing.
 - Required edit policies are missing.
 - A forbidden generic fallback command appears in `relatedTests.fallbackCommands`.
+- A case declares `requiresFreshCodeGraph` while the eval is running against a stale metadata-only
+  source graph.
 
 Case results include `latencyBreakdown` and `hardFailures` for these strict failures. Suite
-results include `totalLatencyMs`, `slowestStages`, `indexStatus`, and `cacheStats` so production
-eval runs can identify expensive discovery stages and stale graph conditions.
+results include `totalLatencyMs`, `slowestStages`, `indexStatus`, `evalValidity`, and `cacheStats`
+so production eval runs can identify expensive discovery stages and stale graph conditions.
 
 Use `pnav eval --metadata-only` when validating workflow profile or discovery-suite changes in a
 dirty worktree. It runs a metadata-only incremental preflight, reports stale source graph state in
-`indexStatus`, and does not force a code graph rebuild.
+`indexStatus`, narrows `evalValidity.scoreScope` to `metadata_only`, and does not force a code graph
+rebuild. This mode is valid for profile/protocol checks, not fresh symbol graph, incoming edge, or
+impact-analysis assertions.
 
 The additional workflow assertions do not change the legacy production score. They only add
 strict-mode hard failures so old suites stay compatible while production suites can verify that

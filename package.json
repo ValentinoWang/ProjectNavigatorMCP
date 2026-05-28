@@ -1,6 +1,6 @@
 {
   "name": "project-navigator-mcp",
-  "version": "0.8.5",
+  "version": "0.8.6",
   "description": "Local Repository Intelligence MCP for Codex, Claude Code, and other coding agents.",
   "type": "module",
   "license": "MIT",

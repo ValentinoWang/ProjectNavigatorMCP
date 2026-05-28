@@ -109,6 +109,7 @@ The current release supports:
 60. Strict production eval can assert workflow protocol fields such as actions, commands, read-only generated output, gate steps, and repo-local profile source.
 61. Incremental scan `changePlanes`, metadata-only mode, code-graph stale reporting, and file-level graph update v1 for small source changes.
 62. Eval metadata-only preflight and runtime cache stats for large dirty-worktree eval suites.
+63. Fresh-graph validity scopes, `requiresFreshCodeGraph`, partial graph invalidation v2, and graph-plane freshness reporting.
 
 MCP tools:
 
