@@ -564,7 +564,30 @@ Data shape:
         "score": 0.71
       }
     ],
-    "strictGate": {}
+    "strictGate": {},
+    "workflowProtocol": {
+      "profiles": [{ "name": "openapi_contract_first", "source": "repo_local", "confidence": 0.98 }],
+      "actions": [
+        {
+          "type": "run_sdk_generate",
+          "command": "npm run sdk:generate",
+          "required": true,
+          "reason": "Generated SDK files must be refreshed from the OpenAPI contract.",
+          "sourceProfile": "openapi_contract_first",
+          "source": "repo_local"
+        }
+      ],
+      "recommendedCommands": [{ "command": "npm run sdk:check", "required": true }],
+      "newFileExpectations": [],
+      "editPolicies": [
+        {
+          "path": "frontend/uniapp-shell/src/utils/sdk/generated/**",
+          "policy": "read_only",
+          "reason": "Generated SDK output is updated by sdk:generate, not manual edits."
+        }
+      ],
+      "gateSteps": [{ "id": "openapi_before_generated_sdk", "required": true }]
+    }
   },
   "entrypoints": [],
   "coreSymbols": [],
@@ -730,6 +753,11 @@ Input:
 ```
 
 Runs a deterministic discovery eval suite and returns `productionScore` plus per-case metrics.
+
+Strict suites can assert workflow protocol fields such as `actionContains`,
+`recommendedCommandContains`, `newFileExpected`, `readOnlyContains`, `gateStepContains`, and
+`profileSourcesAny`. These assertions add hard failures without changing the legacy production
+score.
 
 Data shape:
 

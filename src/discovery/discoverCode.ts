@@ -8,8 +8,15 @@ import { findReusableComponents } from "./reuse.js";
 import { findCallees } from "./symbolGraph.js";
 import type { DiscoveryResult } from "./types.js";
 import { whyRelated } from "./whyRelated.js";
+import {
+  isWorkflowProfileReadOrder,
+  resolveWorkflowDiscoveryProfiles,
+  workflowSuppressesPath,
+  type WorkflowDiscoveryProfile
+} from "./workflowProfiles.js";
 
 export function discoverCode(repoPath: string, task: string, limit = 15): DiscoveryResult {
+  const workflowProfiles = resolveWorkflowDiscoveryProfiles(repoPath, task);
   const entrypoints = findEntrypoints(repoPath, task, 10).entrypoints;
   const related = findRelatedFiles(repoPath, task, limit).files;
   const coreSymbols = findSymbol(repoPath, task, 12);
@@ -28,15 +35,17 @@ export function discoverCode(repoPath: string, task: string, limit = 15): Discov
       evidence: callee.evidence
     }))
   );
-  const recommendedReadOrder = rankReadOrder(task, entrypoints, related, reuse.reuseCandidates);
+  const recommendedReadOrder = rankReadOrder(task, entrypoints, related, reuse.reuseCandidates, workflowProfiles);
   const tiers = tierReadOrder(task, recommendedReadOrder, limit);
   const authoritativeHandoff = buildAuthoritativeHandoff(
     repoPath,
     task,
     recommendedReadOrder,
     reuse.reuseCandidates,
-    tests
+    tests,
+    workflowProfiles
   );
+  const workflowWarnings = workflowProfiles.flatMap((profile) => profile.warnings);
 
   return {
     mode: "discovery",
@@ -55,7 +64,7 @@ export function discoverCode(repoPath: string, task: string, limit = 15): Discov
     ignoreForNow: tiers.ignoreForNow,
     whyRelated: recommendedReadOrder.slice(0, 8).map((file) => whyRelated(repoPath, file.path, task)),
     relatedTests: tests,
-    warnings: []
+    warnings: workflowWarnings
   };
 }
 
@@ -63,8 +72,11 @@ function rankReadOrder(
   task: string,
   entrypoints: DiscoveryResult["entrypoints"],
   related: DiscoveryResult["recommendedReadOrder"],
-  reuseCandidates: DiscoveryResult["reuseCandidates"]
+  reuseCandidates: DiscoveryResult["reuseCandidates"],
+  workflowProfiles: WorkflowDiscoveryProfile[]
 ) {
+  const workflowReadOrder = workflowProfiles.flatMap((profile) => profile.readOrder);
+  const workflowPaths = new Set(workflowReadOrder.map((item) => item.path));
   const fromEntrypoints = entrypoints.map((entry) => ({
     path: entry.path,
     score: discoveryReadScore(task, entry.path, entry.score),
@@ -78,8 +90,20 @@ function rankReadOrder(
     language: undefined
   }));
   const best = new Map<string, (typeof related)[number]>();
-  for (const item of [...fromEntrypoints, ...fromReuse, ...related]) {
-    const normalized = { ...item, score: discoveryReadScore(task, item.path, item.score) };
+  for (const item of [...workflowReadOrder, ...fromEntrypoints, ...fromReuse, ...related]) {
+    const score = isWorkflowProfileReadOrder(item)
+      ? item.score
+      : workflowSuppressesPath(workflowProfiles, item.path) && !workflowPaths.has(item.path)
+        ? Math.min(0.08, discoveryReadScore(task, item.path, item.score))
+        : discoveryReadScore(task, item.path, item.score);
+    const normalized = {
+      ...item,
+      score,
+      reason:
+        workflowSuppressesPath(workflowProfiles, item.path) && !workflowPaths.has(item.path)
+          ? `${item.reason}; suppressed by workflow profile`
+          : item.reason
+    };
     const existing = best.get(normalized.path);
     if (!existing || normalized.score > existing.score) {
       best.set(normalized.path, normalized);

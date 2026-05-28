@@ -1061,6 +1061,13 @@ v0.8.3 进一步要求：
 - `route_test_covered` 只能由 direct/naming test relationship 触发；related search 只能算 weak coverage。
 - design-system/token/guard/breakpoint/DS-\* 任务中，theme/token/breakpoint 文件不得默认被压成普通 support。
 
+v0.8.4 进一步要求：
+
+- workflow profile 优先从目标仓库读取：`.agents/pnav/workflow-profiles.json`，其次 `.pnav/workflow-profiles.json`，最后才用内置 fallback。
+- profile 中只有已存在文件可以进入 `mustRead` / `supportingContext`；未来文件、证据目录、migration pair、反例记录应放入 `newFileExpectations`。
+- `authoritativeHandoff.workflowProtocol` 必须暴露 `profiles`、`actions`、`recommendedCommands`、`newFileExpectations`、`editPolicies`、`gateSteps`。
+- strict eval 可以断言 workflow protocol，不改变旧 production score，但缺失 action、command、read-only policy、gate step 或 repo-local source 时必须 hard fail。
+
 ## 18. 完成 MVP 的定义
 
 当以下流程能跑通时，可以认为 MVP 完成：

@@ -68,6 +68,9 @@ function strictHardFailures(metrics: EvalMetrics, expected: EvalExpected, result
   if (expected.maxMustRead !== undefined && mustReadPaths.length > expected.maxMustRead) {
     failures.push("max_must_read_exceeded");
   }
+  if ((expected.mustReadAny ?? []).length > 0 && metrics.mustReadCoverage < 1) {
+    failures.push("must_read_missing");
+  }
   if ((expected.mustNotRead ?? []).some((pattern) => mustReadPaths.some((file) => globMatch(file, pattern)))) {
     failures.push("must_not_read_in_must_read");
   }
@@ -79,6 +82,72 @@ function strictHardFailures(metrics: EvalMetrics, expected: EvalExpected, result
     !meetsMinCompleteness(result.authoritativeHandoff.chainCompleteness, expected.minChainCompleteness)
   ) {
     failures.push("chain_completeness_below_min");
+  }
+  const supportingPaths = result.authoritativeHandoff.supportingContext.map((item) => item.path);
+  if ((expected.supportingContains ?? []).some((pattern) => !matchesAny(supportingPaths, pattern))) {
+    failures.push("supporting_context_missing");
+  }
+  const readOrderPaths = result.recommendedReadOrder.map((item) => item.path);
+  if ((expected.readOrderContains ?? []).some((pattern) => !matchesAny(readOrderPaths, pattern))) {
+    failures.push("read_order_missing");
+  }
+  for (const pair of expected.orderedBefore ?? []) {
+    const beforeIndex = firstMatchingIndex(readOrderPaths, pair.before);
+    const afterIndex = firstMatchingIndex(readOrderPaths, pair.after);
+    if (beforeIndex < 0 || afterIndex < 0) {
+      failures.push("read_order_missing");
+    } else if (beforeIndex >= afterIndex) {
+      failures.push("read_order_mismatch");
+    }
+  }
+  const warnings = [...result.warnings, ...result.authoritativeHandoff.warnings].join("\n").toLowerCase();
+  if ((expected.warningContains ?? []).some((needle) => !warnings.includes(needle.toLowerCase()))) {
+    failures.push("warning_missing");
+  }
+  const protocol = result.authoritativeHandoff.workflowProtocol;
+  if (
+    (expected.actionContains ?? []).some(
+      (needle) => !protocol.actions.some((item) => workflowText(item).includes(needle.toLowerCase()))
+    )
+  ) {
+    failures.push("workflow_action_missing");
+  }
+  if (
+    (expected.recommendedCommandContains ?? []).some(
+      (needle) => !protocol.recommendedCommands.some((item) => workflowText(item).includes(needle.toLowerCase()))
+    )
+  ) {
+    failures.push("recommended_command_missing");
+  }
+  if (
+    (expected.newFileExpected ?? []).some(
+      (needle) => !protocol.newFileExpectations.some((item) => workflowText(item).includes(needle.toLowerCase()))
+    )
+  ) {
+    failures.push("new_file_expectation_missing");
+  }
+  if (
+    (expected.readOnlyContains ?? []).some(
+      (needle) =>
+        !protocol.editPolicies.some(
+          (item) => item.policy === "read_only" && workflowText(item).includes(needle.toLowerCase())
+        )
+    )
+  ) {
+    failures.push("read_only_policy_missing");
+  }
+  if (
+    (expected.gateStepContains ?? []).some(
+      (needle) => !protocol.gateSteps.some((item) => workflowText(item).includes(needle.toLowerCase()))
+    )
+  ) {
+    failures.push("gate_step_missing");
+  }
+  if (
+    (expected.profileSourcesAny ?? []).length > 0 &&
+    !(expected.profileSourcesAny ?? []).some((source) => protocol.profiles.some((profile) => profile.source === source))
+  ) {
+    failures.push("profile_source_missing");
   }
   return failures;
 }
@@ -103,6 +172,18 @@ function globMatch(value: string, pattern: string): boolean {
     .replace(/\*\*/g, ".*")
     .replace(/\*/g, "[^/]*");
   return new RegExp(`^${escaped}$`).test(value);
+}
+
+function matchesAny(paths: string[], pattern: string): boolean {
+  return paths.some((item) => item === pattern || globMatch(item, pattern));
+}
+
+function firstMatchingIndex(paths: string[], pattern: string): number {
+  return paths.findIndex((item) => item === pattern || globMatch(item, pattern));
+}
+
+function workflowText(value: unknown): string {
+  return JSON.stringify(value).toLowerCase();
 }
 
 function storeEvalRun(repoPath: string, suitePath: string, score: number, metrics: unknown): void {

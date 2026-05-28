@@ -1,0 +1,6 @@
+{
+  "getTeacherClassDiagnosticTrends": {
+    "method": "GET",
+    "path": "/v1/teacher/classes/{class_id}/diagnostic-trends"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "pages": [
+    {
+      "id": "assessment",
+      "path": "frontend/uniapp-shell/src/pages/assessment/index.vue"
+    }
+  ]
+}

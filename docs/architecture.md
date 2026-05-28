@@ -37,6 +37,25 @@ flowchart LR
   Graph --> Memory["Project memory"]
 ```
 
+## Discovery Workflow Protocol
+
+```mermaid
+flowchart LR
+  Scanner["Scanner pipeline"] --> SQLite[".pnav/project.sqlite"]
+  SQLite --> Discovery["Discovery ranking"]
+  RepoProfiles["Repo-local workflow profiles\n.agents/pnav/workflow-profiles.json\n.pnav/workflow-profiles.json"] --> Discovery
+  BuiltInProfiles["Built-in fallback profiles"] --> Discovery
+  Discovery --> StrictHandoff["authoritativeHandoff\nmustRead + supportingContext"]
+  StrictHandoff --> WorkflowProtocol["workflowProtocol\nactions + commands + new files\nedit policies + gate steps"]
+  WorkflowProtocol --> MCP["discover_code MCP"]
+  WorkflowProtocol --> CLI["pnav discover"]
+  WorkflowProtocol --> Eval["strict production eval"]
+```
+
+Workflow profiles are resolved from the target repository before built-in fallbacks. Existing
+files may enter `mustRead` and `supportingContext`; future artifacts such as evidence
+directories, migration pairs, and counterexample notes belong in `newFileExpectations`.
+
 ## Runtime Modes
 
 ### CLI Mode

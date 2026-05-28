@@ -252,3 +252,8 @@ v0.8.2 keeps the MVP local-first but hardens Discovery Mode output:
 - Strict eval hard-fails when those required production boundaries are violated.
 - Test coverage is strong only when direct/naming test relationships cover chain files; related search remains weak coverage.
 - Design-system token/theme tasks keep theme and breakpoint files task-relevant.
+- Repo-local workflow profiles are loaded from `.agents/pnav/workflow-profiles.json`, then
+  `.pnav/workflow-profiles.json`, before built-in fallbacks.
+- `authoritativeHandoff.workflowProtocol` carries executable handoff guidance: actions,
+  commands, new-file expectations, edit policies, gate steps, and profile provenance.
+- Strict eval can assert workflow protocol fields without changing the legacy production score.

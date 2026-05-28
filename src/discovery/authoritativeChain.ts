@@ -3,6 +3,15 @@ import { decideReuseV2, type ReuseDecisionV2 } from "../reuse/reuseDecisionEngin
 import { findFlutterRouteToWidgetChain, type RouteToWidgetChain } from "../ui/flutterRouteChain.js";
 import type { SimilarCodeHit } from "./types.js";
 import { strictMustReadGate, type HandoffFile, type SuppressedCandidate } from "./strictMustReadGate.js";
+import type {
+  WorkflowAction,
+  WorkflowCommand,
+  WorkflowDiscoveryProfile,
+  WorkflowEditPolicy,
+  WorkflowGateStep,
+  WorkflowNewFileExpectation,
+  WorkflowProtocol
+} from "./workflowProfiles.js";
 
 export interface AuthoritativeHandoff {
   mode: "strict_discovery";
@@ -21,6 +30,7 @@ export interface AuthoritativeHandoff {
   supportingContext: HandoffFile[];
   suppressedCandidates: SuppressedCandidate[];
   strictGate: ReturnType<typeof strictMustReadGate>["strictGate"];
+  workflowProtocol: WorkflowProtocol;
   warnings: string[];
 }
 
@@ -29,7 +39,8 @@ export function buildAuthoritativeHandoff(
   task: string,
   recommendedReadOrder: FileHit[],
   reuseCandidates: SimilarCodeHit[],
-  relatedTests: { testFiles: string[] }
+  relatedTests: { testFiles: string[] },
+  workflowProfiles: WorkflowDiscoveryProfile[] = []
 ): AuthoritativeHandoff {
   const chain = findFlutterRouteToWidgetChain(repoPath, task);
   const chainCandidates = chain.steps.map((step) => ({
@@ -46,7 +57,13 @@ export function buildAuthoritativeHandoff(
     why: file.reason,
     evidence: ["ranked_discovery"]
   }));
-  const gate = strictMustReadGate(task, [...chainCandidates, ...readCandidates], reuseCandidates, 5);
+  const workflowCandidates = workflowProfiles.flatMap((profile) => profile.candidates);
+  const gate = strictMustReadGate(
+    task,
+    [...workflowCandidates, ...chainCandidates, ...readCandidates],
+    reuseCandidates,
+    5
+  );
   const reuseDecision = decideReuseV2(repoPath, task, 5, reuseCandidates);
   const confidence = Number(
     Math.min(
@@ -71,6 +88,59 @@ export function buildAuthoritativeHandoff(
     supportingContext: gate.supportingContext,
     suppressedCandidates: gate.suppressedCandidates,
     strictGate: gate.strictGate,
-    warnings: chain.warnings
+    workflowProtocol: buildWorkflowProtocol(workflowProfiles),
+    warnings: Array.from(new Set([...chain.warnings, ...workflowProfiles.flatMap((profile) => profile.warnings)]))
   };
+}
+
+function buildWorkflowProtocol(profiles: WorkflowDiscoveryProfile[]): WorkflowProtocol {
+  return {
+    profiles: profiles.map((profile) => ({
+      name: profile.name,
+      source: profile.source,
+      confidence: profile.confidence
+    })),
+    actions: dedupeWorkflowItems(
+      profiles.flatMap((profile) => profile.actions),
+      actionKey
+    ),
+    recommendedCommands: dedupeWorkflowItems(
+      profiles.flatMap((profile) => profile.recommendedCommands),
+      (item) => item.command
+    ),
+    newFileExpectations: dedupeWorkflowItems(
+      profiles.flatMap((profile) => profile.newFileExpectations),
+      newFileKey
+    ),
+    editPolicies: dedupeWorkflowItems(
+      profiles.flatMap((profile) => profile.editPolicies),
+      (item) => `${item.policy}:${item.path}`
+    ),
+    gateSteps: dedupeWorkflowItems(
+      profiles.flatMap((profile) => profile.gateSteps),
+      (item) => item.id
+    )
+  };
+}
+
+function dedupeWorkflowItems<T>(items: T[], keyFor: (item: T) => string): T[] {
+  const seen = new Set<string>();
+  const output: T[] = [];
+  for (const item of items) {
+    const key = keyFor(item);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    output.push(item);
+  }
+  return output;
+}
+
+function actionKey(item: WorkflowAction): string {
+  return `${item.type}:${item.target ?? ""}:${item.path ?? ""}:${item.directory ?? ""}:${item.command ?? ""}`;
+}
+
+function newFileKey(item: WorkflowNewFileExpectation): string {
+  return `${item.kind}:${item.path ?? ""}:${item.directory ?? ""}:${item.pattern ?? ""}`;
 }

@@ -13,7 +13,22 @@
         "mustNotRead": ["backend/**", "database/**", "**/maestro/**", "**/screenshot/**"],
         "chainContains": ["route", "page", "widget"],
         "reuseCandidatesAny": ["TrainingTrendCard"],
-        "testsAny": ["dashboard"]
+        "testsAny": ["dashboard"],
+        "supportingContains": ["frontend/test/**"],
+        "readOrderContains": ["frontend/lib/modules/user_core/dashboard/athlete_dashboard_page.dart"],
+        "orderedBefore": [
+          {
+            "before": "frontend/lib/core/router/app_router.dart",
+            "after": "frontend/lib/modules/user_core/dashboard/athlete_dashboard_page.dart"
+          }
+        ],
+        "warningContains": ["reuse"],
+        "actionContains": ["extend_existing_component"],
+        "recommendedCommandContains": ["test"],
+        "newFileExpected": ["agents-results"],
+        "readOnlyContains": ["generated"],
+        "gateStepContains": ["dashboard_acceptance"],
+        "profileSourcesAny": ["repo_local"]
       }
     }
   ]

@@ -1,0 +1,326 @@
+{
+  "profiles": [
+    {
+      "name": "hongru_governance_mcp_harness",
+      "match": {
+        "all": ["projectnavigatormcp"],
+        "any": ["harness", "skill", "agents-results", "治理", "收尾", "mcp"]
+      },
+      "confidence": 0.99,
+      "mustRead": [
+        "AGENTS.md",
+        "develop/Harness/fullstack-ai-harness.md",
+        "develop/Harness/ai-harness-governance.md",
+        ".agents/skills/hongru-project-navigator-mcp/SKILL.md",
+        ".mcp.json"
+      ],
+      "supporting": [
+        "develop/Harness/quality-ai-harness.md",
+        "scripts/quality/AGENTS.md",
+        "docs/ai/project-navigator-mcp.md"
+      ],
+      "suppressPaths": [
+        "backend/app/routes/**",
+        "frontend/uniapp-shell/src/pages/home/**",
+        "frontend/uniapp-shell/src/pages/home-*"
+      ],
+      "warnings": [
+        "Governance/MCP setup should stay in AGENTS, Harness docs, skills, docs/ai, .mcp.json, and evidence folders before business routes or pages."
+      ],
+      "actions": [
+        {
+          "type": "create_evidence_directory",
+          "directory": "agents-results/YYYY-MM-DD/<task>/",
+          "required": true,
+          "reason": "Harness closeout needs a durable evidence directory."
+        },
+        {
+          "type": "write_harness_closeout",
+          "artifact": "agents-results/YYYY-MM-DD/<task>/closeout.md",
+          "required": true,
+          "reason": "Record command transcript, before/after validation, and handoff evidence."
+        }
+      ],
+      "newFileExpectations": [
+        {
+          "kind": "evidence_directory",
+          "directory": "agents-results/YYYY-MM-DD/<task>/",
+          "pattern": "agents-results/YYYY-MM-DD/<task>/*",
+          "required": true,
+          "reason": "Governance closeout evidence is expected even though the directory may not exist yet."
+        }
+      ],
+      "gateSteps": [
+        {
+          "id": "harness_closeout_evidence",
+          "description": "Verify the Harness closeout references the evidence directory and validation commands.",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "hongru_role_ui_guard_escalation",
+      "match": {
+        "any": ["裸文本", "无样式", "page shell", "pageshell", "信息块", "bare", "unstyled"],
+        "all": ["assessment"]
+      },
+      "confidence": 0.99,
+      "mustRead": [
+        "frontend/uniapp-shell/AGENTS.md",
+        ".agents/skills/hongru-role-ui-governance/SKILL.md",
+        "develop/Harness/frontend-ai-harness.md",
+        "scripts/quality/frontend_role_design_registry.json",
+        "scripts/quality/run_frontend_role_design_governance_guard.sh"
+      ],
+      "supporting": [
+        "frontend/uniapp-shell/src/pages/assessment/index.vue",
+        "frontend/uniapp-shell/src/components/global/HrRoleAwareAppShell.vue",
+        "docs/design-system/governance.md"
+      ],
+      "suppressPaths": ["backend/**"],
+      "warnings": [
+        "Before editing UI, decide whether the bare-rendering failure is statically detectable.",
+        "If it is statically detectable, add or update a scripts/quality guard in the same turn.",
+        "Prove the guard with a temporary failing counterexample, then remove the counterexample and rerun the guard cleanly."
+      ],
+      "actions": [
+        {
+          "type": "classify_static_detectability",
+          "target": "role-ui-bare-rendering",
+          "required": true,
+          "reason": "Classify whether the screenshot failure can be caught statically."
+        },
+        {
+          "type": "add_or_update_guard",
+          "path": "scripts/quality/run_frontend_role_design_governance_guard.sh",
+          "required": true,
+          "reason": "Statically detectable UI governance failures require same-turn guard hardening."
+        },
+        {
+          "type": "prove_negative_counterexample",
+          "artifact": "agents-results/YYYY-MM-DD/<task>/role-ui-counterexample.md",
+          "required": true,
+          "reason": "Prove the guard fails on a temporary counterexample before cleanup."
+        }
+      ],
+      "newFileExpectations": [
+        {
+          "kind": "counterexample_evidence",
+          "pattern": "agents-results/YYYY-MM-DD/<task>/*counterexample*",
+          "required": true,
+          "reason": "Record failing counterexample and clean rerun evidence."
+        }
+      ],
+      "gateSteps": [
+        {
+          "id": "role_ui_counterexample_then_clean",
+          "description": "Run the role UI guard against a temporary failing counterexample, remove it, then rerun cleanly.",
+          "command": "scripts/quality/run_frontend_role_design_governance_guard.sh",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "hongru_openapi_contract_first",
+      "match": {
+        "any": ["接口", "api", "openapi", "contract", "契约", "sdk"],
+        "all": ["教师", "趋势"]
+      },
+      "confidence": 0.98,
+      "mustRead": [
+        { "path": "docs/openapi规范/openapi-main-v1-draft.yaml", "score": 0.99 },
+        { "path": "scripts/generate-sdk.js", "score": 0.98 },
+        { "path": "frontend/uniapp-shell/src/utils/sdk/generated/operations.js", "score": 0.97 },
+        { "path": "backend/app/routes/teacher_routes.py", "score": 0.96 },
+        { "path": "frontend/uniapp-shell/src/pages/teacher-home/index.vue", "score": 0.94 }
+      ],
+      "supporting": [
+        { "path": "backend/tests/test_teacher_routes.py", "score": 0.95 },
+        { "path": "scripts/quality/run_frontend_sdk_client_operation_guard.sh", "score": 0.93 },
+        ".agents/skills/hongru-openapi-sdk-contract/SKILL.md"
+      ],
+      "suppressPaths": ["frontend/uniapp-shell/src/pages/home/**"],
+      "warnings": [
+        "Contract-first task: inspect OpenAPI before route/page code, run sdk:generate and sdk:check, and do not hand-edit generated SDK files."
+      ],
+      "actions": [
+        {
+          "type": "create_openapi_operation",
+          "path": "docs/openapi规范/openapi-main-v1-draft.yaml",
+          "required": true,
+          "reason": "New API work starts from the OpenAPI source of truth."
+        },
+        {
+          "type": "run_sdk_generate",
+          "command": "npm run sdk:generate",
+          "required": true,
+          "reason": "Regenerate SDK output from the contract."
+        }
+      ],
+      "recommendedCommands": [
+        {
+          "command": "npm run sdk:generate",
+          "required": true,
+          "reason": "Regenerate frontend SDK output after changing OpenAPI."
+        },
+        {
+          "command": "npm run sdk:check",
+          "required": true,
+          "reason": "Verify generated SDK output matches OpenAPI."
+        }
+      ],
+      "editPolicies": [
+        {
+          "path": "frontend/uniapp-shell/src/utils/sdk/generated/**",
+          "policy": "read_only",
+          "reason": "Generated SDK output is updated by sdk:generate, not manual edits."
+        }
+      ],
+      "gateSteps": [
+        {
+          "id": "openapi_before_generated_sdk",
+          "description": "Change OpenAPI before generated SDK, backend route, and frontend page work.",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "hongru_backend_schema_migration",
+      "match": {
+        "any": ["reasoning_sessions", "schema", "字段", "migration", "数据库", "supabase", "终态", "恢复"]
+      },
+      "confidence": 0.98,
+      "mustRead": [
+        "backend/AGENTS.md",
+        ".agents/skills/hongru-backend-schema-migration/SKILL.md",
+        "develop/Harness/database-ai-harness.md",
+        "backend/sql/migrations/versions/V20260529_0046__reasoning_sessions_terminal_recovery.up.sql",
+        "backend/app/reasoning_service.py"
+      ],
+      "supporting": [
+        "backend/sql/migrations/versions/V20260529_0046__reasoning_sessions_terminal_recovery.down.sql",
+        "backend/scripts/verify_migration_chain.py",
+        "backend/scripts/check_schema_drift.py",
+        "backend/app/reasoning_read_service.py",
+        "backend/tests/test_reasoning_sessions.py"
+      ],
+      "warnings": [
+        "Schema task: migration files and schema drift checks are first-class context; a real Supabase schema that has not caught up is not automatically a business-code bug."
+      ],
+      "actions": [
+        {
+          "type": "create_migration_pair",
+          "directory": "backend/sql/migrations/versions",
+          "required": true,
+          "reason": "Schema changes require the next numbered up/down migration pair."
+        },
+        {
+          "type": "run_schema_drift_check",
+          "command": "python backend/scripts/check_schema_drift.py",
+          "required": true,
+          "reason": "Validate schema drift after migration changes."
+        },
+        {
+          "type": "block_business_code_diagnosis_until_db_synced",
+          "required": true,
+          "reason": "Do not misdiagnose unapplied Supabase migration state as an app-code bug."
+        }
+      ],
+      "recommendedCommands": [
+        {
+          "command": "python backend/scripts/verify_migration_chain.py",
+          "required": true,
+          "reason": "Confirm migration ordering and paired files."
+        },
+        {
+          "command": "python backend/scripts/check_schema_drift.py",
+          "required": true,
+          "reason": "Check schema drift after the migration."
+        }
+      ],
+      "newFileExpectations": [
+        {
+          "kind": "migration_pair",
+          "directory": "backend/sql/migrations/versions",
+          "pattern": "backend/sql/migrations/versions/*.sql",
+          "required": true,
+          "reason": "Create the next up/down migration pair for the new reasoning_sessions field."
+        }
+      ],
+      "gateSteps": [
+        {
+          "id": "schema_migration_chain_and_drift",
+          "description": "Run migration chain verification and schema drift checks before blaming app code.",
+          "command": "python backend/scripts/verify_migration_chain.py && python backend/scripts/check_schema_drift.py",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "hongru_app_plus_parity",
+      "match": {
+        "any": ["app-plus", "app plus", "ios", "状态栏", "safe-area", "safe area", "hbuilderx", "appium"],
+        "all": ["assessment"]
+      },
+      "confidence": 0.99,
+      "mustRead": [
+        "frontend/uniapp-shell/AGENTS.md",
+        ".agents/skills/hongru-app-plus-parity/SKILL.md",
+        "develop/Harness/frontend-ai-harness.md",
+        "scripts/quality/run_app_plus_native_guard.sh",
+        "scripts/quality/run_header_safe_area_guard.sh"
+      ],
+      "supporting": [
+        "scripts/qa/run_appium_app_plus_acceptance.sh",
+        "scripts/qa/app_plus_native_parity_smoke_checklist.md",
+        "frontend/uniapp-shell/src/styles/app-plus-page-parity.css",
+        "frontend/uniapp-shell/src/pages/assessment/index.vue",
+        "frontend/uniapp-shell/src/components/global/HrRoleAwareAppShell.vue"
+      ],
+      "suppressPaths": ["backend/**"],
+      "warnings": [
+        "App-Plus parity task: include native safe-area, HBuilderX/Appium, and Page Shell context; H5 screenshots alone are insufficient."
+      ],
+      "actions": [
+        {
+          "type": "diagnose_app_plus_safe_area",
+          "target": "ios-app-plus-assessment-header",
+          "required": true,
+          "reason": "Route status-bar overlap through native safe-area diagnostics."
+        },
+        {
+          "type": "run_appium_app_plus_acceptance",
+          "command": "scripts/qa/run_appium_app_plus_acceptance.sh",
+          "required": true,
+          "reason": "Capture App-Plus acceptance evidence."
+        },
+        {
+          "type": "run_header_safe_area_guard",
+          "command": "scripts/quality/run_header_safe_area_guard.sh",
+          "required": true,
+          "reason": "Check header safe-area coverage."
+        }
+      ],
+      "recommendedCommands": [
+        {
+          "command": "scripts/quality/run_app_plus_native_guard.sh",
+          "required": true,
+          "reason": "Check native App-Plus parity constraints."
+        },
+        {
+          "command": "scripts/quality/run_header_safe_area_guard.sh",
+          "required": true,
+          "reason": "Check header safe-area constraints."
+        }
+      ],
+      "gateSteps": [
+        {
+          "id": "app_plus_safe_area_acceptance",
+          "description": "Run native App-Plus and header safe-area guards, then verify Appium acceptance evidence.",
+          "command": "scripts/quality/run_app_plus_native_guard.sh && scripts/quality/run_header_safe_area_guard.sh",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

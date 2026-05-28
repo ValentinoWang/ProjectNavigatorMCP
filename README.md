@@ -102,6 +102,9 @@ The current release supports:
 53. Strict production eval reports `hardFailures` and fails on mustRead leaks, missing suppression reasons, budget overruns, or insufficient chain completeness.
 54. Route test coverage distinguishes strong direct/naming coverage from weak related-search tests.
 55. Design-system token/theme tasks keep theme and breakpoint files task-relevant instead of demoting them as generic support.
+56. Repo-local workflow profiles through `.agents/pnav/workflow-profiles.json` or `.pnav/workflow-profiles.json`, with built-in profiles as fallback.
+57. `authoritativeHandoff.workflowProtocol` exposes structured actions, commands, new-file expectations, edit policies, gate steps, and profile provenance.
+58. Strict production eval can assert workflow protocol fields such as actions, commands, read-only generated output, gate steps, and repo-local profile source.
 
 MCP tools:
 

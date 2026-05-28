@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "project-navigator": {
+      "command": "pnav",
+      "args": ["mcp", "."]
+    }
+  }
+}

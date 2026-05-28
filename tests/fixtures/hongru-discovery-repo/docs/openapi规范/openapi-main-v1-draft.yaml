@@ -1,0 +1,14 @@
+openapi: 3.1.0
+info:
+  title: Hongru API
+  version: 1.0.0
+paths:
+  /v1/teacher/classes/{class_id}/diagnostic-trends:
+    get:
+      operationId: get_teacher_class_diagnostic_trends
+  /v1/reasoning-sessions/{session_id}/events:
+    get:
+      operationId: stream_reasoning_session_events
+  /v1/reasoning-sessions/{session_id}/final-envelope:
+    get:
+      operationId: get_reasoning_session_final_envelope

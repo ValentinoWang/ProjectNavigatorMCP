@@ -115,6 +115,8 @@ Expected result should include:
 - `authoritativeHandoff.testCoverage.coverageStrength` should be `strong` before `route_test_covered` is trusted.
 - `authoritativeHandoff.supportingContext` and `suppressedCandidates` with precise reasons for support dependencies and artifacts.
 - `authoritativeHandoff.reuseDecision.affectedCallers` when a reusable component has symbol-graph callers.
+- `authoritativeHandoff.workflowProtocol` when the target repo defines `.agents/pnav/workflow-profiles.json`
+  or `.pnav/workflow-profiles.json`.
 - no backend, screenshot, QA, E2E, logger, l10n, or API-error wrapper files in `mustRead` unless explicitly requested.
 
 ## Demo 5: Memory Loop

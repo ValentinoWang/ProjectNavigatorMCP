@@ -175,16 +175,33 @@ Call graph tools return confidence-scored edges. Low-confidence ambiguous result
 - `supportingContext`: useful support dependencies excluded from `mustRead`, optionally with precise `reason` and `reasonDetail`.
 - `suppressedCandidates`: files removed from primary context with `reason`, `reasonDetail`, and reason confidence.
 - `strictGate`: budget and dropped-file audit.
+- `workflowProtocol`: repo-local or built-in workflow guidance for execution. It contains
+  `profiles`, `actions`, `recommendedCommands`, `newFileExpectations`, `editPolicies`, and
+  `gateSteps`.
+
+Workflow profiles are loaded from the target repo in this order:
+
+1. `.agents/pnav/workflow-profiles.json`
+2. `.pnav/workflow-profiles.json`
+3. Built-in fallback profiles
+
+Only existing files from a profile can enter `mustRead` or `supportingContext`.
+`newFileExpectations` may describe directories, patterns, or future files that do not exist yet.
 
 `production_discovery_eval` expected cases may also include:
 
 - `suppressedWithReasons`: expected suppressed/supporting paths and precise suppression reasons.
 - `maxMustRead`: maximum allowed primary context files.
 - `minChainCompleteness`: minimum acceptable route-to-widget completeness.
+- `supportingContains`, `readOrderContains`, and `orderedBefore` for support context and reading order.
+- `warningContains` for required handoff warnings.
+- `actionContains`, `recommendedCommandContains`, `newFileExpected`, `readOnlyContains`, and
+  `gateStepContains` for workflow protocol assertions.
+- `profileSourcesAny` to require `repo_local` or `built_in` profile provenance.
 
 The eval metric `suppressionReasonQuality` defaults to `1` when no suppression reason expectations are provided.
 
-`production_discovery_eval.data.cases[]` includes `hardFailures` in strict mode. Strict cases fail when mustRead contains forbidden paths, mustRead exceeds `maxMustRead`, suppression reason expectations are incomplete, or chain completeness is below `minChainCompleteness`.
+`production_discovery_eval.data.cases[]` includes `hardFailures` in strict mode. Strict cases fail when mustRead is missing expected `mustReadAny` paths, contains forbidden paths, exceeds `maxMustRead`, has incomplete suppression reason expectations, or falls below `minChainCompleteness`.
 
 `trace_feature.data.routeToWidgetChain` returns the route/page/widget chain independent of wider candidate chains.
 

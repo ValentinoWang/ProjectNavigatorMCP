@@ -11,6 +11,16 @@ export interface EvalExpected {
   suppressedWithReasons?: Array<{ path: string; reason: SuppressionReason }>;
   maxMustRead?: number;
   minChainCompleteness?: ChainCompleteness;
+  supportingContains?: string[];
+  readOrderContains?: string[];
+  orderedBefore?: Array<{ before: string; after: string }>;
+  warningContains?: string[];
+  actionContains?: string[];
+  recommendedCommandContains?: string[];
+  newFileExpected?: string[];
+  readOnlyContains?: string[];
+  gateStepContains?: string[];
+  profileSourcesAny?: Array<"repo_local" | "built_in">;
 }
 
 export interface EvalMetrics {
