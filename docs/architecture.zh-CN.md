@@ -6,93 +6,60 @@
 flowchart TB
   User["使用者\nCodex / Claude Code / 人类开发者"]
 
-  subgraph Entry["入口层"]
-    CLI["pnav CLI\npnav doctor / init / scan / map / capsule / discover / eval"]
-    MCP["pnav MCP server\nrepo_map / discover_code / production_discovery_eval"]
+  subgraph Entry["1. 入口层"]
+    CLI["pnav CLI\nscan / discover / eval"]
+    MCP["pnav MCP server\ndiscover_code / production_discovery_eval"]
   end
 
-  subgraph TargetRepo["目标 Git 仓库"]
+  subgraph Repo["2. 目标仓库输入"]
     Source["源码、测试、文档、脚本"]
-    Rules["仓库规则\nAGENTS.md / CLAUDE.md / README / docs / skills"]
-    RepoProfile["持久 workflow profile\n.agents/pnav/workflow-profiles.json"]
-    LocalProfile["本地 override profile\n.pnav/workflow-profiles.json"]
-    SQLite["ProjectNavigator 本地索引\n.pnav/project.sqlite"]
+    Rules["仓库规则\nAGENTS / CLAUDE / README / docs / skills"]
+    Profiles["workflow profiles\n.agents/pnav -> .pnav -> built-in fallback"]
   end
 
-  subgraph Scanner["扫描与索引层"]
-    FileScan["文件扫描\n路径、语言、忽略规则"]
-    RuleScan["规则扫描\nAGENTS / CLAUDE / README / docs"]
-    CommandScan["命令扫描\nMakefile / package / pubspec / pyproject"]
-    SymbolScan["符号扫描\n函数、类、import、引用线索"]
-    GitScan["Git 扫描\n当前 sha、co-change"]
+  subgraph Index["3. 扫描与本地索引"]
+    Scanner["扫描器\nfile / rule / command / symbol / git"]
+    SQLite["本地索引\n.pnav/project.sqlite"]
   end
 
-  subgraph Discovery["Discovery 生产导航层"]
-    Related["基础候选\n相关文件、入口、符号、复用候选、测试"]
-    ProfileResolver["workflow profile 解析\n1. .agents/pnav\n2. .pnav\n3. built-in fallback"]
-    Ranker["确定性排序\n路径、规则、命令、符号、复用、profile 权重"]
-    Suppression["噪声压制\nl10n、logger、截图、E2E、生成物、无关业务入口"]
-    StrictGate["Strict MustRead Gate\n最多 5 个 mustRead\n证据不足进入 supporting/suppressed"]
+  subgraph Discovery["4. Discovery 生产导航"]
+    Candidates["候选生成\n入口、相关文件、符号、复用、测试"]
+    Ranking["确定性排序 + 噪声压制\n优先 profile、规则、路径、符号、命令证据"]
+    Gate["Strict MustRead Gate\n最多 5 个 mustRead\n其余进入 supporting 或 suppressed"]
   end
 
-  subgraph Handoff["结构化交接层"]
-    MustRead["authoritativeHandoff.mustRead\nAI 必须先读的主路径"]
-    Supporting["supportingContext\n辅助上下文、guard、docs、tests"]
-    Suppressed["suppressedCandidates\n被压制文件及原因"]
-    Protocol["workflowProtocol\nprofiles / actions / recommendedCommands\nnewFileExpectations / editPolicies / gateSteps"]
+  subgraph Bundle["5. Strict Handoff Bundle"]
+    Handoff["authoritativeHandoff\nmustRead / supportingContext / suppressedCandidates"]
+    Protocol["workflowProtocol\nactions / commands / new files / edit policies / gate steps"]
+    BundleOut["统一交付包\nstrict handoff + workflow protocol"]
   end
 
-  subgraph Consumers["消费与验收层"]
-    Agent["AI agent 开工\n按 mustRead + workflowProtocol 执行"]
-    CLIOutput["CLI 输出\npnav discover / pnav eval"]
-    MCPOutput["MCP 输出\ndiscover_code.data.authoritativeHandoff"]
-    StrictEval["strict production eval\n断言 mustRead、supporting、read order、warnings、actions、commands、new files、read-only、gate steps、profile source"]
-    Docs["同步文档与示例\noutput contract / MCP docs / production eval / README / development plan / example suite"]
+  subgraph Output["6. 消费与验收"]
+    Agent["AI agent 开工\n先读 mustRead，再按 workflowProtocol 执行"]
+    ClientOutput["CLI / MCP 输出\npnav discover / discover_code"]
+    Eval["strict production eval\n断言读序、warnings、actions、commands、new files、read-only、gate steps、profile source"]
+    Docs["同步文档与示例\noutput contract / MCP docs / production eval / README / development plan / suite"]
   end
 
   User --> CLI
   User --> MCP
   CLI --> Source
   MCP --> SQLite
-
-  Source --> FileScan
-  Source --> SymbolScan
-  Source --> GitScan
-  Rules --> RuleScan
-  Source --> CommandScan
-
-  FileScan --> SQLite
-  RuleScan --> SQLite
-  CommandScan --> SQLite
-  SymbolScan --> SQLite
-  GitScan --> SQLite
-
-  SQLite --> Related
-  RepoProfile --> ProfileResolver
-  LocalProfile --> ProfileResolver
-  ProfileResolver --> Ranker
-  Related --> Ranker
-  Ranker --> Suppression
-  Suppression --> StrictGate
-
-  StrictGate --> MustRead
-  StrictGate --> Supporting
-  StrictGate --> Suppressed
-  ProfileResolver --> Protocol
-
-  MustRead --> Agent
-  Supporting --> Agent
-  Suppressed --> Agent
-  Protocol --> Agent
-  MustRead --> CLIOutput
-  Protocol --> CLIOutput
-  MustRead --> MCPOutput
-  Protocol --> MCPOutput
-  MustRead --> StrictEval
-  Supporting --> StrictEval
-  Suppressed --> StrictEval
-  Protocol --> StrictEval
-  Protocol --> Docs
+  Source --> Scanner
+  Rules --> Scanner
+  Scanner --> SQLite
+  SQLite --> Candidates
+  Profiles --> Ranking
+  Candidates --> Ranking
+  Ranking --> Gate
+  Gate --> Handoff
+  Profiles --> Protocol
+  Handoff --> BundleOut
+  Protocol --> BundleOut
+  BundleOut --> Agent
+  BundleOut --> ClientOutput
+  BundleOut --> Eval
+  BundleOut --> Docs
 ```
 
 ProjectNavigatorMCP 的目标是成为本地优先的 Repository Intelligence MCP。它扫描目标 Git
