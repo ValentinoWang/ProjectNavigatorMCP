@@ -1,4 +1,4 @@
-import type { CommandHit, FileHit, RouteHit, SymbolHit } from "../graph/types.js";
+import type { FileHit, RelatedTestsResult, RouteHit, SymbolHit } from "../graph/types.js";
 import type { AuthoritativeHandoff } from "./authoritativeChain.js";
 
 export interface EvidenceItem {
@@ -79,9 +79,20 @@ export interface DiscoveryResult {
   reuseBeforeCreate: SimilarCodeHit[];
   ignoreForNow: FileHit[];
   whyRelated: WhyRelatedResult[];
-  relatedTests: {
-    commands: CommandHit[];
-    testFiles: string[];
-  };
+  relatedTests: RelatedTestsResult;
   warnings: string[];
+}
+
+export interface DiscoveryTimingBreakdown {
+  workflowProfilesMs: number;
+  entrypointsMs: number;
+  relatedFilesMs: number;
+  symbolsMs: number;
+  reuseMs: number;
+  relatedTestsMs: number;
+  callGraphMs: number;
+  readOrderMs: number;
+  handoffMs: number;
+  whyRelatedMs: number;
+  totalMs: number;
 }

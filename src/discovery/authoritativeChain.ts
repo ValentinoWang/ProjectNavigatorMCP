@@ -93,7 +93,7 @@ export function buildAuthoritativeHandoff(
   };
 }
 
-function buildWorkflowProtocol(profiles: WorkflowDiscoveryProfile[]): WorkflowProtocol {
+export function buildWorkflowProtocol(profiles: WorkflowDiscoveryProfile[]): WorkflowProtocol {
   return {
     profiles: profiles.map((profile) => ({
       name: profile.name,

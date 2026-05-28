@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -47,6 +47,36 @@ describe("Discovery Mode", () => {
 
     expect(context.mode).toBe("discovery");
     expect(context.discovery?.entrypoints.length).toBeGreaterThan(0);
+  });
+
+  it("demotes generic related commands when workflow commands are available", () => {
+    const repo = copyDiscoveryRepo();
+    mkdirSync(path.join(repo, ".agents", "pnav"), { recursive: true });
+    writeFileSync(
+      path.join(repo, ".agents", "pnav", "workflow-profiles.json"),
+      JSON.stringify({
+        profiles: [
+          {
+            name: "dashboard_workflow_commands",
+            match: { any: ["dashboard"] },
+            mustRead: ["frontend/lib/core/router/app_router.dart"],
+            recommendedCommands: [{ command: "make dashboard-workflow-guard", required: true }]
+          }
+        ]
+      })
+    );
+
+    const result = discoverCode(repo, "新增 dashboard trend card", 10);
+    const context = prepareTaskContext(repo, "新增 dashboard trend card");
+
+    expect(result.authoritativeHandoff.workflowProtocol.recommendedCommands[0]?.command).toBe(
+      "make dashboard-workflow-guard"
+    );
+    expect(result.relatedTests.commands).toEqual([]);
+    expect(result.relatedTests.fallbackCommands.length).toBeGreaterThan(0);
+    expect(context.recommendedCommands[0]?.command).toBe("make dashboard-workflow-guard");
+    expect(context.relatedTests.commands).toEqual([]);
+    expect(context.relatedTests.fallbackCommands.length).toBeGreaterThan(0);
   });
 
   it("finds FastAPI route entrypoints", () => {

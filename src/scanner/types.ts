@@ -75,6 +75,10 @@ export interface ScanResult {
     filesSkipped: number;
     filesDeleted: number;
     durationMs: number;
+    changedPaths: string[];
+    deletedPaths: string[];
+    changeKind: "none" | "workflow_profiles_only" | "eval_only" | "commands_only" | "docs_only" | "code_graph";
+    stages: string[];
     conservativeFullRebuild: boolean;
   };
 }

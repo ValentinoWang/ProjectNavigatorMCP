@@ -2,9 +2,20 @@ import { loadProjectConfig, matchesAnyPattern } from "../config/projectConfig.js
 import { openProject } from "../db/project.js";
 import { findRelatedFiles } from "./relatedFiles.js";
 import { scoreText } from "./scoring.js";
-import type { CommandHit, RelatedTestsResult } from "./types.js";
+import type { CommandHit, FileHit, RelatedTestsResult } from "./types.js";
 
-export function relatedTests(repoPath: string, changedFiles: string[], task = ""): RelatedTestsResult {
+export interface RelatedTestsOptions {
+  relatedFiles?: FileHit[];
+  demoteCommands?: boolean;
+  excludeCommands?: string[];
+}
+
+export function relatedTests(
+  repoPath: string,
+  changedFiles: string[],
+  task = "",
+  options: RelatedTestsOptions = {}
+): RelatedTestsResult {
   const project = openProject(repoPath);
   try {
     const config = loadProjectConfig(repoPath);
@@ -38,7 +49,7 @@ export function relatedTests(repoPath: string, changedFiles: string[], task = ""
       }
     }
 
-    const related = task ? findRelatedFiles(repoPath, task, 30).files : [];
+    const related = options.relatedFiles ?? (task ? findRelatedFiles(repoPath, task, 30).files : []);
     for (const file of related) {
       if (/test|tests|guard/.test(file.path)) {
         tests.add(file.path);
@@ -65,10 +76,14 @@ export function relatedTests(repoPath: string, changedFiles: string[], task = ""
       }
     }
 
+    const excludedCommands = new Set((options.excludeCommands ?? []).map((command) => command.toLowerCase()));
+    const sortedCommands = Array.from(commands.values())
+      .filter((command) => !excludedCommands.has(command.command.toLowerCase()))
+      .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
+      .slice(0, 20);
     return {
-      commands: Array.from(commands.values())
-        .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))
-        .slice(0, 20),
+      commands: options.demoteCommands ? [] : sortedCommands,
+      fallbackCommands: options.demoteCommands ? sortedCommands : [],
       testFiles: Array.from(tests).sort().slice(0, 30)
     };
   } finally {

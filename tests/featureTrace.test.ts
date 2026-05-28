@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -32,5 +32,33 @@ describe("traceFeature", () => {
     expect(result.chains.some((chain) => chain.path.some((step) => step.type === "reuse_candidate"))).toBe(true);
     expect(result.chains.some((chain) => chain.path.some((step) => step.type === "test"))).toBe(true);
     expect(first?.confidence).toBeGreaterThan(0);
+  });
+
+  it("uses workflow mode when repo-local workflow profiles match", () => {
+    const repo = copyDiscoveryRepo();
+    mkdirSync(path.join(repo, ".agents", "pnav"), { recursive: true });
+    writeFileSync(
+      path.join(repo, ".agents", "pnav", "workflow-profiles.json"),
+      JSON.stringify({
+        profiles: [
+          {
+            name: "contract_first_trace",
+            match: { any: ["openapi", "contract"] },
+            mustRead: ["backend/app/api/session_plans.py"],
+            recommendedCommands: [{ command: "make openapi-sync-guard", required: true }]
+          }
+        ]
+      })
+    );
+
+    const result = traceFeature(repo, "给 OpenAPI contract 增加 trendSlope 字段", 5);
+
+    expect(result.mode).toBe("workflow");
+    expect(result.routeToWidgetChainApplicability).toBe("not_applicable");
+    expect(result.workflowProtocol.recommendedCommands.some((item) => item.command === "make openapi-sync-guard")).toBe(
+      true
+    );
+    expect(result.workflowChain.some((step) => step.target === "backend/app/api/session_plans.py")).toBe(true);
+    expect(result.routeToWidgetChain.steps).toEqual([]);
   });
 });

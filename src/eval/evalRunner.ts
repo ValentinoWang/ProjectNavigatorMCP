@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { openProject } from "../db/project.js";
-import type { DiscoveryResult } from "../discovery/types.js";
+import type { DiscoveryResult, DiscoveryTimingBreakdown } from "../discovery/types.js";
 import type { ChainCompleteness } from "../ui/flutterRouteChain.js";
-import { discoverCode } from "../discovery/discoverCode.js";
+import { discoverCodeWithTiming } from "../discovery/discoverCode.js";
 import { scoreDiscoveryResult, type EvalExpected, type EvalMetrics } from "./metrics.js";
 
 export interface EvalCase {
@@ -20,6 +20,7 @@ export interface EvalCaseResult {
   id: string;
   task: string;
   latencyMs: number;
+  latencyBreakdown: DiscoveryTimingBreakdown;
   metrics: EvalMetrics;
   hardFailures: string[];
   passed: boolean;
@@ -28,6 +29,8 @@ export interface EvalCaseResult {
 export interface EvalRunResult {
   suitePath: string;
   productionScore: number;
+  totalLatencyMs: number;
+  slowestStages: Array<{ stage: keyof DiscoveryTimingBreakdown; latencyMs: number }>;
   cases: EvalCaseResult[];
   passed: boolean;
 }
@@ -35,15 +38,15 @@ export interface EvalRunResult {
 export function runDiscoveryEval(repoPath: string, suitePath: string, strict = false): EvalRunResult {
   const suite = JSON.parse(readFileSync(suitePath, "utf8")) as EvalSuite;
   const cases = suite.cases.map((item) => {
-    const startedAt = Date.now();
-    const result = discoverCode(repoPath, item.task, 15);
-    const latencyMs = Date.now() - startedAt;
+    const { result, timing } = discoverCodeWithTiming(repoPath, item.task, 15);
+    const latencyMs = timing.totalMs;
     const metrics = scoreDiscoveryResult(result, item.expected, latencyMs);
     const hardFailures = strict ? strictHardFailures(metrics, item.expected, result) : [];
     return {
       id: item.id,
       task: item.task,
       latencyMs,
+      latencyBreakdown: timing,
       metrics,
       hardFailures,
       passed: strict ? hardFailures.length === 0 && metrics.productionScore >= 0.9 : metrics.productionScore >= 0.75
@@ -55,6 +58,8 @@ export function runDiscoveryEval(repoPath: string, suitePath: string, strict = f
   const output = {
     suitePath,
     productionScore,
+    totalLatencyMs: cases.reduce((total, item) => total + item.latencyMs, 0),
+    slowestStages: slowestStages(cases),
     cases,
     passed: cases.every((item) => item.passed) && productionScore >= (strict ? 0.9 : 0.75)
   };
@@ -137,6 +142,18 @@ function strictHardFailures(metrics: EvalMetrics, expected: EvalExpected, result
     failures.push("read_only_policy_missing");
   }
   if (
+    (expected.editPolicyContains ?? []).some(
+      (expectedPolicy) =>
+        !protocol.editPolicies.some(
+          (item) =>
+            item.policy === expectedPolicy.policy &&
+            (item.path === expectedPolicy.path || globMatch(item.path, expectedPolicy.path))
+        )
+    )
+  ) {
+    failures.push("edit_policy_missing");
+  }
+  if (
     (expected.gateStepContains ?? []).some(
       (needle) => !protocol.gateSteps.some((item) => workflowText(item).includes(needle.toLowerCase()))
     )
@@ -149,7 +166,32 @@ function strictHardFailures(metrics: EvalMetrics, expected: EvalExpected, result
   ) {
     failures.push("profile_source_missing");
   }
+  const fallbackText = (result.relatedTests.fallbackCommands ?? [])
+    .map((command) => `${command.name} ${command.command} ${command.reason ?? ""}`)
+    .join("\n")
+    .toLowerCase();
+  if ((expected.fallbackCommandNotContains ?? []).some((needle) => fallbackText.includes(needle.toLowerCase()))) {
+    failures.push("fallback_command_forbidden");
+  }
   return failures;
+}
+
+function slowestStages(cases: EvalCaseResult[]): Array<{ stage: keyof DiscoveryTimingBreakdown; latencyMs: number }> {
+  const totals = new Map<keyof DiscoveryTimingBreakdown, number>();
+  for (const item of cases) {
+    for (const [stage, latencyMs] of Object.entries(item.latencyBreakdown) as Array<
+      [keyof DiscoveryTimingBreakdown, number]
+    >) {
+      if (stage === "totalMs") {
+        continue;
+      }
+      totals.set(stage, (totals.get(stage) ?? 0) + latencyMs);
+    }
+  }
+  return Array.from(totals.entries())
+    .map(([stage, latencyMs]) => ({ stage, latencyMs }))
+    .sort((a, b) => b.latencyMs - a.latencyMs || a.stage.localeCompare(b.stage))
+    .slice(0, 5);
 }
 
 function meetsMinCompleteness(actual: ChainCompleteness, expected: ChainCompleteness): boolean {

@@ -87,18 +87,29 @@ export function strictMustReadGate(
   const suppressedCandidates: SuppressedCandidate[] = [];
 
   for (const candidate of Array.from(best.values()).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))) {
-    const tier = candidate.tier ?? classifyDependencyTier(task, candidate.path, candidate.evidence);
+    const workflowDirectTarget =
+      candidate.evidence.includes("workflow_profile") && candidate.evidence.includes("direct_target");
+    const forceMustRead =
+      candidate.evidence.includes("workflow_force_must_read") || candidate.evidence.includes("force_must_read");
+    const tier = workflowDirectTarget
+      ? "core_implementation"
+      : (candidate.tier ?? classifyDependencyTier(task, candidate.path, candidate.evidence));
     const authoritative = candidate.evidence.some((item) =>
       /route_match|route_builds_page|page_composes_widget|widget_composes_widget|direct_target|reuse_verdict/.test(item)
     );
     const evidenceEnough = candidate.evidence.length >= 2 || authoritative;
-    const testNoise = isNonTestTask(task) && /(^|\/)(test|tests)\//.test(candidate.path);
-    const noisy = isNoisyDiscoveryPath(task, candidate.path) || testNoise;
+    const testNoise =
+      isNonTestTask(task) &&
+      /(^|\/)(test|tests)\//.test(candidate.path) &&
+      !forceMustRead &&
+      !(workflowDirectTarget && isValidationArtifactTask(task));
+    const domainNoise = isNoisyDiscoveryPath(task, candidate.path) && !workflowDirectTarget && !forceMustRead;
+    const noisy = !forceMustRead && (domainNoise || testNoise);
     const canEnterMustRead =
       mustRead.length < maxMustReadFiles &&
       !noisy &&
       tier === "core_implementation" &&
-      (candidate.score >= 0.72 || authoritative) &&
+      (candidate.score >= 0.72 || authoritative || forceMustRead) &&
       evidenceEnough;
     if (canEnterMustRead) {
       mustRead.push({
@@ -149,6 +160,12 @@ export function strictMustReadGate(
 
 function isNonTestTask(task: string): boolean {
   return !/test|测试|guard|验收|ci|failure|失败/.test(task.toLowerCase());
+}
+
+function isValidationArtifactTask(task: string): boolean {
+  return /e2e|maestro|patrol|screenshot|截图|visual matrix|role visual|manifest|qa|harness|guard|验收/.test(
+    task.toLowerCase()
+  );
 }
 
 function suppressed(

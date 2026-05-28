@@ -57,7 +57,15 @@ program
   )
   .option("--full", "Force a full scan rebuild")
   .action((repo: string, options: { incremental?: boolean; full?: boolean }) => {
-    const result = scanRepo(repo, { mode: options.incremental && !options.full ? "incremental" : "full" });
+    const result = scanRepo(repo, {
+      mode: options.incremental && !options.full ? "incremental" : "full",
+      progress: {
+        stage: (name, payload) => {
+          const suffix = payload ? ` ${JSON.stringify(payload)}` : "";
+          console.error(`[scan] ${name}${suffix}`);
+        }
+      }
+    });
     console.log(JSON.stringify(result, null, 2));
   });
 

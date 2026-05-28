@@ -163,6 +163,7 @@ type RepoLocalPathSeed =
       role?: string;
       why?: string;
       evidence?: string | string[];
+      mustReadPolicy?: "force" | "normal";
     };
 
 type RepoLocalAction = Omit<WorkflowAction, "sourceProfile" | "source">;
@@ -289,7 +290,12 @@ function addRepoLocalSeed(
       : [];
   for (const target of targets) {
     if (tier === "core") {
-      builder.core(target, score, normalized.why ?? evidence[0] ?? "repo_local_profile");
+      builder.core(
+        target,
+        score,
+        normalized.why ?? evidence[0] ?? "repo_local_profile",
+        normalized.mustReadPolicy !== "normal"
+      );
     } else {
       builder.context(target, score, normalized.why ?? evidence[0] ?? "repo_local_profile");
     }
@@ -714,12 +720,12 @@ class ProfileBuilder {
     private readonly source: WorkflowProfileSource = "built_in"
   ) {}
 
-  core(filePath: string, score: number, evidence: string): void {
+  core(filePath: string, score: number, evidence: string, forceMustRead = false): void {
     this.add(filePath, {
       score,
       role: this.name,
       why: evidence,
-      evidence: ["workflow_profile", "direct_target", evidence],
+      evidence: ["workflow_profile", "direct_target", ...(forceMustRead ? ["workflow_force_must_read"] : []), evidence],
       tier: "core_implementation"
     });
   }

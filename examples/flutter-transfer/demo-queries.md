@@ -23,7 +23,7 @@ Expected commands:
 
 ```bash
 pnav init /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
-pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
+pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --incremental
 pnav map /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
 ```
 
@@ -117,9 +117,43 @@ Expected result should include:
 - `authoritativeHandoff.reuseDecision.affectedCallers` when a reusable component has symbol-graph callers.
 - `authoritativeHandoff.workflowProtocol` when the target repo defines `.agents/pnav/workflow-profiles.json`
   or `.pnav/workflow-profiles.json`.
+- `relatedTests.commands` should stay empty and `relatedTests.fallbackCommands` should hold generic guard/test
+  guesses when workflow `recommendedCommands` exist.
 - no backend, screenshot, QA, E2E, logger, l10n, or API-error wrapper files in `mustRead` unless explicitly requested.
 
-## Demo 5: Memory Loop
+## Demo 5: Workflow Runtime Hardening Eval
+
+Command:
+
+```bash
+pnav eval /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer \
+  --suite /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer/.agents/pnav/discovery-suite.json \
+  --strict
+```
+
+Expected result should include:
+
+- `productionScore >= 0.99`
+- every case has `hardFailures: []`
+- every case has `latencyBreakdown`
+- top-level `slowestStages`
+- workflow protocol assertions for commands, edit policies, gate steps, and profile provenance
+
+For each task in the suite, also run:
+
+```bash
+pnav discover /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "<task>" --limit 15
+pnav capsule /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "<task>"
+pnav trace-feature /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "<task>" --limit 8
+```
+
+Expected trace behavior:
+
+- route/page/widget tasks may use `mode: "route"`
+- OpenAPI, DB migration, guard triage, and visual matrix tasks should use `mode: "workflow"`
+- workflow traces should expose `workflowProtocol`, `workflowChain`, and `routeToWidgetChainApplicability`
+
+## Demo 6: Memory Loop
 
 After completing Demo 1, call `remember_task` through MCP or an equivalent future CLI.
 

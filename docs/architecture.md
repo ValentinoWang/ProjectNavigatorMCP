@@ -49,12 +49,15 @@ flowchart LR
   StrictHandoff --> WorkflowProtocol["workflowProtocol\nactions + commands + new files\nedit policies + gate steps"]
   WorkflowProtocol --> MCP["discover_code MCP"]
   WorkflowProtocol --> CLI["pnav discover"]
+  WorkflowProtocol --> Trace["pnav trace-feature\nworkflow mode"]
   WorkflowProtocol --> Eval["strict production eval"]
 ```
 
 Workflow profiles are resolved from the target repository before built-in fallbacks. Existing
 files may enter `mustRead` and `supportingContext`; future artifacts such as evidence
 directories, migration pairs, and counterexample notes belong in `newFileExpectations`.
+Repo-local `mustRead` seeds default to `mustReadPolicy: "force"`, which can override generic
+noise suppression without overriding the strict mustRead budget.
 
 ## Runtime Modes
 
@@ -172,6 +175,7 @@ sequenceDiagram
   CLI->>DB: open <repo>/.pnav/project.sqlite
   CLI->>DB: create scan_runs row
   CLI->>FS: list files with ignore rules
+  CLI->>CLI: classify incremental change kind
   FS->>DB: upsert files
   CLI->>Git: collect git sha and co-change pairs
   Git->>DB: upsert co_changes edges
