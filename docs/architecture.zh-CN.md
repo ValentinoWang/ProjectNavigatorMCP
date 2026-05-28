@@ -62,6 +62,95 @@ flowchart TB
   BundleOut --> Docs
 ```
 
+## 图中概念说明
+
+这张图表达的是 ProjectNavigatorMCP 从“读取目标仓库”到“交给 AI agent 可执行上下文”的
+完整链路。它不是一个普通代码搜索工具，而是把仓库索引、仓库规则、workflow profile 和
+strict eval 串成一个可验证的导航协议。
+
+### 1. 入口层
+
+入口层有两种使用方式：
+
+- `pnav CLI`：给人类、脚本和 CI 使用，例如 `pnav scan`、`pnav discover`、`pnav eval`。
+- `pnav MCP server`：给 Codex、Claude Code 等 MCP client 使用，例如 `discover_code` 和
+  `production_discovery_eval`。
+
+两者共享同一套底层索引和 discovery 逻辑。CLI 不是另一套实现，MCP 也不会绕过本地索引。
+
+### 2. 目标仓库输入
+
+目标仓库提供三类输入：
+
+- `源码、测试、文档、脚本`：这是扫描器建立代码地图的基础。
+- `仓库规则`：包括 `AGENTS.md`、`CLAUDE.md`、`README`、`docs`、`skills` 等，用来告诉
+  pnav 这个仓库自己的工程约束。
+- `workflow profiles`：这是本次新增的生产导航协议来源，读取顺序是
+  `.agents/pnav/workflow-profiles.json`、`.pnav/workflow-profiles.json`、built-in fallback。
+
+这里的关键点是：优先让目标仓库自描述，而不是把项目知识长期写死在 ProjectNavigatorMCP
+内部。
+
+### 3. 扫描与本地索引
+
+扫描器把目标仓库转换成本地可查询的 SQLite 索引：
+
+- `file`：文件路径、语言、忽略规则。
+- `rule`：仓库规则和文档约束。
+- `command`：Makefile、package、pubspec、pyproject 等声明的命令。
+- `symbol`：函数、类、import、引用线索。
+- `git`：当前 sha 和 co-change 线索。
+
+索引写入目标仓库自己的 `.pnav/project.sqlite`。它不使用目标项目的业务数据库，也不需要
+Postgres 或远端服务。
+
+### 4. Discovery 生产导航
+
+Discovery 层负责把自然语言任务转换成可读、可执行的上下文：
+
+- `候选生成`：找入口、相关文件、符号、复用候选和测试。
+- `确定性排序 + 噪声压制`：用路径、规则、命令、符号、profile 等证据排序，并压制 l10n、
+  logger、截图、E2E、无关业务入口、生成物等噪声。
+- `Strict MustRead Gate`：最多只允许 5 个强证据核心文件进入 `mustRead`；证据不足但仍有用的
+  进入 `supportingContext`；不该驱动任务的进入 `suppressedCandidates`。
+
+这一层解决的问题是：AI 不应该从一大堆“看起来相关”的文件里猜入口，而应该先拿到短小、
+严格、可解释的主路径。
+
+### 5. Strict Handoff Bundle
+
+`Strict Handoff Bundle` 是交给 AI agent 的核心产物，由两部分组成：
+
+- `authoritativeHandoff`：回答“先读哪里”。它包含 `mustRead`、`supportingContext` 和
+  `suppressedCandidates`。
+- `workflowProtocol`：回答“接下来怎么施工”。它包含 `actions`、`recommendedCommands`、
+  `newFileExpectations`、`editPolicies` 和 `gateSteps`。
+
+二者分工不同：`mustRead` 解决上下文选择，`workflowProtocol` 解决工程动作。比如 OpenAPI
+任务不只要命中 OpenAPI 文件，还要标记 generated SDK 为 `read_only`，并推荐 `sdk:generate`
+和 `sdk:check`。
+
+### 6. 消费与验收
+
+统一交付包有四个消费方向：
+
+- `AI agent 开工`：按 `mustRead` 阅读主路径，再按 `workflowProtocol` 执行动作、命令和门禁。
+- `CLI / MCP 输出`：通过 `pnav discover` 或 `discover_code` 返回给调用方。
+- `strict production eval`：断言不仅包括 `mustRead`，还包括读序、warning、action、command、
+  new file、read-only policy、gate step 和 profile source。
+- `同步文档与示例`：输出契约、MCP docs、production eval docs、README、开发计划和示例 suite
+  必须跟 schema 一起更新。
+
+所以这张图的核心不是“代码搜索流程”，而是：
+
+```text
+仓库自描述规则
+-> 确定性 discovery
+-> strict handoff
+-> 结构化 workflow protocol
+-> strict eval 验收
+```
+
 ProjectNavigatorMCP 的目标是成为本地优先的 Repository Intelligence MCP。它扫描目标 Git
 仓库，把项目索引写入目标仓库自己的 `.pnav/project.sqlite`，然后通过 CLI 和 MCP 工具给
 Codex、Claude Code 或人类开发者提供任务导航、影响分析、测试推荐和项目记忆。
