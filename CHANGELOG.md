@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.8.4
+
+Repo-local Workflow Discovery release.
+
+- Added strict gate support for repo-local workflow profile direct targets so explicit guard, visual, screenshot, manifest, and DTO source files can enter `authoritativeHandoff.mustRead` when they are the real execution path.
+- Kept generic dependency-tier and noisy-path suppression for non-explicit candidates so broad Markdown, generated artifacts, tests, screenshots, and infrastructure still stay out of `mustRead` without evidence.
+- Added regression coverage for visual matrix artifacts and cross-stack exercise read DTO tasks.
+- Validated the `flutter-transfer` production discovery suite across 12 realistic frontend, backend, contract, database, guard, and E2E scenarios.
+
 ## v0.8.3
 
 Strict Eval & Coverage Truthfulness release.
