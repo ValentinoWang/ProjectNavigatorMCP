@@ -59,6 +59,41 @@ directories, migration pairs, and counterexample notes belong in `newFileExpecta
 Repo-local `mustRead` seeds default to `mustReadPolicy: "force"`, which can override generic
 noise suppression without overriding the strict mustRead budget.
 
+## Freshness And Eval Runtime
+
+v0.8.6 separates fast metadata validation from fresh code graph validation. Metadata-only eval
+is allowed to run on a dirty worktree, but its score is explicitly scoped by `evalValidity`.
+Cases that need a fresh symbol/import/route graph can declare `requiresFreshCodeGraph` and fail
+strict eval with `fresh_code_graph_required_but_stale` when the graph is stale.
+
+```mermaid
+flowchart TB
+  DirtyTree["Dirty target repo"] --> ScanPlan["Incremental change plan\nchangePlanes + actions"]
+  ScanPlan --> MetadataOnly["metadata-only\nrefresh metadata planes"]
+  ScanPlan --> PartialV2["partial graph invalidation v2\nchanged/deleted source paths"]
+  ScanPlan --> FullRebuild["conservative full rebuild\n>100 code graph paths"]
+
+  MetadataOnly --> StaleStatus["codeGraphStale=true\nfreshness marks graph planes stale"]
+  PartialV2 --> Affected["affected caller expansion\nimporters + bindings + symbol callers + token candidates"]
+  Affected --> Freshness["freshness by plane\nsymbol/import/route/test fresh\ncoChange stale_until_full_scan"]
+
+  StaleStatus --> EvalValidity["evalValidity\nscoreScope=metadata_only"]
+  Freshness --> EvalValidity
+  EvalValidity --> StrictEval["strict eval\nrequiresFreshCodeGraph guard"]
+```
+
+The partial graph path updates file metadata, clears changed/deleted source graph rows,
+reindexes changed files plus affected callers, restores stable incoming symbol edges when
+possible, and drops stale incoming exact edges when a symbol rename or deletion can no longer be
+mapped. Co-change evidence is intentionally marked `stale_until_full_scan` after partial updates
+because it is derived from Git history rather than the current working tree.
+
+Eval suites use a runtime context with repo-level cache buckets for file, symbol, route, test,
+command, workflow, entrypoint, related-file, handoff, and related-test data. Workflow-profile eval
+cases that do not assert route-chain completeness can skip expensive generic route-chain and
+related-file discovery while still validating workflow protocol, mustRead policy, and command
+contracts.
+
 ## Runtime Modes
 
 ### CLI Mode

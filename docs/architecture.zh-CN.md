@@ -198,6 +198,41 @@ profile 可以描述：
 - strict eval 不只检查平均分，也检查读文件顺序、warning、action、command、new file、
   read-only policy、gate step 和 profile source。
 
+## 新鲜度与 Eval Runtime
+
+v0.8.6 把“快速验证 metadata/profile/protocol”和“验证最新源码图谱”明确拆开。`--metadata-only`
+可以在脏工作树里跑 eval，但输出必须通过 `evalValidity` 标明可信范围；如果某个 case 需要最新
+symbol/import/route 图谱，可以声明 `requiresFreshCodeGraph`，当 `codeGraphStale=true` 时 strict
+eval 必须 hard fail：`fresh_code_graph_required_but_stale`。
+
+```mermaid
+flowchart TB
+  DirtyTree["脏工作树"] --> ScanPlan["增量变更计划\nchangePlanes + actions"]
+  ScanPlan --> MetadataOnly["metadata-only\n只刷新 metadata 平面"]
+  ScanPlan --> PartialV2["partial graph invalidation v2\n源码变更/删除"]
+  ScanPlan --> FullRebuild["保守全量重建\n超过 100 个 code graph path"]
+
+  MetadataOnly --> StaleStatus["codeGraphStale=true\nfreshness 标记图谱 stale"]
+  PartialV2 --> Affected["affected caller expansion\nimporters + bindings + symbol callers + token candidates"]
+  Affected --> Freshness["按平面报告 freshness\nsymbol/import/route/test fresh\ncoChange stale_until_full_scan"]
+
+  StaleStatus --> EvalValidity["evalValidity\nscoreScope=metadata_only"]
+  Freshness --> EvalValidity
+  EvalValidity --> StrictEval["strict eval\nrequiresFreshCodeGraph 门禁"]
+```
+
+partial graph v2 的职责是：更新文件 metadata，清理 changed/deleted source 的图谱行，重扫变更文件
+和受影响 caller，尽量恢复 stable incoming symbol edges；如果 symbol rename/delete 后旧 incoming
+exact edge 无法映射到新 symbol，就删除它，避免把旧边继续当成 fresh evidence。
+
+partial 更新后，`coChangeGraph` 会标记为 `stale_until_full_scan`，duplicate/similarity 可以标记为
+`partial`。这些二级证据仍可作为辅助线索，但不能作为 critical impact 或 mustRead 的唯一强证据。
+
+eval suite 复用 runtime context：file、symbol、route、test、command、workflow、entrypoint、
+relatedFiles、handoff、relatedTests 等 bucket 都会进入 `cacheStats`。命中 workflow profile 且不要求
+route-chain completeness 的 case，可以跳过昂贵的 generic route-chain 和 related-file discovery，只验证
+workflow protocol、mustRead policy 和命令契约。
+
 ## 运行模式
 
 ### CLI 模式
