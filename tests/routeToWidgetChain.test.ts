@@ -29,7 +29,9 @@ describe("Production route-to-widget discovery", () => {
 
     expect(result.authoritativeHandoff.mode).toBe("strict_discovery");
     expect(result.authoritativeHandoff.chainDepth).toBeGreaterThanOrEqual(3);
-    expect(["route_main_widget", "route_section_card"]).toContain(result.authoritativeHandoff.chainCompleteness);
+    expect(["route_main_widget", "route_section_card", "route_test_covered"]).toContain(
+      result.authoritativeHandoff.chainCompleteness
+    );
     expect(result.authoritativeHandoff.reuseDecision.verdict).toMatch(/reuse_as_is|extend_existing|extract_shared/);
     expect(result.authoritativeHandoff.reuseDecision.apiFit).toMatchObject({ requiredParamsCovered: true });
     expect(result.authoritativeHandoff.mustRead.length).toBeLessThanOrEqual(5);
@@ -49,6 +51,8 @@ describe("Production route-to-widget discovery", () => {
     expect(result.routeToWidgetChain.steps.some((step) => step.kind === "route")).toBe(true);
     expect(result.routeToWidgetChain.steps.some((step) => step.kind === "page")).toBe(true);
     expect(result.routeToWidgetChain.depth).toBe(result.routeToWidgetChain.steps.length);
-    expect(["route_main_widget", "route_section_card"]).toContain(result.routeToWidgetChain.completeness);
+    expect(["route_main_widget", "route_section_card", "route_test_covered"]).toContain(
+      result.routeToWidgetChain.completeness
+    );
   }, 15_000);
 });

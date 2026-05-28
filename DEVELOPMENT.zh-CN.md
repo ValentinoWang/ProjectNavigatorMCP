@@ -1045,6 +1045,16 @@ tests/fixtures/tiny-repo/
 
 memory 必须包含来源、相关文件、相关命令和时间。不要把未经验证的猜测写成项目记忆。
 
+### v0.8.2 Production Gate 回归保护
+
+Discovery Mode 的生产级输出以 `authoritativeHandoff` 为准：
+
+- `mustRead` 仍然最多 5 个主文件。
+- `supportingContext` 和 `suppressedCandidates` 要给出精确 suppression reason。
+- `route_test_covered` 只能在 route/page/widget 链路存在相关测试时输出。
+- `reuseDecision.affectedCallers` 应从 symbol graph 返回调用方文件。
+- production eval 可以断言 `suppressedWithReasons`、`maxMustRead` 和 `minChainCompleteness`。
+
 ## 18. 完成 MVP 的定义
 
 当以下流程能跑通时，可以认为 MVP 完成：

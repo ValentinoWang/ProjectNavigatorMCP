@@ -10,6 +10,7 @@ export interface AuthoritativeHandoff {
   chainStatus: RouteToWidgetChain["status"];
   chainDepth: number;
   chainCompleteness: RouteToWidgetChain["completeness"];
+  testCoverage?: RouteToWidgetChain["testCoverage"];
   mustRead: HandoffFile[];
   coreChain: RouteToWidgetChain["steps"];
   reuseDecision: ReuseDecisionV2;
@@ -59,6 +60,7 @@ export function buildAuthoritativeHandoff(
     chainStatus: chain.status,
     chainDepth: chain.depth,
     chainCompleteness: chain.completeness,
+    testCoverage: chain.testCoverage,
     mustRead: gate.mustRead,
     coreChain: chain.steps,
     reuseDecision,

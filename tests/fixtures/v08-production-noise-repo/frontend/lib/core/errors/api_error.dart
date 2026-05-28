@@ -1,0 +1,3 @@
+class DashboardApiError {
+  const DashboardApiError();
+}

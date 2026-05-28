@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.8.2
+
+Production Gate Regression Fix release.
+
+- Added precise suppression reasons for l10n, logger, API error, auth cache, theme token, helper, generated model, E2E, screenshot, QA, backend, and design-system support candidates.
+- Implemented truthful `route_test_covered` chain completeness with route-to-widget test coverage metadata.
+- Filled `authoritativeHandoff.reuseDecision.affectedCallers` from symbol graph callers and included caller review guidance in reuse actions.
+- Extended production eval expectations with `suppressedWithReasons`, `maxMustRead`, and `minChainCompleteness`.
+- Added adversarial production-noise fixture tests for mustRead suppression, route test coverage, reuse callers, and strict eval scoring.
+
 ## v0.8.1
 
 Production Gate Hardening release.

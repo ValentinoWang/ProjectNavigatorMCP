@@ -182,6 +182,10 @@ It should include:
 - memory hits
 - suggested next steps
 
+For production Discovery Mode, the context capsule should prefer `authoritativeHandoff`: a
+strict handoff with capped `mustRead`, route-to-widget chain completeness, precise
+suppression reasons, reuse affected callers, and test coverage evidence.
+
 ## Future Enhancements
 
 Add these only after MVP works end-to-end:

@@ -1,0 +1,3 @@
+class DashboardTrendApiModel {
+  const DashboardTrendApiModel();
+}

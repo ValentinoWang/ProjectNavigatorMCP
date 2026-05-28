@@ -1,0 +1,3 @@
+class DashboardCardBase {
+  const DashboardCardBase();
+}

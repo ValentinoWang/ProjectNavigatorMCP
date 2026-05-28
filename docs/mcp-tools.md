@@ -522,8 +522,13 @@ Data shape:
     "mode": "strict_discovery",
     "confidence": 0.88,
     "chainStatus": "verified_chain",
-    "chainDepth": 3,
-    "chainCompleteness": "route_main_widget",
+    "chainDepth": 4,
+    "chainCompleteness": "route_test_covered",
+    "testCoverage": {
+      "covered": true,
+      "testFiles": ["frontend/test/modules/user_core/dashboard/athlete_dashboard_home_sections_test.dart"],
+      "evidence": []
+    },
     "mustRead": [],
     "coreChain": [],
     "reuseDecision": {
@@ -531,13 +536,33 @@ Data shape:
       "candidate": "TrainingTrendCard",
       "path": "frontend/lib/modules/user_core/dashboard/athlete_dashboard_home_sections.dart",
       "apiFit": { "requiredParamsCovered": true, "missingParams": [], "breakingChangeRisk": "low" },
-      "recommendedAction": "Extend TrainingTrendCard with optional API rather than creating a duplicate component.",
-      "affectedCallers": [],
+      "recommendedAction": "Extend TrainingTrendCard with optional API rather than creating a duplicate component. Review existing callers before changing shared API.",
+      "affectedCallers": ["frontend/lib/modules/user_core/dashboard/athlete_dashboard_home_sections.dart"],
       "evidence": ["reuse_similarity", "extend_existing", "api_fit"]
     },
     "impactSummary": {},
-    "supportingContext": [],
-    "suppressedCandidates": [],
+    "supportingContext": [
+      {
+        "path": "frontend/lib/l10n/l10n.dart",
+        "why": "support dependency",
+        "evidence": ["ranked_discovery"],
+        "role": "supporting_dependency",
+        "confidence": 0.77,
+        "reason": "import_only_l10n_wrapper",
+        "reasonDetail": "Localization wrapper is an import-only support dependency."
+      }
+    ],
+    "suppressedCandidates": [
+      {
+        "path": "frontend/e2e/maestro/dashboard_flow.yaml",
+        "reason": "e2e_artifact",
+        "reasonDetail": "End-to-end artifact should not drive primary code discovery.",
+        "downgradedTo": "ignoreForNow",
+        "confidence": 0.9,
+        "evidence": ["ranked_discovery"],
+        "score": 0.71
+      }
+    ],
     "strictGate": {}
   },
   "entrypoints": [],

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { openProject } from "../db/project.js";
+import { relatedTests } from "../graph/relatedTests.js";
 import { scoreText } from "../graph/scoring.js";
 import type { EvidenceItem } from "../discovery/types.js";
 
@@ -19,9 +20,16 @@ export interface RouteToWidgetChain {
   completeness: ChainCompleteness;
   confidence: number;
   warnings: string[];
+  testCoverage?: RouteToWidgetTestCoverage;
 }
 
 export type ChainCompleteness = "route_page_only" | "route_main_widget" | "route_section_card" | "route_test_covered";
+
+export interface RouteToWidgetTestCoverage {
+  covered: boolean;
+  testFiles: string[];
+  evidence: EvidenceItem[];
+}
 
 interface SymbolRow {
   id: number;
@@ -94,7 +102,12 @@ export function findFlutterRouteToWidgetChain(repoPath: string, task: string): R
         appendCompositionSteps(repoPath, task, page, byName, steps, 3);
       }
     }
-    const completeness = classifyCompleteness(steps);
+    const testCoverage = findChainTestCoverage(
+      repoPath,
+      task,
+      steps.map((step) => step.path)
+    );
+    const completeness = classifyCompleteness(steps, testCoverage.covered);
     const confidence = Number(
       Math.min(0.98, steps.reduce((total, step) => total + step.confidence, 0) / Math.max(1, steps.length)).toFixed(2)
     );
@@ -109,14 +122,18 @@ export function findFlutterRouteToWidgetChain(repoPath: string, task: string): R
       depth: steps.length,
       completeness,
       confidence,
-      warnings: steps.length === 0 ? ["No Flutter route-to-widget chain found."] : []
+      warnings: steps.length === 0 ? ["No Flutter route-to-widget chain found."] : [],
+      testCoverage
     };
   } finally {
     project.db.close();
   }
 }
 
-export function classifyCompleteness(steps: RouteToWidgetStep[]): ChainCompleteness {
+export function classifyCompleteness(steps: RouteToWidgetStep[], testCovered = false): ChainCompleteness {
+  if (testCovered && steps.some((step) => step.kind === "widget" || step.kind === "section_or_card")) {
+    return "route_test_covered";
+  }
   if (steps.some((step) => step.kind === "section_or_card")) {
     return "route_section_card";
   }
@@ -124,6 +141,23 @@ export function classifyCompleteness(steps: RouteToWidgetStep[]): ChainCompleten
     return "route_main_widget";
   }
   return "route_page_only";
+}
+
+function findChainTestCoverage(repoPath: string, task: string, chainPaths: string[]): RouteToWidgetTestCoverage {
+  if (chainPaths.length === 0) {
+    return { covered: false, testFiles: [], evidence: [] };
+  }
+  const result = relatedTests(repoPath, chainPaths, task);
+  const testFiles = result.testFiles.slice(0, 10);
+  return {
+    covered: testFiles.length > 0,
+    testFiles,
+    evidence: testFiles.map((file) => ({
+      type: "related_test",
+      detail: file,
+      score: 0.86
+    }))
+  };
 }
 
 function appendCompositionSteps(

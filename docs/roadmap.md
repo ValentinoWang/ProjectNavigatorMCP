@@ -103,6 +103,15 @@ Production Gate Hardening:
 - `authoritativeHandoff.reuseDecision` uses Reuse Decision Engine V2 with API-fit and recommended-action output.
 - Historical migrations are idempotent when old SQLite databases already contain added columns.
 
+## v0.8.2
+
+Production Gate Regression Fix:
+
+- Precise suppression reasons for support dependencies, generated files, artifacts, and domain noise.
+- Truthful `route_test_covered` output with `testCoverage` metadata.
+- `reuseDecision.affectedCallers` populated from symbol graph caller paths.
+- Strict eval expectations for suppression reasons, mustRead budget, and minimum chain completeness.
+
 ## v0.9
 
 Scanner accuracy and optional language intelligence backends:

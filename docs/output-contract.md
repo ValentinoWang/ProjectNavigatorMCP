@@ -167,13 +167,22 @@ Call graph tools return confidence-scored edges. Low-confidence ambiguous result
 - `chainStatus`: `verified_chain`, `partial_chain`, or `candidate_chain`.
 - `chainDepth`: number of route/page/widget steps in `coreChain`.
 - `chainCompleteness`: `route_page_only`, `route_main_widget`, `route_section_card`, or `route_test_covered`.
+- `testCoverage`: optional coverage evidence with `covered`, `testFiles`, and evidence items.
 - `mustRead`: the strict primary file list, capped at five by default.
 - `coreChain`: route/page/widget chain steps.
-- `reuseDecision`: V2 reuse decision with verdict, API fit, missing params, and recommended action.
+- `reuseDecision`: V2 reuse decision with verdict, API fit, missing params, affected callers, and recommended action.
 - `impactSummary`: critical tests and files.
-- `supportingContext`: useful support dependencies excluded from `mustRead`.
-- `suppressedCandidates`: files removed from primary context with reasons.
+- `supportingContext`: useful support dependencies excluded from `mustRead`, optionally with precise `reason` and `reasonDetail`.
+- `suppressedCandidates`: files removed from primary context with `reason`, `reasonDetail`, and reason confidence.
 - `strictGate`: budget and dropped-file audit.
+
+`production_discovery_eval` expected cases may also include:
+
+- `suppressedWithReasons`: expected suppressed/supporting paths and precise suppression reasons.
+- `maxMustRead`: maximum allowed primary context files.
+- `minChainCompleteness`: minimum acceptable route-to-widget completeness.
+
+The eval metric `suppressionReasonQuality` defaults to `1` when no suppression reason expectations are provided.
 
 `trace_feature.data.routeToWidgetChain` returns the route/page/widget chain independent of wider candidate chains.
 

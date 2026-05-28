@@ -95,6 +95,10 @@ The current release supports:
 46. Strict MustRead Gate: import-only and supporting dependencies are downgraded out of primary context.
 47. `impact_analysis_v3` / `pnav impact-v3` with UI composition and critical impact layers.
 48. `production_discovery_eval` / `pnav eval` for production-score based discovery evaluation.
+49. Precise suppression reasons for production-noise candidates such as l10n, loggers, API error wrappers, screenshots, QA manifests, E2E artifacts, and backend noise in frontend tasks.
+50. Truthful `route_test_covered` chain completeness with test coverage evidence.
+51. Reuse decisions include affected caller paths when symbol graph evidence is available.
+52. Production eval suites can assert `suppressedWithReasons`, `maxMustRead`, and `minChainCompleteness`.
 
 MCP tools:
 

@@ -100,7 +100,23 @@ Expected warnings:
 - Do not patch generated Dart SDK files manually.
 - If backend contract changes, update the generation chain first.
 
-## Demo 4: Memory Loop
+## Demo 4: Production Discovery Gate
+
+Command:
+
+```bash
+pnav discover /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "新增 athlete dashboard training trend card" --limit 15
+```
+
+Expected result should include:
+
+- `authoritativeHandoff.mustRead` capped at five files.
+- `authoritativeHandoff.chainCompleteness` no higher than the evidence supports; `route_test_covered` requires related tests.
+- `authoritativeHandoff.supportingContext` and `suppressedCandidates` with precise reasons for support dependencies and artifacts.
+- `authoritativeHandoff.reuseDecision.affectedCallers` when a reusable component has symbol-graph callers.
+- no backend, screenshot, QA, E2E, logger, l10n, or API-error wrapper files in `mustRead` unless explicitly requested.
+
+## Demo 5: Memory Loop
 
 After completing Demo 1, call `remember_task` through MCP or an equivalent future CLI.
 

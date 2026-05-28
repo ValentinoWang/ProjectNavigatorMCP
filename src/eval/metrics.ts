@@ -1,4 +1,6 @@
 import type { DiscoveryResult } from "../discovery/types.js";
+import type { SuppressionReason } from "../discovery/suppressionReasons.js";
+import type { ChainCompleteness } from "../ui/flutterRouteChain.js";
 
 export interface EvalExpected {
   mustReadAny?: string[];
@@ -6,6 +8,9 @@ export interface EvalExpected {
   chainContains?: string[];
   reuseCandidatesAny?: string[];
   testsAny?: string[];
+  suppressedWithReasons?: Array<{ path: string; reason: SuppressionReason }>;
+  maxMustRead?: number;
+  minChainCompleteness?: ChainCompleteness;
 }
 
 export interface EvalMetrics {
@@ -15,6 +20,7 @@ export interface EvalMetrics {
   reuseDecisionAccuracy: number;
   impactCriticalCoverage: number;
   noiseSuppression: number;
+  suppressionReasonQuality: number;
   explanationQuality: number;
   stabilityAndLatency: number;
   productionScore: number;
@@ -27,13 +33,21 @@ export function scoreDiscoveryResult(result: DiscoveryResult, expected: EvalExpe
   const mustReadCoverage =
     expectedHits.length === 0 ? 1 : ratio(expectedHits, (pattern) => matchesAny(mustReadPaths, pattern));
   const forbiddenHits = mustReadPaths.filter((item) => forbidden.some((pattern) => globMatch(item, pattern)));
+  const mustReadBudgetOk = expected.maxMustRead === undefined || mustReadPaths.length <= expected.maxMustRead;
   const mustReadPrecision =
-    mustReadPaths.length === 0 ? 0 : Math.max(0, 1 - forbiddenHits.length / mustReadPaths.length);
+    !mustReadBudgetOk || mustReadPaths.length === 0 ? 0 : Math.max(0, 1 - forbiddenHits.length / mustReadPaths.length);
   const chainKinds = result.authoritativeHandoff.coreChain.map((step) => step.kind);
-  const routeToWidgetChainAccuracy =
+  const chainContainsAccuracy =
     (expected.chainContains ?? []).length === 0
       ? 1
       : ratio(expected.chainContains ?? [], (kind) => chainKinds.some((actual) => actual.includes(kind)));
+  const chainCompletenessAccuracy =
+    expected.minChainCompleteness === undefined
+      ? 1
+      : meetsMinCompleteness(result.authoritativeHandoff.chainCompleteness, expected.minChainCompleteness)
+        ? 1
+        : 0;
+  const routeToWidgetChainAccuracy = Math.min(chainContainsAccuracy, chainCompletenessAccuracy);
   const reuseDecisionAccuracy =
     (expected.reuseCandidatesAny ?? []).length === 0
       ? 1
@@ -57,6 +71,10 @@ export function scoreDiscoveryResult(result: DiscoveryResult, expected: EvalExpe
             result.authoritativeHandoff.impactSummary.affectedTests.some((file) => file.includes(needle))
         );
   const noiseSuppression = forbiddenHits.length === 0 ? 1 : 0;
+  const suppressionReasonQuality =
+    (expected.suppressedWithReasons ?? []).length === 0
+      ? 1
+      : ratio(expected.suppressedWithReasons ?? [], (item) => hasSuppressionReason(result, item.path, item.reason));
   const explanationQuality =
     result.authoritativeHandoff.mustRead.length === 0
       ? 0
@@ -71,8 +89,9 @@ export function scoreDiscoveryResult(result: DiscoveryResult, expected: EvalExpe
     0.16 * routeToWidgetChainAccuracy +
     0.12 * reuseDecisionAccuracy +
     0.12 * impactCriticalCoverage +
-    0.08 * noiseSuppression +
-    0.06 * explanationQuality +
+    0.04 * noiseSuppression +
+    0.08 * suppressionReasonQuality +
+    0.02 * explanationQuality +
     0.06 * stabilityAndLatency;
   return {
     mustReadPrecision,
@@ -81,10 +100,38 @@ export function scoreDiscoveryResult(result: DiscoveryResult, expected: EvalExpe
     reuseDecisionAccuracy,
     impactCriticalCoverage,
     noiseSuppression,
+    suppressionReasonQuality,
     explanationQuality,
     stabilityAndLatency,
     productionScore: Number(productionScore.toFixed(3))
   };
+}
+
+function hasSuppressionReason(result: DiscoveryResult, pathPattern: string, reason: SuppressionReason): boolean {
+  const suppressed = result.authoritativeHandoff.suppressedCandidates.map((item) => ({
+    path: item.path,
+    reason: item.reason
+  }));
+  const supporting = result.authoritativeHandoff.supportingContext
+    .filter((item) => item.reason)
+    .map((item) => ({ path: item.path, reason: item.reason }));
+  return [...suppressed, ...supporting].some(
+    (item) => Boolean(item.reason) && item.reason === reason && globMatch(item.path, pathPattern)
+  );
+}
+
+function meetsMinCompleteness(actual: ChainCompleteness, expected: ChainCompleteness): boolean {
+  return completenessRank(actual) >= completenessRank(expected);
+}
+
+function completenessRank(value: ChainCompleteness): number {
+  const order: Record<ChainCompleteness, number> = {
+    route_page_only: 1,
+    route_main_widget: 2,
+    route_section_card: 3,
+    route_test_covered: 4
+  };
+  return order[value];
 }
 
 function ratio<T>(items: T[], predicate: (item: T) => boolean): number {

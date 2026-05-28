@@ -239,3 +239,13 @@ Add only after real target demo passes:
 4. better scoring and graph traversal.
 5. Postgres team memory sync.
 6. web dashboard.
+
+## Current Production Gate Contract
+
+v0.8.2 keeps the MVP local-first but hardens Discovery Mode output:
+
+- `authoritativeHandoff.mustRead` remains capped at five primary files.
+- `supportingContext` and `suppressedCandidates` expose precise suppression reasons.
+- `chainCompleteness` may be `route_test_covered` only when related tests exist for route/page/widget chain files.
+- `reuseDecision.affectedCallers` reports symbol-graph caller paths when available.
+- Production eval suites can require suppression reasons, maximum mustRead size, and minimum chain completeness.

@@ -1,0 +1,3 @@
+class DashboardExperienceTheme {
+  const DashboardExperienceTheme();
+}

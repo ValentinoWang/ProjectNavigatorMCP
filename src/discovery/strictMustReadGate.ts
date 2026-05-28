@@ -1,6 +1,6 @@
-import type { FileHit } from "../graph/types.js";
 import type { SimilarCodeHit } from "./types.js";
 import { classifyDependencyTier, isNoisyDiscoveryPath, type DependencyTier } from "./dependencyTiers.js";
+import { explainSuppression, type SuppressionReason } from "./suppressionReasons.js";
 
 export interface StrictGateCandidate {
   path: string;
@@ -17,12 +17,16 @@ export interface HandoffFile {
   evidence: string[];
   role: string;
   confidence: number;
+  reason?: SuppressionReason;
+  reasonDetail?: string;
 }
 
 export interface SuppressedCandidate {
   path: string;
-  reason: string;
+  reason: SuppressionReason;
+  reasonDetail: string;
   downgradedTo: "shouldInspect" | "supportingContext" | "ignoreForNow";
+  confidence: number;
   evidence: string[];
   score: number;
 }
@@ -106,29 +110,29 @@ export function strictMustReadGate(
       });
       continue;
     }
+    const explanation = explainSuppression({
+      task,
+      path: candidate.path,
+      tier,
+      evidence: candidate.evidence,
+      score: candidate.score,
+      testNoise,
+      noisy,
+      evidenceEnough
+    });
     if (tier === "supporting_dependency" || tier === "framework_dependency") {
       supportingContext.push({
         path: candidate.path,
         why: candidate.why,
         evidence: candidate.evidence,
         role: tier,
-        confidence: Number(candidate.score.toFixed(3))
+        confidence: Number(candidate.score.toFixed(3)),
+        reason: explanation.reason,
+        reasonDetail: explanation.detail
       });
-      suppressedCandidates.push(suppressed(candidate, "supporting_dependency_only", "supportingContext"));
+      suppressedCandidates.push(suppressed(candidate, explanation));
     } else {
-      suppressedCandidates.push(
-        suppressed(
-          candidate,
-          noisy
-            ? testNoise
-              ? "test_noise"
-              : "domain_noise"
-            : !evidenceEnough
-              ? "insufficient_strong_evidence"
-              : "below_must_read_threshold",
-          noisy ? "ignoreForNow" : "shouldInspect"
-        )
-      );
+      suppressedCandidates.push(suppressed(candidate, explanation));
     }
   }
 
@@ -149,13 +153,14 @@ function isNonTestTask(task: string): boolean {
 
 function suppressed(
   candidate: StrictGateCandidate,
-  reason: string,
-  downgradedTo: SuppressedCandidate["downgradedTo"]
+  explanation: ReturnType<typeof explainSuppression>
 ): SuppressedCandidate {
   return {
     path: candidate.path,
-    reason,
-    downgradedTo,
+    reason: explanation.reason,
+    reasonDetail: explanation.detail,
+    downgradedTo: explanation.downgradedTo,
+    confidence: explanation.confidence,
     evidence: candidate.evidence,
     score: Number(candidate.score.toFixed(3))
   };
