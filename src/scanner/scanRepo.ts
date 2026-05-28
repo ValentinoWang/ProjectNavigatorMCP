@@ -14,7 +14,15 @@ import { scanCommands } from "./commandScanner.js";
 import { getGitSha, scanCoChanges } from "./gitScanner.js";
 import { scanRules } from "./ruleScanner.js";
 import { scanTextSymbols } from "./symbolScanner.js";
-import type { ScanResult, ScannedFile, ScannedImport, ScannedRoute, ScannedSymbol } from "./types.js";
+import type {
+  IncrementalChangeKind,
+  IncrementalChangePlanes,
+  ScanResult,
+  ScannedFile,
+  ScannedImport,
+  ScannedRoute,
+  ScannedSymbol
+} from "./types.js";
 
 interface FileRow {
   id: number;
@@ -41,8 +49,20 @@ interface BlockCalls {
   calls: string[];
 }
 
+interface IncomingSymbolEdgeSnapshot {
+  fromSymbolId: number;
+  fromFileId: number;
+  toFileId: number;
+  targetKey: string;
+  kind: string;
+  confidence: number;
+  evidenceJson: string;
+}
+
 export interface ScanRepoOptions {
   mode?: "full" | "incremental";
+  metadataOnly?: boolean;
+  incrementalCodeFileLimit?: number;
   progress?: ScanProgressReporter | boolean;
 }
 
@@ -68,7 +88,7 @@ export function scanRepo(repoPath: string, options: ScanRepoOptions = {}): ScanR
       project.db,
       project.repo.id,
       project.repoRoot,
-      options.mode ?? "full",
+      options,
       resolveProgressReporter(options.progress)
     );
   } finally {
@@ -80,9 +100,12 @@ function scanIntoDatabase(
   db: ProjectDatabase,
   repoId: number,
   repoRoot: string,
-  mode: "full" | "incremental",
+  options: ScanRepoOptions,
   progress?: ScanProgressReporter
 ): ScanResult {
+  const mode = options.mode ?? "full";
+  const metadataOnly = Boolean(options.metadataOnly);
+  const incrementalCodeFileLimit = options.incrementalCodeFileLimit ?? 20;
   const startedAt = Date.now();
   const gitSha = getGitSha(repoRoot);
   const scanRun = db
@@ -97,11 +120,16 @@ function scanIntoDatabase(
     const oldHashes = loadExistingHashes(db, repoId);
     progress?.stage("hashing_files");
     const files = scanFiles(repoRoot, config);
-    const incremental = incrementalStats(mode, oldHashes, files, startedAt);
+    const incremental = incrementalStats(mode, oldHashes, files, startedAt, {
+      metadataOnly,
+      incrementalCodeFileLimit
+    });
     progress?.stage("incremental_diff", {
       changed: incremental.filesChanged,
       deleted: incremental.filesDeleted,
-      changeKind: incremental.changeKind
+      changeKind: incremental.changeKind,
+      changePlanes: incremental.changePlaneCounts,
+      actions: incremental.actions
     });
     if (mode === "incremental" && incremental.filesChanged === 0 && incremental.filesDeleted === 0) {
       db.prepare("UPDATE scan_runs SET finished_at = CURRENT_TIMESTAMP, status = 'success' WHERE id = ?").run(
@@ -112,9 +140,40 @@ function scanIntoDatabase(
         incremental: { ...incremental, durationMs: Date.now() - startedAt }
       };
     }
-    if (mode === "incremental" && incremental.changeKind !== "code_graph") {
+    if (mode === "incremental" && metadataOnly) {
+      progress?.stage("metadata_only_incremental", {
+        changeKind: incremental.changeKind,
+        codeGraphStale: incremental.codeGraphStale
+      });
+      applyMetadataOnlyIncremental(db, repoId, repoRoot, files, incremental);
+      rebuildFtsTables(db);
+      db.prepare("UPDATE scan_runs SET finished_at = CURRENT_TIMESTAMP, status = 'success' WHERE id = ?").run(
+        scanRunId
+      );
+      return {
+        ...previousScanResult(db, repoId, repoRoot, gitSha),
+        incremental: { ...incremental, durationMs: Date.now() - startedAt }
+      };
+    }
+    if (mode === "incremental" && incremental.changePlanes.codeGraph.length === 0) {
       progress?.stage("lightweight_incremental", { changeKind: incremental.changeKind });
       applyLightweightIncremental(db, repoId, repoRoot, files, incremental);
+      rebuildFtsTables(db);
+      db.prepare("UPDATE scan_runs SET finished_at = CURRENT_TIMESTAMP, status = 'success' WHERE id = ?").run(
+        scanRunId
+      );
+      return {
+        ...previousScanResult(db, repoId, repoRoot, gitSha),
+        incremental: { ...incremental, durationMs: Date.now() - startedAt }
+      };
+    }
+    if (mode === "incremental" && incremental.partialGraphUpdate) {
+      progress?.stage("partial_graph_update", {
+        files: incremental.changePlaneCounts.codeGraph,
+        limit: incrementalCodeFileLimit
+      });
+      applyFileLevelGraphIncremental(db, repoId, repoRoot, files, incremental, config.maxFileBytes);
+      rebuildFtsTables(db);
       db.prepare("UPDATE scan_runs SET finished_at = CURRENT_TIMESTAMP, status = 'success' WHERE id = ?").run(
         scanRunId
       );
@@ -212,18 +271,252 @@ function applyLightweightIncremental(
 ): void {
   upsertChangedFiles(db, repoId, files, incremental.changedPaths);
   markDeletedFiles(db, repoId, incremental.deletedPaths);
-  if (incremental.changeKind === "commands_only") {
+  if (incremental.changePlanes.commandSources.length > 0) {
     db.prepare("DELETE FROM commands WHERE repo_id = ?").run(repoId);
     insertCommands(db, repoId, scanCommands(repoRoot));
   }
-  if (incremental.changeKind === "docs_only") {
-    db.prepare("DELETE FROM project_rules WHERE repo_id = ?").run(repoId);
-    db.prepare("DELETE FROM document_steps WHERE repo_id = ?").run(repoId);
-    db.prepare("DELETE FROM document_targets WHERE repo_id = ?").run(repoId);
-    db.prepare("DELETE FROM documents WHERE repo_id = ?").run(repoId);
-    insertRules(db, repoId, scanRules(repoRoot));
-    insertSourceDocuments(db, repoId, loadFileRows(db, repoId), scanSourceDocuments(repoRoot, files));
+  if (incremental.changePlanes.docs.length > 0) {
+    refreshRulesAndDocuments(db, repoId, repoRoot, files);
   }
+}
+
+function applyMetadataOnlyIncremental(
+  db: ProjectDatabase,
+  repoId: number,
+  repoRoot: string,
+  files: ScannedFile[],
+  incremental: NonNullable<ScanResult["incremental"]>
+): void {
+  const metadataChanged = metadataPlanePaths(incremental.changePlanes, incremental.changedPaths);
+  const metadataDeleted = metadataPlanePaths(incremental.changePlanes, incremental.deletedPaths);
+  upsertChangedFiles(db, repoId, files, metadataChanged);
+  markDeletedFiles(db, repoId, metadataDeleted);
+  if (incremental.changePlanes.commandSources.length > 0) {
+    db.prepare("DELETE FROM commands WHERE repo_id = ?").run(repoId);
+    insertCommands(db, repoId, scanCommands(repoRoot));
+  }
+  if (incremental.changePlanes.docs.length > 0) {
+    refreshRulesAndDocuments(db, repoId, repoRoot, files);
+  }
+}
+
+function refreshRulesAndDocuments(db: ProjectDatabase, repoId: number, repoRoot: string, files: ScannedFile[]): void {
+  db.prepare("DELETE FROM project_rules WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM document_steps WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM document_targets WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM documents WHERE repo_id = ?").run(repoId);
+  insertRules(db, repoId, scanRules(repoRoot));
+  insertSourceDocuments(db, repoId, loadFileRows(db, repoId), scanSourceDocuments(repoRoot, files));
+}
+
+function metadataPlanePaths(planes: IncrementalChangePlanes, candidatePaths: string[]): string[] {
+  const metadata = new Set([
+    ...planes.workflowProfiles,
+    ...planes.evalSuites,
+    ...planes.commandSources,
+    ...planes.docs
+  ]);
+  return candidatePaths.filter((filePath) => metadata.has(filePath));
+}
+
+function applyFileLevelGraphIncremental(
+  db: ProjectDatabase,
+  repoId: number,
+  repoRoot: string,
+  files: ScannedFile[],
+  incremental: NonNullable<ScanResult["incremental"]>,
+  maxFileBytes: number
+): void {
+  upsertChangedFiles(db, repoId, files, incremental.changedPaths);
+  markDeletedFiles(db, repoId, incremental.deletedPaths);
+  if (incremental.changePlanes.commandSources.length > 0) {
+    db.prepare("DELETE FROM commands WHERE repo_id = ?").run(repoId);
+    insertCommands(db, repoId, scanCommands(repoRoot));
+  }
+  if (incremental.changePlanes.docs.length > 0) {
+    refreshRulesAndDocuments(db, repoId, repoRoot, files);
+  }
+
+  const changedCodePaths = new Set(incremental.changedPaths.filter((filePath) => isCodeGraphPath(filePath)));
+  if (changedCodePaths.size === 0) {
+    return;
+  }
+  const fileRows = loadFileRows(db, repoId);
+  const affectedIds = Array.from(changedCodePaths)
+    .map((filePath) => fileRows.get(filePath))
+    .filter((fileId): fileId is number => fileId !== undefined);
+  if (affectedIds.length === 0) {
+    return;
+  }
+
+  const incoming = snapshotIncomingSymbolEdges(db, repoId, affectedIds);
+  clearChangedFileGraphRows(db, repoId, affectedIds);
+
+  const symbols: ScannedSymbol[] = [];
+  const imports: ScannedImport[] = [];
+  const routes: ScannedRoute[] = [];
+  for (const file of files) {
+    if (!changedCodePaths.has(file.path)) {
+      continue;
+    }
+    const content = readRepoTextFile(repoRoot, file.path, maxFileBytes);
+    if (!content) {
+      continue;
+    }
+    const result = scanTextSymbols(file.path, file.language, content);
+    symbols.push(...result.symbols);
+    imports.push(...result.imports);
+    routes.push(...result.routes);
+  }
+
+  insertSymbols(db, fileRows, symbols);
+  const symbolRows = loadSymbolRows(db, repoId);
+  const affected = new Set(affectedIds);
+  const affectedSymbols = symbolRows.filter((symbol) => affected.has(symbol.file_id));
+  const blockCalls = insertCodeBlocks(db, repoId, repoRoot, affectedSymbols, maxFileBytes);
+  insertSymbolEdges(db, repoId, symbolRows, blockCalls);
+  restoreIncomingSymbolEdges(db, repoId, incoming, symbolRows);
+  insertContainsEdges(
+    db,
+    repoId,
+    new Map(Array.from(fileRows.entries()).filter(([, id]) => affected.has(id))),
+    affectedSymbols
+  );
+  insertImportEdges(db, repoId, fileRows, imports);
+  insertImportBindings(db, repoId, fileRows, imports);
+  insertRoutes(db, repoId, fileRows, symbolRows, routes);
+
+  db.prepare("DELETE FROM tests WHERE repo_id = ?").run(repoId);
+  db.prepare("DELETE FROM edges WHERE repo_id = ? AND kind = 'covered_by'").run(repoId);
+  insertTestEdges(db, repoId, fileRows);
+
+  db.prepare("DELETE FROM modules WHERE repo_id = ?").run(repoId);
+  insertModules(
+    db,
+    repoId,
+    files.map((file) => file.path)
+  );
+  db.prepare(
+    "DELETE FROM similarity_members WHERE cluster_id IN (SELECT id FROM similarity_clusters WHERE repo_id = ?)"
+  ).run(repoId);
+  db.prepare("DELETE FROM similarity_clusters WHERE repo_id = ?").run(repoId);
+  insertDuplicateClusters(db, repoId);
+}
+
+function snapshotIncomingSymbolEdges(
+  db: ProjectDatabase,
+  repoId: number,
+  affectedIds: number[]
+): IncomingSymbolEdgeSnapshot[] {
+  const placeholders = sqlPlaceholders(affectedIds);
+  return db
+    .prepare(
+      `SELECT se.from_symbol_id AS fromSymbolId, se.from_file_id AS fromFileId,
+              se.to_file_id AS toFileId, se.kind, se.confidence, se.evidence_json AS evidenceJson,
+              s.name, s.qualified_name AS qualifiedName, s.kind AS symbolKind
+       FROM symbol_edges se
+       JOIN symbols s ON s.id = se.to_symbol_id
+       WHERE se.repo_id = ?
+         AND se.to_file_id IN (${placeholders})
+         AND se.from_file_id NOT IN (${placeholders})`
+    )
+    .all(repoId, ...affectedIds, ...affectedIds)
+    .map((row) => {
+      const typed = row as {
+        fromSymbolId: number;
+        fromFileId: number;
+        toFileId: number;
+        kind: string;
+        confidence: number;
+        evidenceJson: string;
+        name: string;
+        qualifiedName: string | null;
+        symbolKind: string;
+      };
+      return {
+        fromSymbolId: typed.fromSymbolId,
+        fromFileId: typed.fromFileId,
+        toFileId: typed.toFileId,
+        targetKey: symbolStableKey(typed.toFileId, typed.qualifiedName, typed.name, typed.symbolKind),
+        kind: typed.kind,
+        confidence: typed.confidence,
+        evidenceJson: typed.evidenceJson
+      };
+    });
+}
+
+function clearChangedFileGraphRows(db: ProjectDatabase, repoId: number, affectedIds: number[]): void {
+  const placeholders = sqlPlaceholders(affectedIds);
+  db.prepare(
+    `DELETE FROM structural_fingerprints
+     WHERE repo_id = ? AND block_id IN (SELECT id FROM code_blocks WHERE repo_id = ? AND file_id IN (${placeholders}))`
+  ).run(repoId, repoId, ...affectedIds);
+  db.prepare(`DELETE FROM code_blocks WHERE repo_id = ? AND file_id IN (${placeholders})`).run(repoId, ...affectedIds);
+  db.prepare(`DELETE FROM import_bindings WHERE repo_id = ? AND file_id IN (${placeholders})`).run(
+    repoId,
+    ...affectedIds
+  );
+  db.prepare(`DELETE FROM routes WHERE repo_id = ? AND file_id IN (${placeholders})`).run(repoId, ...affectedIds);
+  db.prepare(
+    `DELETE FROM symbol_edges WHERE repo_id = ? AND (from_file_id IN (${placeholders}) OR to_file_id IN (${placeholders}))`
+  ).run(repoId, ...affectedIds, ...affectedIds);
+  db.prepare(
+    `DELETE FROM edges
+     WHERE repo_id = ?
+       AND from_type = 'file'
+       AND from_id IN (${placeholders})
+       AND kind IN ('contains', 'imports')`
+  ).run(repoId, ...affectedIds);
+  db.prepare(`DELETE FROM symbols WHERE file_id IN (${placeholders})`).run(...affectedIds);
+}
+
+function restoreIncomingSymbolEdges(
+  db: ProjectDatabase,
+  repoId: number,
+  incoming: IncomingSymbolEdgeSnapshot[],
+  symbolRows: SymbolRow[]
+): void {
+  if (incoming.length === 0) {
+    return;
+  }
+  const byStableKey = new Map(
+    symbolRows.map((symbol) => [
+      symbolStableKey(symbol.file_id, symbol.qualified_name, symbol.name, symbol.kind),
+      symbol
+    ])
+  );
+  const stmt = db.prepare(
+    `INSERT INTO symbol_edges
+      (repo_id, from_symbol_id, to_symbol_id, from_file_id, to_file_id, kind, confidence, evidence_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  const insert = db.transaction(() => {
+    for (const edge of incoming) {
+      const target = byStableKey.get(edge.targetKey);
+      if (!target) {
+        continue;
+      }
+      stmt.run(
+        repoId,
+        edge.fromSymbolId,
+        target.id,
+        edge.fromFileId,
+        target.file_id,
+        edge.kind,
+        edge.confidence,
+        edge.evidenceJson
+      );
+    }
+  });
+  insert();
+}
+
+function symbolStableKey(fileId: number, qualifiedName: string | null, name: string, kind: string): string {
+  return `${fileId}:${qualifiedName ?? name}:${kind}`;
+}
+
+function sqlPlaceholders(values: unknown[]): string {
+  return values.map(() => "?").join(",");
 }
 
 function upsertChangedFiles(db: ProjectDatabase, repoId: number, files: ScannedFile[], changedPaths: string[]): void {
@@ -774,15 +1067,31 @@ function incrementalStats(
   mode: "full" | "incremental",
   oldHashes: Map<string, string | null>,
   files: ScannedFile[],
-  startedAt: number
+  startedAt: number,
+  options: { metadataOnly: boolean; incrementalCodeFileLimit: number }
 ): NonNullable<ScanResult["incremental"]> {
   const newPaths = new Set(files.map((file) => file.path));
   const changedPaths = files.filter((file) => oldHashes.get(file.path) !== file.hash).map((file) => file.path);
   const deletedPaths = Array.from(oldHashes.keys()).filter((oldPath) => !newPaths.has(oldPath));
-  const changeKind =
-    mode === "incremental" && changedPaths.length === 0 && deletedPaths.length === 0
-      ? "none"
-      : classifyIncrementalChange(changedPaths, deletedPaths);
+  const changePlanes = buildChangePlanes(changedPaths, deletedPaths);
+  const changePlaneCounts = countChangePlanes(changePlanes);
+  const changedCodePaths = changedPaths.filter(isCodeGraphPath);
+  const deletedCodePaths = deletedPaths.filter(isCodeGraphPath);
+  const partialGraphUpdate =
+    mode === "incremental" &&
+    !options.metadataOnly &&
+    changedCodePaths.length > 0 &&
+    changedCodePaths.length <= options.incrementalCodeFileLimit &&
+    deletedCodePaths.length === 0;
+  const conservativeFullRebuild =
+    mode === "incremental" && !options.metadataOnly && changePlanes.codeGraph.length > 0 && !partialGraphUpdate;
+  const codeGraphStale = mode === "incremental" && options.metadataOnly && changePlanes.codeGraph.length > 0;
+  const actions = incrementalActions(changePlanes, {
+    codeGraphStale,
+    conservativeFullRebuild,
+    partialGraphUpdate
+  });
+  const changeKind = classifyIncrementalChange(changePlanes);
   return {
     mode,
     filesTotal: files.length,
@@ -790,35 +1099,140 @@ function incrementalStats(
     filesSkipped: Math.max(0, files.length - changedPaths.length),
     filesDeleted: deletedPaths.length,
     durationMs: Date.now() - startedAt,
-    changedPaths: changedPaths.slice(0, 100),
-    deletedPaths: deletedPaths.slice(0, 100),
+    changedPaths,
+    deletedPaths,
     changeKind,
-    stages: changeKind === "code_graph" ? ["conservative_rebuild"] : [changeKind],
-    conservativeFullRebuild: mode === "incremental" && changeKind === "code_graph"
+    changePlanes: capChangePlanes(changePlanes),
+    changePlaneCounts,
+    actions,
+    stages: actions,
+    codeGraphStale,
+    codeGraphStaleReason: codeGraphStale
+      ? `${changePlanes.codeGraph.length} code graph path(s) changed; skipped graph rebuild because --metadata-only was used.`
+      : undefined,
+    conservativeFullRebuild,
+    partialGraphUpdate
   };
 }
 
-function classifyIncrementalChange(
-  changedPaths: string[],
-  deletedPaths: string[]
-): NonNullable<ScanResult["incremental"]>["changeKind"] {
-  const paths = [...changedPaths, ...deletedPaths];
-  if (paths.length === 0) {
+function buildChangePlanes(changedPaths: string[], deletedPaths: string[]): IncrementalChangePlanes {
+  const planes: IncrementalChangePlanes = {
+    workflowProfiles: [],
+    evalSuites: [],
+    commandSources: [],
+    docs: [],
+    codeGraph: [],
+    deleted: [...deletedPaths]
+  };
+  for (const filePath of [...changedPaths, ...deletedPaths]) {
+    if (isWorkflowProfilePath(filePath)) {
+      planes.workflowProfiles.push(filePath);
+    } else if (isEvalOnlyPath(filePath)) {
+      planes.evalSuites.push(filePath);
+    } else if (isCommandSourcePath(filePath)) {
+      planes.commandSources.push(filePath);
+    } else if (isDocsOnlyPath(filePath)) {
+      planes.docs.push(filePath);
+    } else {
+      planes.codeGraph.push(filePath);
+    }
+  }
+  return planes;
+}
+
+function countChangePlanes(planes: IncrementalChangePlanes): Record<keyof IncrementalChangePlanes, number> {
+  return {
+    workflowProfiles: planes.workflowProfiles.length,
+    evalSuites: planes.evalSuites.length,
+    commandSources: planes.commandSources.length,
+    docs: planes.docs.length,
+    codeGraph: planes.codeGraph.length,
+    deleted: planes.deleted.length
+  };
+}
+
+function capChangePlanes(planes: IncrementalChangePlanes): IncrementalChangePlanes {
+  return {
+    workflowProfiles: planes.workflowProfiles.slice(0, 100),
+    evalSuites: planes.evalSuites.slice(0, 100),
+    commandSources: planes.commandSources.slice(0, 100),
+    docs: planes.docs.slice(0, 100),
+    codeGraph: planes.codeGraph.slice(0, 100),
+    deleted: planes.deleted.slice(0, 100)
+  };
+}
+
+function classifyIncrementalChange(planes: IncrementalChangePlanes): IncrementalChangeKind {
+  const nonEmpty: Array<Exclude<keyof IncrementalChangePlanes, "deleted">> = [];
+  if (planes.workflowProfiles.length > 0) nonEmpty.push("workflowProfiles");
+  if (planes.evalSuites.length > 0) nonEmpty.push("evalSuites");
+  if (planes.commandSources.length > 0) nonEmpty.push("commandSources");
+  if (planes.docs.length > 0) nonEmpty.push("docs");
+  if (planes.codeGraph.length > 0) nonEmpty.push("codeGraph");
+  if (nonEmpty.length === 0) {
     return "none";
   }
-  if (paths.every(isWorkflowProfilePath)) {
+  if (nonEmpty.length > 1) {
+    return "mixed";
+  }
+  if (nonEmpty[0] === "workflowProfiles") {
     return "workflow_profiles_only";
   }
-  if (paths.every(isEvalOnlyPath)) {
+  if (nonEmpty[0] === "evalSuites") {
     return "eval_only";
   }
-  if (paths.every(isCommandSourcePath)) {
+  if (nonEmpty[0] === "commandSources") {
     return "commands_only";
   }
-  if (paths.every(isDocsOnlyPath)) {
+  if (nonEmpty[0] === "docs") {
     return "docs_only";
   }
   return "code_graph";
+}
+
+function incrementalActions(
+  planes: IncrementalChangePlanes,
+  flags: { codeGraphStale: boolean; conservativeFullRebuild: boolean; partialGraphUpdate: boolean }
+): string[] {
+  const actions: string[] = [];
+  if (
+    planes.workflowProfiles.length === 0 &&
+    planes.evalSuites.length === 0 &&
+    planes.commandSources.length === 0 &&
+    planes.docs.length === 0 &&
+    planes.codeGraph.length === 0 &&
+    planes.deleted.length === 0
+  ) {
+    return ["no_changes"];
+  }
+  if (planes.workflowProfiles.length > 0) actions.push("refresh_workflow_profiles");
+  if (planes.evalSuites.length > 0) actions.push("refresh_eval_suites");
+  if (planes.commandSources.length > 0) actions.push("rescan_commands");
+  if (planes.docs.length > 0) actions.push("rescan_rules_documents");
+  if (flags.codeGraphStale) {
+    actions.push("mark_code_graph_stale");
+  } else if (flags.partialGraphUpdate) {
+    actions.push(
+      "update_changed_files",
+      "rebuild_changed_file_symbols",
+      "rebuild_changed_file_imports",
+      "rebuild_changed_file_routes",
+      "rewire_stable_incoming_symbol_edges",
+      "recompute_duplicate_clusters"
+    );
+  } else if (flags.conservativeFullRebuild) {
+    actions.push("conservative_rebuild");
+  }
+  return actions;
+}
+
+function isCodeGraphPath(filePath: string): boolean {
+  return (
+    !isWorkflowProfilePath(filePath) &&
+    !isEvalOnlyPath(filePath) &&
+    !isCommandSourcePath(filePath) &&
+    !isDocsOnlyPath(filePath)
+  );
 }
 
 function isWorkflowProfilePath(filePath: string): boolean {

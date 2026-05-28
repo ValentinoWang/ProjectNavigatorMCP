@@ -59,8 +59,12 @@ In strict mode, a case also fails when any hard gate is violated:
 - A forbidden generic fallback command appears in `relatedTests.fallbackCommands`.
 
 Case results include `latencyBreakdown` and `hardFailures` for these strict failures. Suite
-results include `totalLatencyMs` and `slowestStages` so production eval runs can identify the
-expensive discovery stages.
+results include `totalLatencyMs`, `slowestStages`, `indexStatus`, and `cacheStats` so production
+eval runs can identify expensive discovery stages and stale graph conditions.
+
+Use `pnav eval --metadata-only` when validating workflow profile or discovery-suite changes in a
+dirty worktree. It runs a metadata-only incremental preflight, reports stale source graph state in
+`indexStatus`, and does not force a code graph rebuild.
 
 The additional workflow assertions do not change the legacy production score. They only add
 strict-mode hard failures so old suites stay compatible while production suites can verify that

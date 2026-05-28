@@ -24,6 +24,7 @@ Expected commands:
 ```bash
 pnav init /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
 pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --incremental
+pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --incremental --metadata-only
 pnav map /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
 ```
 
@@ -128,7 +129,8 @@ Command:
 ```bash
 pnav eval /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer \
   --suite /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer/.agents/pnav/discovery-suite.json \
-  --strict
+  --strict \
+  --metadata-only
 ```
 
 Expected result should include:
@@ -137,6 +139,8 @@ Expected result should include:
 - every case has `hardFailures: []`
 - every case has `latencyBreakdown`
 - top-level `slowestStages`
+- top-level `indexStatus` and `cacheStats`
+- mixed dirty worktrees can report `indexStatus.codeGraphStale: true` without forcing a full rebuild
 - workflow protocol assertions for commands, edit policies, gate steps, and profile provenance
 
 For each task in the suite, also run:

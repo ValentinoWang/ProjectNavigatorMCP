@@ -1072,6 +1072,13 @@ v0.8.4 进一步要求：
 - 当 workflow commands 存在时，generic related-test commands 只能作为 `fallbackCommands`。
 - incremental scan 必须区分 workflow profile、eval suite、command source、docs 和 code graph 变化，只有 code graph 变化才 conservative full rebuild。
 
+v0.8.5 进一步要求：
+
+- incremental scan 必须输出 `changePlanes`、`actions`、`codeGraphStale` 和 `partialGraphUpdate`，不能把 mixed dirty worktree 简化成单一 `code_graph`。
+- `--metadata-only` 只能刷新 workflow/eval/command/doc metadata；源码变化必须标记 stale，不能偷偷更新文件 hash 后掩盖 stale graph。
+- 少量源码变化默认走 file-level graph update v1；超过阈值或删除源码文件时才 conservative full rebuild。
+- eval suite 应复用 runtime context，并输出 `indexStatus` 与 `cacheStats`，便于定位 suite 级性能瓶颈。
+
 ## 18. 完成 MVP 的定义
 
 当以下流程能跑通时，可以认为 MVP 完成：

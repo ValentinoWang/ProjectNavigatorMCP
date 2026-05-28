@@ -175,7 +175,7 @@ sequenceDiagram
   CLI->>DB: open <repo>/.pnav/project.sqlite
   CLI->>DB: create scan_runs row
   CLI->>FS: list files with ignore rules
-  CLI->>CLI: classify incremental change kind
+  CLI->>CLI: build incremental change planes and actions
   FS->>DB: upsert files
   CLI->>Git: collect git sha and co-change pairs
   Git->>DB: upsert co_changes edges
@@ -185,6 +185,7 @@ sequenceDiagram
   Rules->>DB: upsert project_rules
   CLI->>Symbols: parse basic symbols and imports
   Symbols->>DB: upsert symbols and edges
+  CLI->>DB: metadata-only scans may mark codeGraphStale without rebuilding symbols
   CLI->>DB: mark scan run finished
 ```
 

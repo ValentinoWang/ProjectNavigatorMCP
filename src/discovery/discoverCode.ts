@@ -3,7 +3,7 @@ import { relatedTests } from "../graph/relatedTests.js";
 import { findSymbol } from "../graph/symbolSearch.js";
 import { buildAuthoritativeHandoff } from "./authoritativeChain.js";
 import { discoveryReadScore, tierReadOrder } from "./discoveryQuality.js";
-import { findEntrypoints } from "./entrypoints.js";
+import { findEntrypoints, loadEntrypointCatalog, rankEntrypointsFromCatalog } from "./entrypoints.js";
 import { findReusableComponents } from "./reuse.js";
 import { findCallees } from "./symbolGraph.js";
 import type { DiscoveryResult, DiscoveryTimingBreakdown } from "./types.js";
@@ -20,69 +20,143 @@ export interface TimedDiscoveryResult {
   timing: DiscoveryTimingBreakdown;
 }
 
+export type DiscoveryCacheBucket =
+  | "workflowProfiles"
+  | "entrypointCatalog"
+  | "entrypoints"
+  | "relatedFiles"
+  | "symbols"
+  | "reuse"
+  | "relatedTests"
+  | "callGraph"
+  | "readOrder"
+  | "handoff"
+  | "whyRelated";
+
+export interface DiscoveryRuntimeContext {
+  caches: Record<DiscoveryCacheBucket, Map<string, unknown>>;
+  cacheStats: Record<DiscoveryCacheBucket, { hits: number; misses: number }>;
+}
+
+export function createDiscoveryRuntimeContext(): DiscoveryRuntimeContext {
+  const buckets: DiscoveryCacheBucket[] = [
+    "workflowProfiles",
+    "entrypointCatalog",
+    "entrypoints",
+    "relatedFiles",
+    "symbols",
+    "reuse",
+    "relatedTests",
+    "callGraph",
+    "readOrder",
+    "handoff",
+    "whyRelated"
+  ];
+  return {
+    caches: Object.fromEntries(buckets.map((bucket) => [bucket, new Map<string, unknown>()])) as Record<
+      DiscoveryCacheBucket,
+      Map<string, unknown>
+    >,
+    cacheStats: Object.fromEntries(buckets.map((bucket) => [bucket, { hits: 0, misses: 0 }])) as Record<
+      DiscoveryCacheBucket,
+      { hits: number; misses: number }
+    >
+  };
+}
+
 export function discoverCode(repoPath: string, task: string, limit = 15): DiscoveryResult {
   return discoverCodeWithTiming(repoPath, task, limit).result;
 }
 
-export function discoverCodeWithTiming(repoPath: string, task: string, limit = 15): TimedDiscoveryResult {
+export function discoverCodeWithTiming(
+  repoPath: string,
+  task: string,
+  limit = 15,
+  context?: DiscoveryRuntimeContext
+): TimedDiscoveryResult {
   const startedAt = Date.now();
   const timing = emptyTiming();
-  const workflowProfiles = timed(timing, "workflowProfilesMs", () => resolveWorkflowDiscoveryProfiles(repoPath, task));
-  const hasWorkflowProfile = workflowProfiles.length > 0;
-  const entrypoints = timed(timing, "entrypointsMs", () => findEntrypoints(repoPath, task, 10).entrypoints);
-  const related = timed(
-    timing,
-    "relatedFilesMs",
-    () => findRelatedFiles(repoPath, task, hasWorkflowProfile ? Math.min(5, limit) : limit).files
+  const workflowProfiles = timed(timing, "workflowProfilesMs", () =>
+    cached(context, "workflowProfiles", task, () => resolveWorkflowDiscoveryProfiles(repoPath, task))
   );
-  const coreSymbols = timed(timing, "symbolsMs", () => (hasWorkflowProfile ? [] : findSymbol(repoPath, task, 12)));
+  const hasWorkflowProfile = workflowProfiles.length > 0;
+  const entrypoints = timed(timing, "entrypointsMs", () => {
+    if (!context) {
+      return findEntrypoints(repoPath, task, 10).entrypoints;
+    }
+    const catalog = cached(context, "entrypointCatalog", repoPath, () => loadEntrypointCatalog(repoPath));
+    return cached(context, "entrypoints", `${task}:10`, () => rankEntrypointsFromCatalog(catalog, task, 10));
+  });
+  const related = timed(timing, "relatedFilesMs", () =>
+    cached(
+      context,
+      "relatedFiles",
+      `${task}:${hasWorkflowProfile ? Math.min(5, limit) : limit}`,
+      () => findRelatedFiles(repoPath, task, hasWorkflowProfile ? Math.min(5, limit) : limit).files
+    )
+  );
+  const coreSymbols = timed(timing, "symbolsMs", () =>
+    cached(context, "symbols", task, () => (hasWorkflowProfile ? [] : findSymbol(repoPath, task, 12)))
+  );
   const reuse = timed(timing, "reuseMs", () =>
-    hasWorkflowProfile ? { reuseCandidates: [], duplicateRisks: [] } : findReusableComponents(repoPath, task, 8)
+    cached(context, "reuse", task, () =>
+      hasWorkflowProfile ? { reuseCandidates: [], duplicateRisks: [] } : findReusableComponents(repoPath, task, 8)
+    )
   );
   const tests = timed(timing, "relatedTestsMs", () =>
-    relatedTests(
-      repoPath,
-      [...entrypoints.slice(0, 5).map((entry) => entry.path), ...related.slice(0, 8).map((file) => file.path)],
-      task,
-      {
-        relatedFiles: related,
-        demoteCommands: workflowProfiles.some((profile) => profile.recommendedCommands.length > 0),
-        excludeCommands: workflowProfiles.flatMap((profile) =>
-          profile.recommendedCommands.map((command) => command.command)
-        )
-      }
+    cached(context, "relatedTests", `${task}:${entrypoints.length}:${related.length}`, () =>
+      relatedTests(
+        repoPath,
+        [...entrypoints.slice(0, 5).map((entry) => entry.path), ...related.slice(0, 8).map((file) => file.path)],
+        task,
+        {
+          relatedFiles: related,
+          demoteCommands: workflowProfiles.some((profile) => profile.recommendedCommands.length > 0),
+          excludeCommands: workflowProfiles.flatMap((profile) =>
+            profile.recommendedCommands.map((command) => command.command)
+          )
+        }
+      )
     )
   );
   const callGraphPreview = timed(timing, "callGraphMs", () =>
-    hasWorkflowProfile
-      ? []
-      : coreSymbols.slice(0, 5).flatMap((symbol) =>
-          findCallees(repoPath, symbol.qualifiedName ?? symbol.name, 5).callees.map((callee) => ({
-            from: symbol.qualifiedName ?? symbol.name,
-            to: callee.qualifiedName ?? callee.symbol,
-            kind: "calls",
-            confidence: callee.confidence,
-            evidence: callee.evidence
-          }))
-        )
+    cached(context, "callGraph", task, () =>
+      hasWorkflowProfile
+        ? []
+        : coreSymbols.slice(0, 5).flatMap((symbol) =>
+            findCallees(repoPath, symbol.qualifiedName ?? symbol.name, 5).callees.map((callee) => ({
+              from: symbol.qualifiedName ?? symbol.name,
+              to: callee.qualifiedName ?? callee.symbol,
+              kind: "calls",
+              confidence: callee.confidence,
+              evidence: callee.evidence
+            }))
+          )
+    )
   );
   const recommendedReadOrder = timed(timing, "readOrderMs", () =>
-    rankReadOrder(task, entrypoints, related, reuse.reuseCandidates, workflowProfiles)
+    cached(context, "readOrder", task, () =>
+      rankReadOrder(task, entrypoints, related, reuse.reuseCandidates, workflowProfiles)
+    )
   );
   const tiers = tierReadOrder(task, recommendedReadOrder, limit);
   const authoritativeHandoff = timed(timing, "handoffMs", () =>
-    buildAuthoritativeHandoff(repoPath, task, recommendedReadOrder, reuse.reuseCandidates, tests, workflowProfiles)
+    cached(context, "handoff", task, () =>
+      buildAuthoritativeHandoff(repoPath, task, recommendedReadOrder, reuse.reuseCandidates, tests, workflowProfiles)
+    )
   );
   const workflowWarnings = workflowProfiles.flatMap((profile) => profile.warnings);
   const whyRelatedItems = timed(timing, "whyRelatedMs", () =>
-    hasWorkflowProfile
-      ? recommendedReadOrder.slice(0, 8).map((file) => ({
-          target: file.path,
-          task,
-          score: file.score,
-          evidence: [{ type: "workflow_profile", detail: file.reason, score: file.score }]
-        }))
-      : recommendedReadOrder.slice(0, 8).map((file) => whyRelated(repoPath, file.path, task))
+    cached(context, "whyRelated", task, () =>
+      hasWorkflowProfile
+        ? recommendedReadOrder.slice(0, 8).map((file) => ({
+            target: file.path,
+            task,
+            score: file.score,
+            evidence: [{ type: "workflow_profile", detail: file.reason, score: file.score }]
+          }))
+        : recommendedReadOrder.slice(0, 8).map((file) => whyRelated(repoPath, file.path, task))
+    )
   );
 
   timing.totalMs = Date.now() - startedAt;
@@ -108,6 +182,26 @@ export function discoverCodeWithTiming(repoPath: string, task: string, limit = 1
     },
     timing
   };
+}
+
+function cached<T>(
+  context: DiscoveryRuntimeContext | undefined,
+  bucket: DiscoveryCacheBucket,
+  key: string,
+  fn: () => T
+): T {
+  if (!context) {
+    return fn();
+  }
+  const cache = context.caches[bucket];
+  if (cache.has(key)) {
+    context.cacheStats[bucket].hits += 1;
+    return cache.get(key) as T;
+  }
+  context.cacheStats[bucket].misses += 1;
+  const value = fn();
+  cache.set(key, value);
+  return value;
 }
 
 function emptyTiming(): DiscoveryTimingBreakdown {

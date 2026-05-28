@@ -352,11 +352,22 @@ export function createMcpServer(repoPath: string): McpServer {
       description: "Run a production discovery eval suite from a local JSON file.",
       inputSchema: {
         suitePath: z.string(),
-        strict: z.boolean().optional()
+        strict: z.boolean().optional(),
+        metadataOnly: z.boolean().optional(),
+        allowStaleCodeGraph: z.boolean().optional()
       }
     },
-    async ({ suitePath, strict }) =>
-      textJson(toolResponse(repoPath, runDiscoveryEval(repoPath, suitePath, strict ?? false)))
+    async ({ suitePath, strict, metadataOnly, allowStaleCodeGraph }) =>
+      textJson(
+        toolResponse(
+          repoPath,
+          runDiscoveryEval(repoPath, suitePath, {
+            strict: strict ?? false,
+            metadataOnly: metadataOnly ?? false,
+            allowStaleCodeGraph: allowStaleCodeGraph ?? false
+          })
+        )
+      )
   );
 
   server.registerTool(
