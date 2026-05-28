@@ -27,6 +27,8 @@ export type ChainCompleteness = "route_page_only" | "route_main_widget" | "route
 
 export interface RouteToWidgetTestCoverage {
   covered: boolean;
+  coverageStrength: "strong" | "weak";
+  weakCovered?: boolean;
   testFiles: string[];
   evidence: EvidenceItem[];
 }
@@ -107,7 +109,10 @@ export function findFlutterRouteToWidgetChain(repoPath: string, task: string): R
       task,
       steps.map((step) => step.path)
     );
-    const completeness = classifyCompleteness(steps, testCoverage.covered);
+    const completeness = classifyCompleteness(
+      steps,
+      testCoverage.covered && testCoverage.coverageStrength === "strong"
+    );
     const confidence = Number(
       Math.min(0.98, steps.reduce((total, step) => total + step.confidence, 0) / Math.max(1, steps.length)).toFixed(2)
     );
@@ -145,19 +150,52 @@ export function classifyCompleteness(steps: RouteToWidgetStep[], testCovered = f
 
 function findChainTestCoverage(repoPath: string, task: string, chainPaths: string[]): RouteToWidgetTestCoverage {
   if (chainPaths.length === 0) {
-    return { covered: false, testFiles: [], evidence: [] };
+    return { covered: false, coverageStrength: "weak", testFiles: [], evidence: [] };
   }
-  const result = relatedTests(repoPath, chainPaths, task);
-  const testFiles = result.testFiles.slice(0, 10);
+  const strong = directChainTests(repoPath, chainPaths);
+  if (strong.testFiles.length > 0) {
+    return {
+      covered: true,
+      coverageStrength: "strong",
+      testFiles: strong.testFiles.slice(0, 10),
+      evidence: strong.testFiles.slice(0, 10).map((file) => ({
+        type: "direct_test_edge",
+        detail: file,
+        score: 0.9
+      }))
+    };
+  }
+  const weakTestFiles = relatedTests(repoPath, chainPaths, task).testFiles.slice(0, 10);
   return {
-    covered: testFiles.length > 0,
-    testFiles,
-    evidence: testFiles.map((file) => ({
-      type: "related_test",
+    covered: false,
+    coverageStrength: "weak",
+    weakCovered: weakTestFiles.length > 0,
+    testFiles: weakTestFiles,
+    evidence: weakTestFiles.map((file) => ({
+      type: "related_search_test",
       detail: file,
-      score: 0.86
+      score: 0.45
     }))
   };
+}
+
+function directChainTests(repoPath: string, chainPaths: string[]): { testFiles: string[] } {
+  const project = openProject(repoPath);
+  try {
+    const rows = project.db
+      .prepare(
+        `SELECT DISTINCT tf.path AS testPath
+         FROM tests t
+         JOIN files sf ON sf.id = t.target_file_id
+         JOIN files tf ON tf.id = t.test_file_id
+         WHERE t.repo_id = ? AND sf.path IN (${chainPaths.map(() => "?").join(", ")})
+         ORDER BY tf.path`
+      )
+      .all(project.repo.id, ...chainPaths) as Array<{ testPath: string }>;
+    return { testFiles: rows.map((row) => row.testPath) };
+  } finally {
+    project.db.close();
+  }
 }
 
 function appendCompositionSteps(

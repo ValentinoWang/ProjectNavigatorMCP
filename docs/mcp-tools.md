@@ -526,6 +526,7 @@ Data shape:
     "chainCompleteness": "route_test_covered",
     "testCoverage": {
       "covered": true,
+      "coverageStrength": "strong",
       "testFiles": ["frontend/test/modules/user_core/dashboard/athlete_dashboard_home_sections_test.dart"],
       "evidence": []
     },
@@ -734,20 +735,17 @@ Data shape:
 
 ```json
 {
-  "audit": {
-    "result": "pass",
-    "score": 1,
-    "violations": [],
-    "changedFilesByTier": {
-      "mustEdit": ["frontend/lib/page.dart"],
-      "mayEdit": [],
-      "mayInspectTouched": [],
-      "referenceTouched": [],
-      "forbiddenTouched": [],
-      "unknownTouched": []
-    },
-    "missingValidations": [],
-    "recommendedNextAction": "Record the task result."
-  }
+  "suitePath": ".pnav/eval/discovery-suite.json",
+  "productionScore": 0.93,
+  "passed": true,
+  "cases": [
+    {
+      "id": "dashboard-noise-suppression",
+      "latencyMs": 120,
+      "metrics": { "suppressionReasonQuality": 1, "productionScore": 0.93 },
+      "hardFailures": [],
+      "passed": true
+    }
+  ]
 }
 ```

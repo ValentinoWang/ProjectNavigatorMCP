@@ -1055,6 +1055,12 @@ Discovery Mode 的生产级输出以 `authoritativeHandoff` 为准：
 - `reuseDecision.affectedCallers` 应从 symbol graph 返回调用方文件。
 - production eval 可以断言 `suppressedWithReasons`、`maxMustRead` 和 `minChainCompleteness`。
 
+v0.8.3 进一步要求：
+
+- strict eval 不能只看平均分，必须用 `hardFailures` 拦住 forbidden mustRead、预算超限、suppression reason 缺失、链路完整度不足。
+- `route_test_covered` 只能由 direct/naming test relationship 触发；related search 只能算 weak coverage。
+- design-system/token/guard/breakpoint/DS-\* 任务中，theme/token/breakpoint 文件不得默认被压成普通 support。
+
 ## 18. 完成 MVP 的定义
 
 当以下流程能跑通时，可以认为 MVP 完成：

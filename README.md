@@ -99,6 +99,9 @@ The current release supports:
 50. Truthful `route_test_covered` chain completeness with test coverage evidence.
 51. Reuse decisions include affected caller paths when symbol graph evidence is available.
 52. Production eval suites can assert `suppressedWithReasons`, `maxMustRead`, and `minChainCompleteness`.
+53. Strict production eval reports `hardFailures` and fails on mustRead leaks, missing suppression reasons, budget overruns, or insufficient chain completeness.
+54. Route test coverage distinguishes strong direct/naming coverage from weak related-search tests.
+55. Design-system token/theme tasks keep theme and breakpoint files task-relevant instead of demoting them as generic support.
 
 MCP tools:
 

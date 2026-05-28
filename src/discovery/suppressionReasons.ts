@@ -39,11 +39,16 @@ export interface SuppressionInput {
 }
 
 export function explainSuppression(input: SuppressionInput): SuppressionExplanation {
+  const loweredTask = input.task.toLowerCase();
   const loweredPath = input.path.toLowerCase();
-  const frontendTask = /页面|界面|组件|卡片|widget|flutter|frontend|dashboard|card|ui|视觉/.test(
-    input.task.toLowerCase()
+  const frontendTask = /页面|界面|组件|卡片|widget|flutter|frontend|dashboard|card|ui|视觉/.test(loweredTask);
+  const apiTask = /api|接口|endpoint|schema|字段|backend|fastapi|database/.test(loweredTask);
+  const designSystemTask = /design system|design-system|design_system|设计系统|视觉|token|guard|breakpoint|ds-/.test(
+    loweredTask
   );
-  const apiTask = /api|接口|endpoint|schema|字段|backend|fastapi|database/.test(input.task.toLowerCase());
+  const designSystemTokenPath = /modules\/design_system\/theme|theme|tokens|experience_theme|breakpoint/.test(
+    loweredPath
+  );
 
   if (/(^|\/)(e2e|maestro|patrol)(\/|$)|\.maestro\//.test(loweredPath)) {
     return explanation("e2e_artifact", "End-to-end artifact should not drive primary code discovery.", "ignoreForNow");
@@ -102,6 +107,14 @@ export function explainSuppression(input: SuppressionInput): SuppressionExplanat
       "auth_cache_dependency",
       "Auth cache dependency is supporting state infrastructure.",
       "supportingContext"
+    );
+  }
+  if (designSystemTask && designSystemTokenPath) {
+    return explanation(
+      "below_must_read_threshold",
+      "Theme or token file is task-relevant for design-system work; suppress only without strong evidence.",
+      "shouldInspect",
+      0.72
     );
   }
   if (/(modules\/design_system\/theme|theme|tokens)/.test(loweredPath)) {

@@ -11,7 +11,7 @@ Fields:
 - `chainStatus`: `verified_chain`, `partial_chain`, or `candidate_chain`.
 - `chainDepth`: number of steps in the route/page/widget chain.
 - `chainCompleteness`: one of `route_page_only`, `route_main_widget`, `route_section_card`, or `route_test_covered`.
-- `testCoverage`: optional route-to-widget test coverage evidence; tests do not enter `coreChain`.
+- `testCoverage`: optional route-to-widget test coverage evidence with `coverageStrength`; tests do not enter `coreChain`.
 - `mustRead`: strict primary files with role, evidence, and confidence.
 - `coreChain`: route-to-widget or business-flow chain steps.
 - `reuseDecision`: V2 reuse decision with verdict, API fit, missing params, affected callers, and recommended action.

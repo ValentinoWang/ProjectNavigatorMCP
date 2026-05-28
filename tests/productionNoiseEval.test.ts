@@ -25,48 +25,66 @@ describe("production noise eval", () => {
   it("scores suppression reasons, mustRead budget, and route test coverage", () => {
     const repo = copyNoiseRepo();
     const suitePath = path.join(repo, ".pnav", "production-noise-suite.json");
-    writeFileSync(
-      suitePath,
-      JSON.stringify({
-        cases: [
-          {
-            id: "dashboard-noise-suppression",
-            task: "新增 athlete dashboard training trend card",
-            expected: {
-              mustReadAny: [
-                "frontend/lib/core/router/app_router.dart",
-                "frontend/lib/modules/user_core/dashboard/athlete_dashboard_page.dart",
-                "frontend/lib/modules/user_core/dashboard/athlete_dashboard_home_sections.dart"
-              ],
-              mustNotRead: [
-                "backend/**",
-                "frontend/e2e/**",
-                "frontend/screenshots/**",
-                "frontend/qa/**",
-                "frontend/lib/l10n/l10n.dart",
-                "frontend/lib/core/logging/logger.dart",
-                "frontend/lib/core/errors/api_error.dart"
-              ],
-              chainContains: ["route", "page", "widget"],
-              reuseCandidatesAny: ["TrainingTrendCard"],
-              testsAny: ["athlete_dashboard_home_sections_test.dart"],
-              maxMustRead: 5,
-              minChainCompleteness: "route_test_covered",
-              suppressedWithReasons: [
-                { path: "frontend/lib/l10n/l10n.dart", reason: "import_only_l10n_wrapper" },
-                { path: "frontend/lib/core/logging/logger.dart", reason: "logger_utility" },
-                { path: "frontend/lib/core/errors/api_error.dart", reason: "api_error_wrapper" }
-              ]
-            }
-          }
-        ]
-      })
-    );
+    writeFileSync(suitePath, JSON.stringify({ cases: [strictEvalCase()] }));
 
     const result = runDiscoveryEval(repo, suitePath, true);
 
     expect(result.productionScore).toBeGreaterThanOrEqual(0.9);
     expect(result.cases[0]?.metrics.suppressionReasonQuality).toBe(1);
+    expect(result.cases[0]?.hardFailures).toEqual([]);
     expect(result.passed).toBe(true);
   }, 15_000);
+
+  it("fails strict eval on hard suppression reason mismatches even when score remains high", () => {
+    const repo = copyNoiseRepo();
+    const suitePath = path.join(repo, ".pnav", "production-noise-hard-fail-suite.json");
+    const brokenCase = strictEvalCase();
+    brokenCase.expected.suppressedWithReasons = [
+      { path: "frontend/lib/l10n/l10n.dart", reason: "logger_utility" },
+      { path: "frontend/lib/core/logging/logger.dart", reason: "logger_utility" },
+      { path: "frontend/lib/core/errors/api_error.dart", reason: "api_error_wrapper" }
+    ];
+    writeFileSync(suitePath, JSON.stringify({ cases: [brokenCase] }));
+
+    const result = runDiscoveryEval(repo, suitePath, true);
+
+    expect(result.cases[0]?.metrics.productionScore).toBeGreaterThanOrEqual(0.9);
+    expect(result.cases[0]?.metrics.suppressionReasonQuality).toBeLessThan(1);
+    expect(result.cases[0]?.hardFailures).toContain("suppression_reason_mismatch");
+    expect(result.cases[0]?.passed).toBe(false);
+    expect(result.passed).toBe(false);
+  }, 15_000);
 });
+
+function strictEvalCase() {
+  return {
+    id: "dashboard-noise-suppression",
+    task: "新增 athlete dashboard training trend card",
+    expected: {
+      mustReadAny: [
+        "frontend/lib/core/router/app_router.dart",
+        "frontend/lib/modules/user_core/dashboard/athlete_dashboard_page.dart",
+        "frontend/lib/modules/user_core/dashboard/athlete_dashboard_home_sections.dart"
+      ],
+      mustNotRead: [
+        "backend/**",
+        "frontend/e2e/**",
+        "frontend/screenshots/**",
+        "frontend/qa/**",
+        "frontend/lib/l10n/l10n.dart",
+        "frontend/lib/core/logging/logger.dart",
+        "frontend/lib/core/errors/api_error.dart"
+      ],
+      chainContains: ["route", "page", "widget"],
+      reuseCandidatesAny: ["TrainingTrendCard"],
+      testsAny: ["athlete_dashboard_home_sections_test.dart"],
+      maxMustRead: 5,
+      minChainCompleteness: "route_test_covered",
+      suppressedWithReasons: [
+        { path: "frontend/lib/l10n/l10n.dart", reason: "import_only_l10n_wrapper" },
+        { path: "frontend/lib/core/logging/logger.dart", reason: "logger_utility" },
+        { path: "frontend/lib/core/errors/api_error.dart", reason: "api_error_wrapper" }
+      ]
+    }
+  };
+}

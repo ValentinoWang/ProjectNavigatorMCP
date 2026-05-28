@@ -249,3 +249,6 @@ v0.8.2 keeps the MVP local-first but hardens Discovery Mode output:
 - `chainCompleteness` may be `route_test_covered` only when related tests exist for route/page/widget chain files.
 - `reuseDecision.affectedCallers` reports symbol-graph caller paths when available.
 - Production eval suites can require suppression reasons, maximum mustRead size, and minimum chain completeness.
+- Strict eval hard-fails when those required production boundaries are violated.
+- Test coverage is strong only when direct/naming test relationships cover chain files; related search remains weak coverage.
+- Design-system token/theme tasks keep theme and breakpoint files task-relevant.

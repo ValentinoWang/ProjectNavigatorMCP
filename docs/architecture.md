@@ -184,7 +184,9 @@ It should include:
 
 For production Discovery Mode, the context capsule should prefer `authoritativeHandoff`: a
 strict handoff with capped `mustRead`, route-to-widget chain completeness, precise
-suppression reasons, reuse affected callers, and test coverage evidence.
+suppression reasons, reuse affected callers, and test coverage evidence. Strict eval should
+treat forbidden mustRead files, missing suppression reasons, over-budget mustRead, and
+insufficient chain completeness as hard failures instead of relying only on weighted score.
 
 ## Future Enhancements
 

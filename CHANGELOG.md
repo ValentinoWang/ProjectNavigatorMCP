@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.8.3
+
+Strict Eval & Coverage Truthfulness release.
+
+- Added strict eval hard failures for `mustNotRead` leaks, `maxMustRead` budget overruns, missing suppression reasons, and insufficient chain completeness.
+- Added `hardFailures` to production eval case results so strict failures are inspectable even when weighted score remains high.
+- Tightened `route_test_covered` so only strong direct/naming test relationships trigger it; related-search tests are reported as weak coverage.
+- Added `coverageStrength` and `weakCovered` to route-to-widget test coverage metadata.
+- Protected design-system token/theme tasks so `experience_theme.dart` and breakpoint/token files are not demoted as generic `theme_token_support`.
+
 ## v0.8.2
 
 Production Gate Regression Fix release.

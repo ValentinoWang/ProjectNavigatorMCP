@@ -54,6 +54,40 @@ describe("production gate suppression reasons", () => {
       expect(findSuppressed(result, item.path)?.reasonDetail).toBeTruthy();
     }
   });
+
+  it("does not treat design-system theme tokens as support for design-system tasks", () => {
+    const weakResult = strictMustReadGate("修复 DS-BREAKPOINT raw width design system token", [
+      {
+        path: "frontend/lib/modules/design_system/theme/experience_theme.dart",
+        score: 0.9,
+        role: "ranked_candidate",
+        why: "design system token task",
+        evidence: ["ranked_discovery"]
+      }
+    ]);
+
+    expect(weakResult.mustRead).toEqual([]);
+    expect(
+      findSuppressed(weakResult, "frontend/lib/modules/design_system/theme/experience_theme.dart")?.reason
+    ).not.toBe("theme_token_support");
+    expect(
+      findSuppressed(weakResult, "frontend/lib/modules/design_system/theme/experience_theme.dart")?.downgradedTo
+    ).toBe("shouldInspect");
+
+    const directResult = strictMustReadGate("修复 DS-BREAKPOINT raw width design system token", [
+      {
+        path: "frontend/lib/modules/design_system/theme/experience_theme.dart",
+        score: 0.9,
+        role: "direct_target",
+        why: "guard target",
+        evidence: ["direct_target"]
+      }
+    ]);
+
+    expect(directResult.mustRead.map((file) => file.path)).toContain(
+      "frontend/lib/modules/design_system/theme/experience_theme.dart"
+    );
+  });
 });
 
 function findSuppressed(result: ReturnType<typeof strictMustReadGate>, filePath: string) {

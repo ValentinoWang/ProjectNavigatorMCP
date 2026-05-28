@@ -7,7 +7,18 @@ export type DependencyTier =
 export function classifyDependencyTier(task: string, filePath: string, evidenceKinds: string[] = []): DependencyTier {
   const path = filePath.toLowerCase();
   const loweredTask = task.toLowerCase();
-  const designSystemTask = /design system|设计系统|视觉|token|guard/.test(loweredTask);
+  const designSystemTask = /design system|design-system|design_system|设计系统|视觉|token|guard|breakpoint|ds-/.test(
+    loweredTask
+  );
+  if (
+    designSystemTask &&
+    (path.includes("/modules/design_system/theme/") ||
+      path.includes("/tokens/") ||
+      path.includes("experience_theme") ||
+      path.includes("breakpoint"))
+  ) {
+    return "core_implementation";
+  }
   if (
     !designSystemTask &&
     (path.includes("/modules/design_system/components/") ||

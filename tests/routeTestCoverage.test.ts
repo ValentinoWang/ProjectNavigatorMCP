@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -30,9 +30,29 @@ describe("route-to-widget test coverage", () => {
     expect(result.completeness).toBe("route_test_covered");
     expect(result.depth).toBeGreaterThanOrEqual(3);
     expect(result.testCoverage?.covered).toBe(true);
+    expect(result.testCoverage?.coverageStrength).toBe("strong");
     expect(
       result.testCoverage?.testFiles.some((file) => file.includes("athlete_dashboard_home_sections_test.dart"))
     ).toBe(true);
+  });
+
+  it("does not report route_test_covered for weak related-search tests", () => {
+    const repo = copyNoiseRepo();
+    rmSync(path.join(repo, "frontend/test/modules/user_core/dashboard/athlete_dashboard_home_sections_test.dart"), {
+      force: true
+    });
+    writeFileSync(
+      path.join(repo, "frontend/test/modules/user_core/dashboard/dashboard_smoke_test.dart"),
+      "void main() {}\n"
+    );
+    scanRepo(repo);
+
+    const result = findFlutterRouteToWidgetChain(repo, "新增 athlete dashboard training trend card");
+
+    expect(["route_main_widget", "route_section_card"]).toContain(result.completeness);
+    expect(result.testCoverage?.covered).toBe(false);
+    expect(result.testCoverage?.coverageStrength).toBe("weak");
+    expect(result.testCoverage?.weakCovered).toBe(true);
   });
 
   it("falls back to implementation depth when no chain tests exist", () => {
@@ -44,5 +64,6 @@ describe("route-to-widget test coverage", () => {
 
     expect(["route_main_widget", "route_section_card"]).toContain(result.completeness);
     expect(result.testCoverage?.covered).toBe(false);
+    expect(result.testCoverage?.coverageStrength).toBe("weak");
   });
 });

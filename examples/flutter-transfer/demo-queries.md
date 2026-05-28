@@ -112,6 +112,7 @@ Expected result should include:
 
 - `authoritativeHandoff.mustRead` capped at five files.
 - `authoritativeHandoff.chainCompleteness` no higher than the evidence supports; `route_test_covered` requires related tests.
+- `authoritativeHandoff.testCoverage.coverageStrength` should be `strong` before `route_test_covered` is trusted.
 - `authoritativeHandoff.supportingContext` and `suppressedCandidates` with precise reasons for support dependencies and artifacts.
 - `authoritativeHandoff.reuseDecision.affectedCallers` when a reusable component has symbol-graph callers.
 - no backend, screenshot, QA, E2E, logger, l10n, or API-error wrapper files in `mustRead` unless explicitly requested.

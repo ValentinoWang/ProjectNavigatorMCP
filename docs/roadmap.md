@@ -112,6 +112,15 @@ Production Gate Regression Fix:
 - `reuseDecision.affectedCallers` populated from symbol graph caller paths.
 - Strict eval expectations for suppression reasons, mustRead budget, and minimum chain completeness.
 
+## v0.8.3
+
+Strict Eval & Coverage Truthfulness:
+
+- Strict eval hard-fails on mustRead leaks, budget overruns, missing suppression reasons, and insufficient chain completeness.
+- Route test coverage distinguishes strong direct/naming coverage from weak related-search tests.
+- `route_test_covered` requires strong coverage.
+- Design-system token/theme tasks avoid generic theme-token suppression.
+
 ## v0.9
 
 Scanner accuracy and optional language intelligence backends:
