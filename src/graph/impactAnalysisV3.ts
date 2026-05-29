@@ -1,4 +1,5 @@
 import { discoverCode } from "../discovery/discoverCode.js";
+import type { EvidenceItem } from "../discovery/types.js";
 import { findReusableComponents } from "../discovery/reuse.js";
 import { findCallers, findCallees } from "../discovery/symbolGraph.js";
 import { relatedTests } from "./relatedTests.js";
@@ -17,6 +18,7 @@ export interface ImpactAnalysisV3Result {
     cochangeOnly: string[];
     riskLevel: "low" | "medium" | "high";
     why: string[];
+    evidence: EvidenceItem[];
   };
 }
 
@@ -70,6 +72,15 @@ export function impactAnalysisV3(repoPath: string, target: string, task = target
         "UI composition and entrypoint evidence outrank import-only consumers.",
         "Tests and guards require path/name evidence before becoming critical impact.",
         "Git co-change neighbors are secondary evidence only."
+      ],
+      evidence: [
+        { type: "symbol_graph", detail: "Direct callers and callees from symbol_edges.", freshness: "fresh" },
+        { type: "test_relation", detail: "Related tests and guards from path/name evidence.", freshness: "fresh" },
+        {
+          type: "git_cochange",
+          detail: "Co-change neighbors are secondary and stale until the next full scan.",
+          freshness: "stale_until_full_scan"
+        }
       ]
     }
   };

@@ -1,0 +1,499 @@
+{
+  "suitePath": "/Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer/.agents/pnav/discovery-suite.json",
+  "productionScore": 1,
+  "totalLatencyMs": 9721,
+  "slowestStages": [
+    {
+      "stage": "entrypointsMs",
+      "latencyMs": 7831
+    },
+    {
+      "stage": "handoffMs",
+      "latencyMs": 1039
+    },
+    {
+      "stage": "relatedTestsMs",
+      "latencyMs": 642
+    },
+    {
+      "stage": "workflowProfilesMs",
+      "latencyMs": 141
+    },
+    {
+      "stage": "readOrderMs",
+      "latencyMs": 30
+    }
+  ],
+  "indexStatus": {
+    "workflowProfilesFresh": true,
+    "evalSuitesFresh": true,
+    "commandsFresh": true,
+    "documentsFresh": true,
+    "codeGraphFresh": true,
+    "codeGraphStale": false
+  },
+  "evalValidity": {
+    "scoreScope": "full_graph",
+    "freshCodeGraphRequired": false,
+    "validFor": [
+      "fresh route and symbol discovery",
+      "fresh symbol graph",
+      "fresh impact analysis",
+      "workflow profile matching"
+    ],
+    "notValidFor": []
+  },
+  "cacheStats": {
+    "fileCatalog": {
+      "hits": 11,
+      "misses": 1
+    },
+    "symbolCatalog": {
+      "hits": 11,
+      "misses": 1
+    },
+    "routeCatalog": {
+      "hits": 11,
+      "misses": 1
+    },
+    "testCatalog": {
+      "hits": 11,
+      "misses": 1
+    },
+    "commandCatalog": {
+      "hits": 11,
+      "misses": 1
+    },
+    "workflowProfiles": {
+      "hits": 0,
+      "misses": 12
+    },
+    "entrypointCatalog": {
+      "hits": 11,
+      "misses": 1
+    },
+    "entrypoints": {
+      "hits": 0,
+      "misses": 12
+    },
+    "relatedFiles": {
+      "hits": 0,
+      "misses": 12
+    },
+    "symbols": {
+      "hits": 0,
+      "misses": 12
+    },
+    "reuse": {
+      "hits": 0,
+      "misses": 12
+    },
+    "relatedTests": {
+      "hits": 0,
+      "misses": 12
+    },
+    "callGraph": {
+      "hits": 0,
+      "misses": 12
+    },
+    "readOrder": {
+      "hits": 0,
+      "misses": 12
+    },
+    "handoffBase": {
+      "hits": 0,
+      "misses": 12
+    },
+    "whyRelated": {
+      "hits": 0,
+      "misses": 12
+    }
+  },
+  "cases": [
+    {
+      "id": "dashboard-training-trend-card",
+      "task": "新增 athlete dashboard training trend card，展示最近训练负荷趋势，并接入现有 dashboard 布局",
+      "latencyMs": 842,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 18,
+        "entrypointsMs": 233,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 12,
+        "callGraphMs": 0,
+        "readOrderMs": 1,
+        "handoffMs": 549,
+        "whyRelatedMs": 0,
+        "totalMs": 842
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "workspace-microplan-scroll-sliver",
+      "task": "修复 workspace microplan 页面窄屏滚动和 sliver 布局问题",
+      "latencyMs": 605,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 1,
+        "entrypointsMs": 119,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 7,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 478,
+        "whyRelatedMs": 0,
+        "totalMs": 605
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "identity-switch-navigation-state",
+      "task": "修复 personal/org identity switch 后 dashboard、bottom nav、identity capsule 显示旧角色的问题",
+      "latencyMs": 193,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 1,
+        "entrypointsMs": 173,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 17,
+        "callGraphMs": 0,
+        "readOrderMs": 1,
+        "handoffMs": 1,
+        "whyRelatedMs": 0,
+        "totalMs": 193
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "cycle-plan-builder-stepper-save",
+      "task": "修复 cycle plan builder stepper 在移动端溢出，并确认保存流程不破坏 template detail",
+      "latencyMs": 493,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 1,
+        "entrypointsMs": 471,
+        "relatedFilesMs": 2,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 18,
+        "callGraphMs": 0,
+        "readOrderMs": 1,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 493
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "training-summary-api-trend-slope",
+      "task": "给 athlete training summary API 增加 trendSlope 字段，并让 dashboard 使用生成 SDK 消费",
+      "latencyMs": 1272,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 1,
+        "entrypointsMs": 1206,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 60,
+        "callGraphMs": 0,
+        "readOrderMs": 1,
+        "handoffMs": 4,
+        "whyRelatedMs": 0,
+        "totalMs": 1272
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "data-sharing-coach-request-authz",
+      "task": "修复 coach 请求 athlete 数据共享时，未授权 workspace 能看到申请入口的问题",
+      "latencyMs": 1318,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 2,
+        "entrypointsMs": 1146,
+        "relatedFilesMs": 4,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 152,
+        "callGraphMs": 0,
+        "readOrderMs": 13,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 1318
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "competition-detail-mobile-density",
+      "task": "修复 competition detail hub 在 iOS 窄屏下信息密度过低、CTA 重复、截图验收失败",
+      "latencyMs": 565,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 1,
+        "entrypointsMs": 514,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 48,
+        "callGraphMs": 0,
+        "readOrderMs": 1,
+        "handoffMs": 1,
+        "whyRelatedMs": 0,
+        "totalMs": 565
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "exercise-prescription-read-dto",
+      "task": "调整 exercise prescription engine 输出结构，并确保 workspace exercise builder 和 read DTO 一致",
+      "latencyMs": 726,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 8,
+        "entrypointsMs": 675,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 36,
+        "callGraphMs": 0,
+        "readOrderMs": 6,
+        "handoffMs": 1,
+        "whyRelatedMs": 0,
+        "totalMs": 726
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "session-plan-start-time-index",
+      "task": "给 session plan start time 查询新增索引，并确认 migration、model、runtime schema guard 一致",
+      "latencyMs": 1781,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 1,
+        "entrypointsMs": 1543,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 1,
+        "relatedTestsMs": 230,
+        "callGraphMs": 0,
+        "readOrderMs": 0,
+        "handoffMs": 5,
+        "whyRelatedMs": 1,
+        "totalMs": 1781
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "frontend-card-layout-guard-triage",
+      "task": "frontend card layout guard 失败，定位真实页面、修复 source layer，并补测试",
+      "latencyMs": 936,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 105,
+        "entrypointsMs": 807,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 23,
+        "callGraphMs": 0,
+        "readOrderMs": 1,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 936
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "auth-401-dashboard-stale-data",
+      "task": "修复 dashboard API 401 后页面继续显示旧数据而不是触发 auth boundary 的问题",
+      "latencyMs": 542,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 1,
+        "entrypointsMs": 518,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 19,
+        "callGraphMs": 0,
+        "readOrderMs": 4,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 542
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    },
+    {
+      "id": "role-visual-web-full-matrix-gap",
+      "task": "补齐 role visual web full matrix 中 athlete dashboard 和 competitions 页面缺失截图，并更新 manifest",
+      "latencyMs": 448,
+      "latencyBreakdown": {
+        "workflowProfilesMs": 1,
+        "entrypointsMs": 426,
+        "relatedFilesMs": 0,
+        "symbolsMs": 0,
+        "reuseMs": 0,
+        "relatedTestsMs": 20,
+        "callGraphMs": 0,
+        "readOrderMs": 1,
+        "handoffMs": 0,
+        "whyRelatedMs": 0,
+        "totalMs": 448
+      },
+      "metrics": {
+        "mustReadPrecision": 1,
+        "mustReadCoverage": 1,
+        "routeToWidgetChainAccuracy": 1,
+        "reuseDecisionAccuracy": 1,
+        "impactCriticalCoverage": 1,
+        "noiseSuppression": 1,
+        "suppressionReasonQuality": 1,
+        "explanationQuality": 1,
+        "stabilityAndLatency": 1,
+        "productionScore": 1
+      },
+      "hardFailures": [],
+      "passed": true
+    }
+  ],
+  "passed": true
+}

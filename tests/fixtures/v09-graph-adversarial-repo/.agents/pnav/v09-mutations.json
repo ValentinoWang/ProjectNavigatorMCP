@@ -1,0 +1,44 @@
+{
+  "mutations": [
+    {
+      "id": "rename_exported_symbol",
+      "steps": [
+        {
+          "type": "writeFile",
+          "path": "src/A.ts",
+          "content": "export function FooV2() {\n  return 2;\n}\n"
+        },
+        {
+          "type": "writeFile",
+          "path": "src/B.ts",
+          "content": "import { FooV2 } from \"./A\";\n\nexport function callFoo() {\n  return FooV2();\n}\n"
+        }
+      ],
+      "queries": {
+        "callers": [{ "id": "foo-v2", "symbol": "FooV2" }],
+        "callees": [{ "id": "call-foo", "symbol": "callFoo" }]
+      }
+    },
+    {
+      "id": "delete_source_file",
+      "steps": [{ "type": "deleteFile", "path": "src/DeleteMe.ts" }],
+      "queries": {
+        "callers": [{ "id": "deleted-symbol", "symbol": "DeletedSymbol" }]
+      }
+    },
+    {
+      "id": "route_widget_mutation",
+      "steps": [
+        {
+          "type": "writeFile",
+          "path": "frontend/lib/dashboard_page.dart",
+          "content": "class DashboardPage {\n  DashboardPage() {\n    DashboardHome();\n  }\n}\n\nclass DashboardHome {\n  DashboardHome() {\n    TrainingTrendCard();\n  }\n}\n\nclass TrainingTrendCard {}\n"
+        }
+      ],
+      "queries": {
+        "discover": [{ "id": "dashboard", "task": "dashboard route widget mutation" }],
+        "traceFeature": [{ "id": "dashboard", "task": "dashboard route widget mutation" }]
+      }
+    }
+  ]
+}

@@ -87,7 +87,7 @@ export function runDiscoveryEval(
     });
     const latencyMs = timing.totalMs;
     const metrics = scoreDiscoveryResult(result, item.expected, latencyMs);
-    const hardFailures = options.strict ? strictHardFailures(metrics, item, result, indexStatus) : [];
+    const hardFailures = options.strict ? strictHardFailures(metrics, item, result, indexStatus, latencyMs) : [];
     return {
       id: item.id,
       task: item.task,
@@ -183,14 +183,24 @@ function strictHardFailures(
   metrics: EvalMetrics,
   item: EvalCase,
   result: DiscoveryResult,
-  indexStatus: EvalIndexStatus
+  indexStatus: EvalIndexStatus,
+  latencyMs: number
 ): string[] {
   const expected = item.expected;
   const failures: string[] = [];
   if ((item.requiresFreshCodeGraph || expected.requiresFreshCodeGraph) && indexStatus.codeGraphStale) {
     failures.push("fresh_code_graph_required_but_stale");
   }
+  if (expected.requiresEquivalentToFull && indexStatus.codeGraphStale) {
+    failures.push("partial_not_equivalent_to_full");
+  }
+  if (expected.maxFreshEvalMs !== undefined && !indexStatus.codeGraphStale && latencyMs > expected.maxFreshEvalMs) {
+    failures.push("fresh_eval_latency_budget_exceeded");
+  }
   const mustReadPaths = result.authoritativeHandoff.mustRead.map((item) => item.path);
+  if (mustReadPaths.some((file) => file.includes("(deleted)") || file.endsWith(".deleted"))) {
+    failures.push("deleted_file_in_must_read");
+  }
   if (expected.maxMustRead !== undefined && mustReadPaths.length > expected.maxMustRead) {
     failures.push("max_must_read_exceeded");
   }
@@ -294,7 +304,16 @@ function strictHardFailures(
   if ((expected.fallbackCommandNotContains ?? []).some((needle) => fallbackText.includes(needle.toLowerCase()))) {
     failures.push("fallback_command_forbidden");
   }
+  if (expected.forbidStaleCriticalEvidence && hasStaleCriticalEvidence(result)) {
+    failures.push("stale_critical_evidence");
+  }
   return failures;
+}
+
+function hasStaleCriticalEvidence(result: DiscoveryResult): boolean {
+  return result.authoritativeHandoff.mustRead.some((file) =>
+    file.evidence.some((item) => /stale|cochange|duplicate/.test(item.toLowerCase()))
+  );
 }
 
 function slowestStages(cases: EvalCaseResult[]): Array<{ stage: keyof DiscoveryTimingBreakdown; latencyMs: number }> {

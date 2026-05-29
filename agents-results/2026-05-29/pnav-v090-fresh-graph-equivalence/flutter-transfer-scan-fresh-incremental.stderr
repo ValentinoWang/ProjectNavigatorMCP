@@ -1,0 +1,4 @@
+[scan] loading_config
+[scan] hashing_files
+[scan] incremental_diff {"changed":49,"deleted":0,"changeKind":"code_graph","changePlanes":{"workflowProfiles":0,"evalSuites":0,"commandSources":0,"docs":0,"codeGraph":49,"deleted":0},"actions":["batch_partial_graph_update","update_changed_files","reindex_changed_code_files","expand_affected_callers","rewire_stable_incoming_symbol_edges","recompute_duplicate_clusters"]}
+[scan] partial_graph_update {"files":49,"limit":100}

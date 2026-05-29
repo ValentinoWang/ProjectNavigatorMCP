@@ -26,6 +26,8 @@ pnav init /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
 pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --incremental
 pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --incremental --metadata-only
 pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --incremental --verify-partial
+pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --incremental --verify-partial --compare-full
+pnav graph-snapshot /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --out agents-results/graph-snapshot.json
 pnav map /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
 ```
 
@@ -151,6 +153,14 @@ For each task in the suite, also run:
 pnav discover /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "<task>" --limit 15
 pnav capsule /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "<task>"
 pnav trace-feature /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "<task>" --limit 8
+```
+
+Fresh graph benchmark:
+
+```bash
+pnav benchmark-fresh-graph /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer \
+  --suite /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer/.agents/pnav/discovery-suite.json \
+  --out agents-results/fresh-graph-benchmark.json
 ```
 
 Expected trace behavior:

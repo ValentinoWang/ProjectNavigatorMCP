@@ -123,6 +123,16 @@ Strict Eval & Coverage Truthfulness:
 
 ## v0.9
 
+Fresh Graph Correctness & Equivalence:
+
+- Stable graph snapshots for partial-vs-full comparisons.
+- Mutation-suite based equivalence verification.
+- Evidence freshness propagation and stale-critical-evidence guards.
+- Fresh graph benchmark suite.
+- Adversarial fixtures for rename, delete, caller expansion, route mutation, and stale duplicate/co-change cases.
+
+## v0.10
+
 Scanner accuracy and optional language intelligence backends:
 
 - Richer import alias resolution.

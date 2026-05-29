@@ -1,0 +1,93 @@
+{
+  "repoRoot": "/Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer",
+  "gitSha": "56d8e6bb",
+  "files": 5579,
+  "symbols": 33935,
+  "imports": 19768,
+  "routes": 442,
+  "tests": 832,
+  "commands": 111,
+  "rules": 300,
+  "documents": 65,
+  "coChanges": 2000,
+  "incremental": {
+    "mode": "incremental",
+    "filesTotal": 5579,
+    "filesChanged": 5,
+    "filesSkipped": 5574,
+    "filesDeleted": 0,
+    "durationMs": 34531,
+    "changedPaths": [
+      "frontend/lib/core/qa/qa_visual_state.dart",
+      "frontend/lib/core/router/qa_runtime_deep_link_listener.dart",
+      "frontend/lib/modules/auth/login_page.dart",
+      "frontend/test/core/router/qa_runtime_deep_link_listener_test.dart",
+      "frontend/test/modules/auth/login_page_first_click_test.dart"
+    ],
+    "deletedPaths": [],
+    "changeKind": "code_graph",
+    "changePlanes": {
+      "workflowProfiles": [],
+      "evalSuites": [],
+      "commandSources": [],
+      "docs": [],
+      "codeGraph": [
+        "frontend/lib/core/qa/qa_visual_state.dart",
+        "frontend/lib/core/router/qa_runtime_deep_link_listener.dart",
+        "frontend/lib/modules/auth/login_page.dart",
+        "frontend/test/core/router/qa_runtime_deep_link_listener_test.dart",
+        "frontend/test/modules/auth/login_page_first_click_test.dart"
+      ],
+      "deleted": []
+    },
+    "changePlaneCounts": {
+      "workflowProfiles": 0,
+      "evalSuites": 0,
+      "commandSources": 0,
+      "docs": 0,
+      "codeGraph": 5,
+      "deleted": 0
+    },
+    "actions": [
+      "update_changed_files",
+      "reindex_changed_code_files",
+      "expand_affected_callers",
+      "rewire_stable_incoming_symbol_edges",
+      "recompute_duplicate_clusters"
+    ],
+    "stages": [
+      "update_changed_files",
+      "reindex_changed_code_files",
+      "expand_affected_callers",
+      "rewire_stable_incoming_symbol_edges",
+      "recompute_duplicate_clusters"
+    ],
+    "codeGraphStale": false,
+    "conservativeFullRebuild": false,
+    "partialGraphUpdate": true,
+    "partialGraphVersion": 2,
+    "changedCodeFiles": 5,
+    "deletedCodeFiles": 0,
+    "invalidatedFiles": 46,
+    "reindexedFiles": 46,
+    "staleEdges": 0,
+    "affectedCallerExpansion": {
+      "enabled": true,
+      "changedFiles": 5,
+      "candidateCallers": 46,
+      "reindexedCallers": 41,
+      "skippedCallers": 0,
+      "staleIncomingEdges": 0,
+      "reason": "import_edges_or_import_bindings_or_symbol_edges_or_symbol_token_match_or_same_module_neighbor"
+    },
+    "freshness": {
+      "fileCatalog": "fresh",
+      "symbolGraph": "fresh",
+      "importGraph": "fresh",
+      "routeGraph": "fresh",
+      "testGraph": "fresh",
+      "duplicateClusters": "partial",
+      "coChangeGraph": "stale_until_full_scan"
+    }
+  }
+}

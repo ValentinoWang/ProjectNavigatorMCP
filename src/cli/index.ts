@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { Command } from "commander";
+import { benchmarkFreshGraph } from "../benchmark/freshGraphBenchmark.js";
 import { prepareTaskContext } from "../capsule/prepareTaskContext.js";
 import { renderCapsule } from "../capsule/renderCapsule.js";
 import { discoverCode } from "../discovery/discoverCode.js";
@@ -13,11 +14,13 @@ import { findReusableComponents, findSimilarCode } from "../discovery/reuse.js";
 import { findCallers, findCallees, traceSymbol } from "../discovery/symbolGraph.js";
 import { whyRelated } from "../discovery/whyRelated.js";
 import { runDiscoveryEval } from "../eval/evalRunner.js";
+import { runEquivalenceSuite } from "../eval/equivalenceRunner.js";
 import { analyzeGuardOutput } from "../guard/analyzeGuardOutput.js";
 import { explainGuardRule } from "../guard/ruleRegistry.js";
 import { getWorktreeStatus } from "../git/worktreeStatus.js";
 import { impactAnalysisV2 } from "../graph/impactAnalysisV2.js";
 import { impactAnalysisV3 } from "../graph/impactAnalysisV3.js";
+import { writeGraphSnapshot } from "../graph/graphSnapshot.js";
 import { getRepoMap, renderRepoMap } from "../graph/repoMap.js";
 import { startMcpServer } from "../mcp/server.js";
 import { rememberTask, searchProjectMemory } from "../memory/memory.js";
@@ -58,15 +61,23 @@ program
   .option("--full", "Force a full scan rebuild")
   .option("--metadata-only", "Refresh metadata planes and mark source changes stale without rebuilding the code graph")
   .option("--verify-partial", "After a partial incremental update, report partial-vs-full verification metadata")
+  .option("--compare-full", "Compare a partial incremental update against a full scan in a temporary repo copy")
   .action(
     (
       repo: string,
-      options: { incremental?: boolean; full?: boolean; metadataOnly?: boolean; verifyPartial?: boolean }
+      options: {
+        incremental?: boolean;
+        full?: boolean;
+        metadataOnly?: boolean;
+        verifyPartial?: boolean;
+        compareFull?: boolean;
+      }
     ) => {
       const result = scanRepo(repo, {
         mode: options.incremental && !options.full ? "incremental" : "full",
         metadataOnly: Boolean(options.metadataOnly),
         verifyPartial: Boolean(options.verifyPartial),
+        compareFull: Boolean(options.compareFull),
         progress: {
           stage: (name, payload) => {
             const suffix = payload ? ` ${JSON.stringify(payload)}` : "";
@@ -77,6 +88,41 @@ program
       console.log(JSON.stringify(result, null, 2));
     }
   );
+
+program
+  .command("graph-snapshot")
+  .description("Export a stable graph snapshot for equivalence checks")
+  .argument("<repo>", "Target repository path")
+  .requiredOption("--out <json>", "Output JSON path")
+  .action((repo: string, options: { out: string }) => {
+    console.log(JSON.stringify(writeGraphSnapshot(repo, options.out), null, 2));
+  });
+
+program
+  .command("verify-equivalence")
+  .description("Compare partial incremental graph results against full scan results for a mutation suite")
+  .argument("<repo>", "Target repository path")
+  .requiredOption("--mutation-suite <json>", "Mutation suite JSON path")
+  .option("--out <json>", "Optional output JSON path")
+  .action((repo: string, options: { mutationSuite: string; out?: string }) => {
+    const result = runEquivalenceSuite(repo, options.mutationSuite);
+    if (options.out) {
+      writeFileSync(options.out, `${JSON.stringify(result, null, 2)}\n`);
+    }
+    console.log(JSON.stringify(result, null, 2));
+  });
+
+program
+  .command("benchmark-fresh-graph")
+  .description("Benchmark full, incremental, partial, and eval freshness paths")
+  .argument("<repo>", "Target repository path")
+  .requiredOption("--suite <json>", "Discovery eval suite JSON")
+  .requiredOption("--out <json>", "Output JSON path")
+  .action((repo: string, options: { suite: string; out: string }) => {
+    const result = benchmarkFreshGraph(repo, options.suite);
+    writeFileSync(options.out, `${JSON.stringify(result, null, 2)}\n`);
+    console.log(JSON.stringify(result, null, 2));
+  });
 
 program
   .command("map")

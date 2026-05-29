@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.9.0
+
+Fresh Graph Correctness & Equivalence release.
+
+- Added stable graph snapshots for file, symbol, import binding, route, test, code block, symbol-edge, and freshness planes.
+- Added partial-vs-full equivalence verification through `pnav verify-equivalence` and `pnav scan --incremental --verify-partial --compare-full`.
+- Added fresh graph benchmarking through `pnav benchmark-fresh-graph`.
+- Added `EvidenceFreshness` and propagated freshness to symbol graph and impact evidence.
+- Added strict eval v2 fields for fresh/equivalent graph checks and stale critical evidence guards.
+- Added v0.9 adversarial graph fixture coverage for rename, delete, and route/widget mutation equivalence.
+- Moved optional Tree-sitter, LSP, and SCIP backend work to v0.10 in the roadmap.
+
 ## v0.8.6
 
 Fresh Graph & Deep Runtime Cache release.

@@ -153,6 +153,25 @@ requested.
 attempted. The verifier output documents allowed differences such as stale co-change evidence and
 partial duplicate clusters.
 
+`pnav scan --incremental --verify-partial --compare-full` performs the comparison against a full
+scan in a temporary repo copy and fills `partialVerification.passed` plus deterministic
+differences.
+
+`pnav graph-snapshot <repo> --out <json>` writes a stable snapshot of files, symbols,
+import bindings, routes, tests, code blocks, symbol edges, freshness, and counts. Snapshot keys are
+path/symbol based rather than SQLite row-id based.
+
+`pnav verify-equivalence <repo> --mutation-suite <json>` returns:
+
+- `passed`: whether every mutation matched partial-vs-full expectations.
+- `results[]`: one `EquivalenceResult` per mutation.
+- `graphDiff`, `queryDiff`, `evidenceDiff`: deterministic differences.
+- `hardFailures`: non-allowed equivalence failures.
+- `allowedDifferences`: documented differences such as stale co-change evidence.
+
+`pnav benchmark-fresh-graph <repo> --suite <json> --out <json>` returns full, no-change
+incremental, metadata-only, partial, fresh eval, and metadata eval timings with cache stats.
+
 ## v0.7 Discovery Quality Fields
 
 `discover_code.data` returns the authoritative Discovery Mode tiers:
@@ -218,6 +237,8 @@ Only existing files from a profile can enter `mustRead` or `supportingContext`.
 - `fallbackCommandNotContains` to prevent noisy generic commands from becoming fallback suggestions.
 - `profileSourcesAny` to require `repo_local` or `built_in` profile provenance.
 - `requiresFreshCodeGraph` to make strict metadata-only eval fail when the source graph is stale.
+- `requiresEquivalentToFull`, `forbidStaleCriticalEvidence`, and `maxFreshEvalMs` for fresh graph
+  strict eval checks.
 
 The eval metric `suppressionReasonQuality` defaults to `1` when no suppression reason expectations are provided.
 

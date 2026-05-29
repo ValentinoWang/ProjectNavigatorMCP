@@ -85,7 +85,11 @@ interface GraphRow {
 }
 
 function toTraceHit(row: GraphRow): SymbolTraceHit {
-  const evidence = safeArray(row.evidenceJson).map((detail) => ({ type: "symbol_edge", detail }));
+  const evidence = safeArray(row.evidenceJson).map((detail) => ({
+    type: "symbol_edge",
+    detail,
+    freshness: "fresh" as const
+  }));
   return {
     symbol: row.name,
     qualifiedName: row.qualifiedName,

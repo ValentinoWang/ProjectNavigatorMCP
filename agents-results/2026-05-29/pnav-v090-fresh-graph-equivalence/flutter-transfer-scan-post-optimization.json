@@ -1,0 +1,68 @@
+{
+  "repoRoot": "/Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer",
+  "gitSha": "56d8e6bb",
+  "files": 5579,
+  "symbols": 33935,
+  "imports": 19768,
+  "routes": 442,
+  "tests": 832,
+  "commands": 111,
+  "rules": 300,
+  "documents": 65,
+  "coChanges": 2000,
+  "incremental": {
+    "mode": "incremental",
+    "filesTotal": 5579,
+    "filesChanged": 0,
+    "filesSkipped": 5579,
+    "filesDeleted": 0,
+    "durationMs": 6070,
+    "changedPaths": [],
+    "deletedPaths": [],
+    "changeKind": "none",
+    "changePlanes": {
+      "workflowProfiles": [],
+      "evalSuites": [],
+      "commandSources": [],
+      "docs": [],
+      "codeGraph": [],
+      "deleted": []
+    },
+    "changePlaneCounts": {
+      "workflowProfiles": 0,
+      "evalSuites": 0,
+      "commandSources": 0,
+      "docs": 0,
+      "codeGraph": 0,
+      "deleted": 0
+    },
+    "actions": ["no_changes"],
+    "stages": ["no_changes"],
+    "codeGraphStale": false,
+    "conservativeFullRebuild": false,
+    "partialGraphUpdate": false,
+    "changedCodeFiles": 0,
+    "deletedCodeFiles": 0,
+    "invalidatedFiles": 0,
+    "reindexedFiles": 0,
+    "staleEdges": 0,
+    "affectedCallerExpansion": {
+      "enabled": false,
+      "changedFiles": 0,
+      "candidateCallers": 0,
+      "reindexedCallers": 0,
+      "skippedCallers": 0,
+      "staleIncomingEdges": 0,
+      "reason": "not_applicable"
+    },
+    "freshness": {
+      "fileCatalog": "fresh",
+      "symbolGraph": "fresh",
+      "importGraph": "fresh",
+      "routeGraph": "fresh",
+      "testGraph": "fresh",
+      "duplicateClusters": "fresh",
+      "coChangeGraph": "fresh"
+    }
+  }
+}

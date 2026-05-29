@@ -1,10 +1,12 @@
 import type { FileHit, RelatedTestsResult, RouteHit, SymbolHit } from "../graph/types.js";
 import type { AuthoritativeHandoff } from "./authoritativeChain.js";
+import type { EvidenceFreshness } from "../graph/freshnessPolicy.js";
 
 export interface EvidenceItem {
   type: string;
   detail: string;
   score?: number;
+  freshness?: EvidenceFreshness;
 }
 
 export interface EntrypointHit {

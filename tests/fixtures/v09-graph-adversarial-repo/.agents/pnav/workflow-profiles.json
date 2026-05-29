@@ -1,0 +1,10 @@
+{
+  "profiles": [
+    {
+      "name": "v09_dashboard_route",
+      "match": { "any": ["dashboard"] },
+      "mustRead": ["frontend/lib/app_router.dart", "frontend/lib/dashboard_page.dart"],
+      "recommendedCommands": [{ "command": "make dashboard-test", "required": true }]
+    }
+  ]
+}

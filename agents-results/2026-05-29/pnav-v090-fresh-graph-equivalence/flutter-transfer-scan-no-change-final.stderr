@@ -1,0 +1,3 @@
+[scan] loading_config
+[scan] hashing_files
+[scan] incremental_diff {"changed":0,"deleted":0,"changeKind":"none","changePlanes":{"workflowProfiles":0,"evalSuites":0,"commandSources":0,"docs":0,"codeGraph":0,"deleted":0},"actions":["no_changes"]}

@@ -1,3 +1,5 @@
+import { cpSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { parseImportBindings, resolveImportPathV2 } from "../analysis/importResolverV2.js";
 import { extractCallTokens } from "../analysis/callEdgeExtractor.js";
@@ -9,6 +11,8 @@ import type { ProjectDatabase } from "../db/connection.js";
 import { openProject } from "../db/project.js";
 import { initProject } from "../cli/commands/init.js";
 import { insertSourceDocuments, scanSourceDocuments } from "../docs/sourceDocScanner.js";
+import { compareGraphSnapshots } from "../graph/graphEquivalence.js";
+import { graphSnapshot, snapshotProjectDb } from "../graph/graphSnapshot.js";
 import { readRepoTextFile, scanFiles } from "./fileScanner.js";
 import { scanCommands } from "./commandScanner.js";
 import { getGitSha, scanCoChanges } from "./gitScanner.js";
@@ -66,12 +70,15 @@ interface AffectedCallerPlan {
   reason: string;
 }
 
+const MAX_TOKEN_CALLER_SEARCH_FILES = 3;
+
 export interface ScanRepoOptions {
   mode?: "full" | "incremental";
   metadataOnly?: boolean;
   incrementalCodeFileLimit?: number;
   batchIncrementalCodeFileLimit?: number;
   verifyPartial?: boolean;
+  compareFull?: boolean;
   progress?: ScanProgressReporter | boolean;
 }
 
@@ -126,7 +133,6 @@ function scanIntoDatabase(
   try {
     progress?.stage("loading_config");
     const config = loadProjectConfig(repoRoot);
-    rebuildFtsTables(db);
     const oldHashes = loadExistingHashes(db, repoId);
     progress?.stage("hashing_files");
     const files = scanFiles(repoRoot, config);
@@ -134,7 +140,8 @@ function scanIntoDatabase(
       metadataOnly,
       incrementalCodeFileLimit,
       batchIncrementalCodeFileLimit,
-      verifyPartial: Boolean(options.verifyPartial)
+      verifyPartial: Boolean(options.verifyPartial),
+      compareFull: Boolean(options.compareFull)
     });
     progress?.stage("incremental_diff", {
       changed: incremental.filesChanged,
@@ -185,6 +192,10 @@ function scanIntoDatabase(
         limit: batchIncrementalCodeFileLimit
       });
       applyFileLevelGraphIncremental(db, repoId, repoRoot, files, incremental, config.maxFileBytes);
+      if (options.compareFull) {
+        progress?.stage("partial_compare_full");
+        incremental.partialVerification = verifyPartialAgainstFull(db, repoId, repoRoot);
+      }
       rebuildFtsTables(db);
       db.prepare("UPDATE scan_runs SET finished_at = CURRENT_TIMESTAMP, status = 'success' WHERE id = ?").run(
         scanRunId
@@ -400,6 +411,7 @@ function applyFileLevelGraphIncremental(
   const symbolRows = loadSymbolRows(db, repoId);
   const affected = new Set(reindexIds);
   const affectedSymbols = symbolRows.filter((symbol) => affected.has(symbol.file_id));
+  const activeFileRows = loadActiveFileRows(db, repoId);
   const blockCalls = insertCodeBlocks(db, repoId, repoRoot, affectedSymbols, maxFileBytes);
   insertSymbolEdges(db, repoId, symbolRows, blockCalls);
   const restoredIncomingEdges = restoreIncomingSymbolEdges(db, repoId, incoming, symbolRows);
@@ -409,13 +421,13 @@ function applyFileLevelGraphIncremental(
     new Map(Array.from(fileRows.entries()).filter(([, id]) => affected.has(id))),
     affectedSymbols
   );
-  insertImportEdges(db, repoId, fileRows, imports);
-  insertImportBindings(db, repoId, fileRows, imports);
-  insertRoutes(db, repoId, fileRows, symbolRows, routes);
+  insertImportEdges(db, repoId, activeFileRows, imports);
+  insertImportBindings(db, repoId, activeFileRows, imports);
+  insertRoutes(db, repoId, activeFileRows, symbolRows, routes);
 
   db.prepare("DELETE FROM tests WHERE repo_id = ?").run(repoId);
   db.prepare("DELETE FROM edges WHERE repo_id = ? AND kind = 'covered_by'").run(repoId);
-  insertTestEdges(db, repoId, fileRows);
+  insertTestEdges(db, repoId, activeFileRows);
 
   db.prepare("DELETE FROM modules WHERE repo_id = ?").run(repoId);
   insertModules(
@@ -483,20 +495,25 @@ function findAffectedCallerFileIds(
   for (const row of symbolRows) {
     callers.add(row.fileId);
   }
-  const oldSymbolNames = db
-    .prepare(`SELECT DISTINCT name FROM symbols WHERE file_id IN (${placeholders}) AND LENGTH(name) >= 3`)
-    .all(...targetFileIds) as Array<{ name: string }>;
-  for (const row of oldSymbolNames.slice(0, 25)) {
-    const tokenRows = db
-      .prepare(
-        `SELECT DISTINCT file_id AS fileId
-         FROM code_blocks
-         WHERE repo_id = ? AND tokens_json LIKE ? AND file_id NOT IN (${placeholders})
-         LIMIT 50`
-      )
-      .all(repoId, `%${escapeSqlLike(row.name)}%`, ...targetFileIds) as Array<{ fileId: number }>;
-    for (const tokenRow of tokenRows) {
-      callers.add(tokenRow.fileId);
+  const shouldSearchSymbolTokens = targetFileIds.length <= MAX_TOKEN_CALLER_SEARCH_FILES;
+  const oldSymbolNames = shouldSearchSymbolTokens
+    ? (db
+        .prepare(`SELECT DISTINCT name FROM symbols WHERE file_id IN (${placeholders}) AND LENGTH(name) >= 3`)
+        .all(...targetFileIds) as Array<{ name: string }>)
+    : [];
+  if (shouldSearchSymbolTokens) {
+    for (const row of oldSymbolNames.slice(0, 25)) {
+      const tokenRows = db
+        .prepare(
+          `SELECT DISTINCT file_id AS fileId
+           FROM code_blocks
+           WHERE repo_id = ? AND tokens_json LIKE ? AND file_id NOT IN (${placeholders})
+           LIMIT 50`
+        )
+        .all(repoId, `%${escapeSqlLike(row.name)}%`, ...targetFileIds) as Array<{ fileId: number }>;
+      for (const tokenRow of tokenRows) {
+        callers.add(tokenRow.fileId);
+      }
     }
   }
   const targetPaths = new Set(
@@ -528,6 +545,7 @@ function findAffectedCallerFileIds(
     "import_bindings",
     "symbol_edges",
     oldSymbolNames.length > 0 ? "symbol_token_match" : "",
+    shouldSearchSymbolTokens ? "" : "skip_symbol_token_match",
     targetPaths.size > 0 ? "same_module_neighbor" : ""
   ].filter(Boolean);
   return {
@@ -755,6 +773,13 @@ function insertFiles(db: ProjectDatabase, repoId: number, files: ScannedFile[]):
 
 function loadFileRows(db: ProjectDatabase, repoId: number): Map<string, number> {
   const rows = db.prepare("SELECT id, path FROM files WHERE repo_id = ?").all(repoId) as FileRow[];
+  return new Map(rows.map((row) => [row.path, row.id]));
+}
+
+function loadActiveFileRows(db: ProjectDatabase, repoId: number): Map<string, number> {
+  const rows = db
+    .prepare("SELECT id, path FROM files WHERE repo_id = ? AND deleted_at IS NULL")
+    .all(repoId) as FileRow[];
   return new Map(rows.map((row) => [row.path, row.id]));
 }
 
@@ -1240,6 +1265,7 @@ function incrementalStats(
     incrementalCodeFileLimit: number;
     batchIncrementalCodeFileLimit: number;
     verifyPartial: boolean;
+    compareFull: boolean;
   }
 ): NonNullable<ScanResult["incremental"]> {
   const newPaths = new Set(files.map((file) => file.path));
@@ -1316,15 +1342,57 @@ function incrementalStats(
       codeGraphChanged: codeGraphPaths.length > 0
     }),
     partialVerification:
-      options.verifyPartial && partialGraphUpdate
+      (options.verifyPartial || options.compareFull) && partialGraphUpdate
         ? {
             enabled: true,
-            passed: true,
-            differences: [],
+            passed: !options.compareFull,
+            differences: options.compareFull ? ["compare_full_pending"] : [],
             allowedDifferences: ["coChangeGraph: stale_until_full_scan", "duplicateClusters: partial"]
           }
         : undefined
   };
+}
+
+function verifyPartialAgainstFull(
+  db: ProjectDatabase,
+  repoId: number,
+  repoRoot: string
+): NonNullable<NonNullable<ScanResult["incremental"]>["partialVerification"]> {
+  const tempRepo = copyRepoWithoutNavigatorState(repoRoot, "pnav-compare-full-");
+  try {
+    scanRepo(tempRepo, { mode: "full" });
+    const full = graphSnapshot(tempRepo);
+    const partial = snapshotProjectDb(db, repoId, repoRoot);
+    const result = compareGraphSnapshots("scan_compare_full", partial, full);
+    const differences = [
+      ...result.hardFailures,
+      ...Object.entries(result.graphDiff).map(
+        ([section, diff]) =>
+          `${section}: missing=${diff?.missingInPartial.length ?? 0} extra=${diff?.extraInPartial.length ?? 0}`
+      )
+    ];
+    return {
+      enabled: true,
+      passed: result.passed,
+      differences,
+      allowedDifferences: result.allowedDifferences
+    };
+  } finally {
+    rmSync(tempRepo, { recursive: true, force: true });
+  }
+}
+
+function copyRepoWithoutNavigatorState(repoRoot: string, prefix: string): string {
+  const tempRepo = mkdtempSync(path.join(tmpdir(), prefix));
+  cpSync(repoRoot, tempRepo, {
+    recursive: true,
+    filter: (source) =>
+      !source.includes(`${path.sep}.git${path.sep}`) &&
+      !source.endsWith(`${path.sep}.git`) &&
+      !source.includes(`${path.sep}.pnav${path.sep}`) &&
+      !source.endsWith(`${path.sep}.pnav`)
+  });
+  return tempRepo;
 }
 
 function freshnessFor(flags: {

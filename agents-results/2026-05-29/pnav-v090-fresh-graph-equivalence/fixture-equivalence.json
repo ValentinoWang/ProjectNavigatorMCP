@@ -1,0 +1,50 @@
+{
+  "repo": "tests/fixtures/v09-graph-adversarial-repo",
+  "suitePath": "tests/fixtures/v09-graph-adversarial-repo/.agents/pnav/v09-mutations.json",
+  "generatedAt": "2026-05-29T02:53:29.564Z",
+  "passed": true,
+  "results": [
+    {
+      "passed": true,
+      "mode": "partial_vs_full",
+      "mutationId": "rename_exported_symbol",
+      "graphDiff": {},
+      "queryDiff": {},
+      "evidenceDiff": {},
+      "hardFailures": [],
+      "allowedDifferences": [
+        "coChangeGraph: stale_until_full_scan",
+        "duplicateClusters: partial",
+        "low-score tail order"
+      ]
+    },
+    {
+      "passed": true,
+      "mode": "partial_vs_full",
+      "mutationId": "delete_source_file",
+      "graphDiff": {},
+      "queryDiff": {},
+      "evidenceDiff": {},
+      "hardFailures": [],
+      "allowedDifferences": [
+        "coChangeGraph: stale_until_full_scan",
+        "duplicateClusters: partial",
+        "low-score tail order"
+      ]
+    },
+    {
+      "passed": true,
+      "mode": "partial_vs_full",
+      "mutationId": "route_widget_mutation",
+      "graphDiff": {},
+      "queryDiff": {},
+      "evidenceDiff": {},
+      "hardFailures": [],
+      "allowedDifferences": [
+        "coChangeGraph: stale_until_full_scan",
+        "duplicateClusters: partial",
+        "low-score tail order"
+      ]
+    }
+  ]
+}

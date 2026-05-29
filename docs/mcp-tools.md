@@ -43,6 +43,20 @@ All MCP tools return a JSON string inside MCP text content. The JSON always uses
 
 Scores are relevance values. Confidence describes relationship reliability.
 
+## Fresh Graph CLI Helpers
+
+v0.9 fresh graph correctness checks are CLI-first and keep the MCP envelope unchanged:
+
+```bash
+pnav graph-snapshot /path/to/repo --out graph-snapshot.json
+pnav verify-equivalence /path/to/repo --mutation-suite .agents/pnav/v09-mutations.json
+pnav scan /path/to/repo --incremental --verify-partial --compare-full
+pnav benchmark-fresh-graph /path/to/repo --suite .agents/pnav/discovery-suite.json --out benchmark.json
+```
+
+MCP clients should invoke these commands as external validation steps until equivalence and
+benchmark checks need first-class MCP tools.
+
 ## Deterministic Ranking
 
 v0.4 uses deterministic navigation signals before broad keyword matching:

@@ -110,6 +110,7 @@ The current release supports:
 61. Incremental scan `changePlanes`, metadata-only mode, code-graph stale reporting, and file-level graph update v1 for small source changes.
 62. Eval metadata-only preflight and runtime cache stats for large dirty-worktree eval suites.
 63. Fresh-graph validity scopes, `requiresFreshCodeGraph`, partial graph invalidation v2, and graph-plane freshness reporting.
+64. Fresh graph correctness tools: stable graph snapshots, partial-vs-full equivalence, evidence freshness, and fresh graph benchmarks.
 
 MCP tools:
 

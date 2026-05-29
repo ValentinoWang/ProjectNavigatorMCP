@@ -24,6 +24,10 @@ export interface EvalExpected {
   fallbackCommandNotContains?: string[];
   profileSourcesAny?: Array<"repo_local" | "built_in">;
   requiresFreshCodeGraph?: boolean;
+  requiresEquivalentToFull?: boolean;
+  equivalenceMustContain?: Array<"mustRead" | "find_callers" | "find_callees" | "trace_feature" | "impact_analysis_v3">;
+  forbidStaleCriticalEvidence?: boolean;
+  maxFreshEvalMs?: number;
 }
 
 export interface EvalMetrics {

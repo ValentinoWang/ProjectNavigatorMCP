@@ -1088,6 +1088,14 @@ v0.8.6 进一步要求：
 - partial scan 必须输出 graph-plane `freshness`；`coChangeGraph` 可以是 `stale_until_full_scan`，但不能把 stale co-change 当作唯一 critical evidence。
 - eval runtime cacheStats 不能只有 `entrypointCatalog`，还要暴露 file/symbol/route/workflow/relatedFiles/handoff/relatedTests 等 bucket。
 
+v0.9.0 进一步要求：
+
+- v0.9 的主题是 Fresh Graph Correctness & Equivalence；Tree-sitter/LSP/SCIP 后移到 v0.10。
+- partial update 的核心验证必须比较 partial graph 和 full scan graph，不能只输出占位 `partialVerification`。
+- snapshot key 必须基于 path/symbol stable key，不能依赖 SQLite row id。
+- `.pnav/` 仍是本地缓存；mutation suite 和持久 eval fixture 放在 `.agents/pnav/`。
+- stale / stale_until_full_scan 证据不能作为 mustRead 或 critical impact 的唯一依据。
+
 ## 18. 完成 MVP 的定义
 
 当以下流程能跑通时，可以认为 MVP 完成：

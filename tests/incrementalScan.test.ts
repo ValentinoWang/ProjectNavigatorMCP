@@ -151,6 +151,7 @@ describe("incremental scan", () => {
     expect(result.incremental?.partialGraphUpdate).toBe(true);
     expect(result.incremental?.actions).toContain("batch_partial_graph_update");
     expect(result.incremental?.conservativeFullRebuild).toBe(false);
+    expect(result.incremental?.affectedCallerExpansion.reason).toContain("skip_symbol_token_match");
   });
 
   it("falls back to conservative rebuild when source changes exceed the batch threshold", () => {

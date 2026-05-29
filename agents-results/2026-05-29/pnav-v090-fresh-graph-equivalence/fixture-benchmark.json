@@ -1,0 +1,102 @@
+{
+  "repo": "tests/fixtures/v09-graph-adversarial-repo",
+  "suitePath": "/tmp/pnav-v09-benchmark-suite.json",
+  "generatedAt": "2026-05-29T02:53:41.419Z",
+  "fullScanMs": 80,
+  "noChangeIncrementalMs": 19,
+  "metadataOnlyMs": 20,
+  "smallPartialMs": 32,
+  "batchPartialMs": 33,
+  "deletePartialMs": 51,
+  "renamePartialMs": 54,
+  "freshEvalMs": 16,
+  "metadataEvalMs": 36,
+  "cacheStats": {
+    "fileCatalog": {
+      "hits": 0,
+      "misses": 1
+    },
+    "symbolCatalog": {
+      "hits": 0,
+      "misses": 1
+    },
+    "routeCatalog": {
+      "hits": 0,
+      "misses": 1
+    },
+    "testCatalog": {
+      "hits": 0,
+      "misses": 1
+    },
+    "commandCatalog": {
+      "hits": 0,
+      "misses": 1
+    },
+    "workflowProfiles": {
+      "hits": 0,
+      "misses": 1
+    },
+    "entrypointCatalog": {
+      "hits": 0,
+      "misses": 1
+    },
+    "entrypoints": {
+      "hits": 0,
+      "misses": 1
+    },
+    "relatedFiles": {
+      "hits": 0,
+      "misses": 1
+    },
+    "symbols": {
+      "hits": 0,
+      "misses": 1
+    },
+    "reuse": {
+      "hits": 0,
+      "misses": 1
+    },
+    "relatedTests": {
+      "hits": 0,
+      "misses": 1
+    },
+    "callGraph": {
+      "hits": 0,
+      "misses": 1
+    },
+    "readOrder": {
+      "hits": 0,
+      "misses": 1
+    },
+    "handoffBase": {
+      "hits": 0,
+      "misses": 1
+    },
+    "whyRelated": {
+      "hits": 0,
+      "misses": 1
+    }
+  },
+  "slowestStages": [
+    {
+      "stage": "entrypointsMs",
+      "latencyMs": 2
+    },
+    {
+      "stage": "relatedTestsMs",
+      "latencyMs": 1
+    },
+    {
+      "stage": "callGraphMs",
+      "latencyMs": 0
+    },
+    {
+      "stage": "handoffMs",
+      "latencyMs": 0
+    },
+    {
+      "stage": "readOrderMs",
+      "latencyMs": 0
+    }
+  ]
+}
