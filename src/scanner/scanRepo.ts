@@ -206,12 +206,6 @@ function scanIntoDatabase(
       };
     }
     progress?.stage("conservative_rebuild");
-    progress?.stage("clearing_scanned_data");
-    clearScannedData(db, repoId);
-    progress?.stage("inserting_files", { files: files.length });
-    insertFiles(db, repoId, files);
-    const fileRows = loadFileRows(db, repoId);
-
     progress?.stage("scanning_symbols_imports_routes", { files: files.length });
     const symbols: ScannedSymbol[] = [];
     const imports: ScannedImport[] = [];
@@ -227,38 +221,63 @@ function scanIntoDatabase(
       routes.push(...result.routes);
     }
 
-    insertSymbols(db, fileRows, symbols);
-    const symbolRows = loadSymbolRows(db, repoId);
-    const blockCalls = insertCodeBlocks(db, repoId, repoRoot, symbolRows, config.maxFileBytes);
-    insertSymbolEdges(db, repoId, symbolRows, blockCalls);
-    insertModules(
-      db,
-      repoId,
-      files.map((file) => file.path)
-    );
-    insertContainsEdges(db, repoId, fileRows, symbolRows);
-    insertImportEdges(db, repoId, fileRows, imports);
-    insertImportBindings(db, repoId, fileRows, imports);
-    insertRoutes(db, repoId, fileRows, symbolRows, routes);
-    const testCount = insertTestEdges(db, repoId, fileRows);
-
     progress?.stage("scanning_commands");
     const commands = scanCommands(repoRoot);
-    insertCommands(db, repoId, commands);
 
     progress?.stage("scanning_rules_documents");
     const rules = scanRules(repoRoot);
-    insertRules(db, repoId, rules);
-
     const documents = scanSourceDocuments(repoRoot, files);
-    insertSourceDocuments(db, repoId, fileRows, documents);
 
     progress?.stage("scanning_cochanges_duplicates");
     const coChanges = scanCoChanges(repoRoot, new Set(files.map((file) => file.path)));
-    insertCoChanges(db, repoId, fileRows, coChanges);
-    insertDuplicateClusters(db, repoId);
 
-    db.prepare("UPDATE scan_runs SET finished_at = CURRENT_TIMESTAMP, status = 'success' WHERE id = ?").run(scanRunId);
+    progress?.stage("replacing_scanned_data");
+    const rebuild = db.transaction(() => {
+      progress?.stage("clearing_scanned_data");
+      clearScannedData(db, repoId);
+      progress?.stage("clearing_scanned_data_done");
+
+      progress?.stage("inserting_files", { files: files.length });
+      insertFiles(db, repoId, files);
+      const fileRows = loadFileRows(db, repoId);
+
+      progress?.stage("inserting_symbols_imports_routes", {
+        symbols: symbols.length,
+        imports: imports.length,
+        routes: routes.length
+      });
+      insertSymbols(db, fileRows, symbols);
+      const symbolRows = loadSymbolRows(db, repoId);
+      const blockCalls = insertCodeBlocks(db, repoId, repoRoot, symbolRows, config.maxFileBytes);
+      insertSymbolEdges(db, repoId, symbolRows, blockCalls);
+      insertModules(
+        db,
+        repoId,
+        files.map((file) => file.path)
+      );
+      insertContainsEdges(db, repoId, fileRows, symbolRows);
+      insertImportEdges(db, repoId, fileRows, imports);
+      insertImportBindings(db, repoId, fileRows, imports);
+      insertRoutes(db, repoId, fileRows, symbolRows, routes);
+      const testCount = insertTestEdges(db, repoId, fileRows);
+
+      progress?.stage("inserting_commands");
+      insertCommands(db, repoId, commands);
+
+      progress?.stage("inserting_rules_documents");
+      insertRules(db, repoId, rules);
+      insertSourceDocuments(db, repoId, fileRows, documents);
+
+      progress?.stage("inserting_cochanges_duplicates");
+      insertCoChanges(db, repoId, fileRows, coChanges);
+      insertDuplicateClusters(db, repoId);
+
+      db.prepare("UPDATE scan_runs SET finished_at = CURRENT_TIMESTAMP, status = 'success' WHERE id = ?").run(
+        scanRunId
+      );
+      return { testCount };
+    });
+    const { testCount } = rebuild();
     return {
       repoRoot,
       gitSha,

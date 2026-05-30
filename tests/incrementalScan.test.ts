@@ -172,6 +172,50 @@ describe("incremental scan", () => {
     expect(result.incremental?.fallbackReason).toContain("100");
   });
 
+  it("keeps the previous graph when conservative rebuild fails after clearing data", () => {
+    const repo = copyDiscoveryRepo();
+    scanRepo(repo);
+    mkdirSync(path.join(repo, "src", "generated"), { recursive: true });
+    for (let index = 0; index < 101; index += 1) {
+      writeFileSync(
+        path.join(repo, "src", "generated", `file_${index}.ts`),
+        `export const value${index} = ${index};\n`
+      );
+    }
+
+    expect(() =>
+      scanRepo(repo, {
+        mode: "incremental",
+        progress: {
+          stage(name) {
+            if (name === "clearing_scanned_data_done") {
+              throw new Error("injected rebuild failure");
+            }
+          }
+        }
+      })
+    ).toThrow("injected rebuild failure");
+
+    const project = openProject(repo);
+    try {
+      const existingSymbol = project.db
+        .prepare("SELECT COUNT(*) AS count FROM symbols WHERE name = 'AthleteDashboardPage'")
+        .get() as { count: number };
+      const generatedFiles = project.db
+        .prepare("SELECT COUNT(*) AS count FROM files WHERE path LIKE 'src/generated/file_%'")
+        .get() as { count: number };
+      const lastRun = project.db.prepare("SELECT status FROM scan_runs ORDER BY id DESC LIMIT 1").get() as {
+        status: string;
+      };
+
+      expect(existingSymbol.count).toBe(1);
+      expect(generatedFiles.count).toBe(0);
+      expect(lastRun.status).toBe("failed");
+    } finally {
+      project.db.close();
+    }
+  });
+
   it("invalidates deleted source files without a conservative rebuild", () => {
     const repo = copyDiscoveryRepo();
     scanRepo(repo);

@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.9.2
+
+Scan atomicity and rebuild safety patch.
+
+- Made conservative full rebuilds replace scanned SQLite graph data inside a single transaction so interrupted or failed scans keep the previous usable index.
+- Moved deterministic file/symbol/route/command/document/co-change scanning ahead of destructive graph replacement.
+- Added progress stages around graph replacement and clear completion so long scans show the real blocking stage.
+- Added regression coverage proving a failure immediately after `clearScannedData` does not remove the prior graph or admit partially rebuilt files.
+- Validated the real `flutter-transfer` scan path after the fix: `5425 files`, `33129 symbols`, `442 routes`, `643 tests`.
+
 ## v0.9.1
 
 Capsule route-anchor handoff bugfix release.
