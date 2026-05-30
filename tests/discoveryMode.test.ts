@@ -18,6 +18,14 @@ function copyDiscoveryRepo(): string {
   return root;
 }
 
+function copyProductionNoiseRepo(): string {
+  const root = mkdtempSync(path.join(tmpdir(), "pnav-v08-production-"));
+  tempDirs.push(root);
+  cpSync(path.resolve("tests/fixtures/v08-production-noise-repo"), root, { recursive: true });
+  scanRepo(root);
+  return root;
+}
+
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
@@ -47,6 +55,21 @@ describe("Discovery Mode", () => {
 
     expect(context.mode).toBe("discovery");
     expect(context.discovery?.entrypoints.length).toBeGreaterThan(0);
+  });
+
+  it("promotes authoritative route-to-widget handoff into capsule core read order", () => {
+    const repo = copyProductionNoiseRepo();
+    const context = prepareTaskContext(repo, "url-athlete-dashboard training trend card compact layout", {
+      includeMemory: false,
+      includeDirtyStatus: false
+    });
+    const corePaths = context.coreReadOrder.slice(0, 5).map((item) => item.path);
+
+    expect(corePaths).toContain("frontend/lib/core/router/app_router.dart");
+    expect(corePaths).toContain("frontend/lib/modules/user_core/dashboard/athlete_dashboard_page.dart");
+    expect(corePaths).toContain("frontend/lib/modules/user_core/dashboard/athlete_dashboard_home_view.dart");
+    expect(corePaths).toContain("frontend/lib/modules/user_core/dashboard/athlete_dashboard_home_sections.dart");
+    expect(corePaths).not.toContain("backend/app/services/trend_service.py");
   });
 
   it("demotes generic related commands when workflow commands are available", () => {

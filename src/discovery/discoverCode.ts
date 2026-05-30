@@ -2,7 +2,7 @@ import { findRelatedFiles } from "../graph/relatedFiles.js";
 import { relatedTests } from "../graph/relatedTests.js";
 import { findSymbol } from "../graph/symbolSearch.js";
 import { openProject } from "../db/project.js";
-import { buildAuthoritativeHandoff } from "./authoritativeChain.js";
+import { buildAuthoritativeHandoff, type AuthoritativeHandoff } from "./authoritativeChain.js";
 import { discoveryReadScore, tierReadOrder } from "./discoveryQuality.js";
 import { findEntrypoints, loadEntrypointCatalog, rankEntrypointsFromCatalog } from "./entrypoints.js";
 import { findReusableComponents } from "./reuse.js";
@@ -121,7 +121,7 @@ export function discoverCodeWithTiming(
       hasWorkflowProfile ? { reuseCandidates: [], duplicateRisks: [] } : findReusableComponents(repoPath, task, 8)
     )
   );
-  const tests = timed(timing, "relatedTestsMs", () =>
+  const initialTests = timed(timing, "relatedTestsMs", () =>
     cached(context, "relatedTests", `${task}:${entrypoints.length}:${related.length}`, () =>
       relatedTests(
         repoPath,
@@ -157,25 +157,49 @@ export function discoverCodeWithTiming(
       rankReadOrder(task, entrypoints, related, reuse.reuseCandidates, workflowProfiles)
     )
   );
-  const tiers = tierReadOrder(task, recommendedReadOrder, limit);
   const authoritativeHandoff = timed(timing, "handoffMs", () =>
     cached(context, "handoffBase", `${task}:${options.requireRouteChain ? "route" : "workflow"}`, () =>
-      buildAuthoritativeHandoff(repoPath, task, recommendedReadOrder, reuse.reuseCandidates, tests, workflowProfiles, {
-        buildRouteChain: !hasWorkflowProfile || Boolean(options.requireRouteChain)
-      })
+      buildAuthoritativeHandoff(
+        repoPath,
+        task,
+        recommendedReadOrder,
+        reuse.reuseCandidates,
+        initialTests,
+        workflowProfiles,
+        {
+          buildRouteChain: !hasWorkflowProfile || Boolean(options.requireRouteChain)
+        }
+      )
     )
+  );
+  const finalRecommendedReadOrder =
+    hasWorkflowProfile && !options.requireRouteChain
+      ? recommendedReadOrder
+      : mergeHandoffReadOrder(recommendedReadOrder, authoritativeHandoff, limit);
+  const tiers = tierReadOrder(task, finalRecommendedReadOrder, limit);
+  const finalTests = relatedTests(
+    repoPath,
+    relatedTestSeedPaths(authoritativeHandoff, finalRecommendedReadOrder),
+    task,
+    {
+      relatedFiles: finalRecommendedReadOrder,
+      demoteCommands: workflowProfiles.some((profile) => profile.recommendedCommands.length > 0),
+      excludeCommands: workflowProfiles.flatMap((profile) =>
+        profile.recommendedCommands.map((command) => command.command)
+      )
+    }
   );
   const workflowWarnings = workflowProfiles.flatMap((profile) => profile.warnings);
   const whyRelatedItems = timed(timing, "whyRelatedMs", () =>
     cached(context, "whyRelated", task, () =>
       hasWorkflowProfile
-        ? recommendedReadOrder.slice(0, 8).map((file) => ({
+        ? finalRecommendedReadOrder.slice(0, 8).map((file) => ({
             target: file.path,
             task,
             score: file.score,
             evidence: [{ type: "workflow_profile", detail: file.reason, score: file.score }]
           }))
-        : recommendedReadOrder.slice(0, 8).map((file) => whyRelated(repoPath, file.path, task))
+        : finalRecommendedReadOrder.slice(0, 8).map((file) => whyRelated(repoPath, file.path, task))
     )
   );
 
@@ -191,17 +215,75 @@ export function discoverCodeWithTiming(
       reuseCandidates: reuse.reuseCandidates,
       duplicateRisks: reuse.duplicateRisks,
       impactPreview: related.slice(0, 10),
-      recommendedReadOrder,
+      recommendedReadOrder: finalRecommendedReadOrder,
       mustRead: tiers.mustRead,
       shouldInspect: tiers.shouldInspect,
       reuseBeforeCreate: reuse.reuseCandidates.filter((hit) => hit.verdict !== "create_new_allowed"),
       ignoreForNow: tiers.ignoreForNow,
       whyRelated: whyRelatedItems,
-      relatedTests: tests,
+      relatedTests: finalTests,
       warnings: workflowWarnings
     },
     timing
   };
+}
+
+function mergeHandoffReadOrder(
+  recommendedReadOrder: DiscoveryResult["recommendedReadOrder"],
+  handoff: AuthoritativeHandoff,
+  limit: number
+): DiscoveryResult["recommendedReadOrder"] {
+  const best = new Map<string, DiscoveryResult["recommendedReadOrder"][number]>();
+  const add = (item: DiscoveryResult["recommendedReadOrder"][number]) => {
+    const existing = best.get(item.path);
+    if (!existing || item.score > existing.score) {
+      best.set(item.path, item);
+    }
+  };
+
+  for (const file of handoff.mustRead) {
+    add({
+      path: file.path,
+      score: Math.max(0.98, file.confidence),
+      reason: `Authoritative handoff mustRead: ${file.why}`
+    });
+  }
+  for (const step of handoff.coreChain) {
+    add({
+      path: step.path,
+      score: Math.max(0.94, step.confidence),
+      reason: `Route-to-widget ${step.kind}: ${step.symbol ?? step.path}`
+    });
+  }
+  if (handoff.testCoverage?.covered && handoff.testCoverage.coverageStrength === "strong") {
+    for (const file of handoff.testCoverage.testFiles) {
+      add({
+        path: file,
+        score: 0.88,
+        reason: "Strong route-to-widget test coverage."
+      });
+    }
+  }
+  for (const file of recommendedReadOrder) {
+    add(file);
+  }
+  return Array.from(best.values())
+    .sort((a, b) => b.score - a.score || a.path.localeCompare(b.path))
+    .slice(0, Math.max(15, limit));
+}
+
+function relatedTestSeedPaths(
+  handoff: AuthoritativeHandoff,
+  readOrder: DiscoveryResult["recommendedReadOrder"]
+): string[] {
+  return Array.from(
+    new Set([
+      ...handoff.mustRead.map((item) => item.path),
+      ...handoff.coreChain.map((step) => step.path),
+      ...(handoff.testCoverage?.testFiles ?? []),
+      ...readOrder.slice(0, 10).map((item) => item.path)
+    ])
+  );
 }
 
 function warmRepoCatalogs(context: DiscoveryRuntimeContext, repoPath: string): void {

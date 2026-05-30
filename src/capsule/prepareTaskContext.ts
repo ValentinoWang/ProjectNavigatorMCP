@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { loadSourceDoc, type StoredSourceDoc } from "../docs/sourceDocQuery.js";
 import { buildWorktreeBoundary, type WorktreeBoundary } from "../git/worktreeBoundary.js";
 import { getWorktreeStatus, type WorktreeStatus } from "../git/worktreeStatus.js";
@@ -102,6 +104,7 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
   const warnings: string[] = [];
   const mode = resolveMode(options);
   const discovery = mode === "discovery" ? discoverCode(repoPath, task, options.maxFiles ?? 15) : null;
+  const symbolHits = findSymbol(repoPath, task, options.maxSymbols ?? 12);
   const sourceDocResult = options.sourceDoc ? loadSourceDoc(repoPath, options.sourceDoc) : { doc: null };
   if (sourceDocResult.warning) {
     warnings.push(sourceDocResult.warning);
@@ -114,10 +117,14 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
 
   const related = findRelatedFiles(repoPath, task, Math.max(options.maxFiles ?? 20, 40)).files;
   const rawReadOrder = buildReadOrder({
+    repoPath,
+    task,
     sourceDoc,
     guardAnalysis,
     changedFiles: options.changedFiles ?? [],
     relatedFiles: related,
+    discovery,
+    symbols: symbolHits,
     sourceDocPath: options.sourceDoc
   });
   const domain = inferTaskDomain({
@@ -144,15 +151,12 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
   const referenceReadOrder = tieredReadOrder.filter((item) => item.contextTier === "reference");
 
   const preferredFiles = [...editBoundaryV2.mustEditFiles, ...editBoundaryV2.mayEditFiles];
-  const tests = relatedTests(
-    repoPath,
-    preferredFiles.length > 0 ? preferredFiles : readOrder.map((item) => item.path),
-    task
-  );
+  const tests = relatedTests(repoPath, relatedTestSeedFiles(preferredFiles, discovery, readOrder), task);
   const workflowCommands = discovery
     ? workflowCommandsToCommandHits(discovery.authoritativeHandoff.workflowProtocol.recommendedCommands)
     : [];
   const primaryCommands = workflowCommands.length > 0 ? workflowCommands : tests.commands;
+  const rankedPrimaryCommands = prioritizePrimaryCommands(task, primaryCommands, discovery);
   const workflowCommandText = new Set(workflowCommands.map((command) => command.command.toLowerCase()));
   const relatedTestsForOutput =
     workflowCommands.length > 0
@@ -176,13 +180,13 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
   const likelyFiles = toLikelyFiles(readOrder, related).slice(0, options.maxFiles ?? 20);
   const projectRules = options.includeRules === false ? [] : selectProjectRules(repoPath, task);
   const memoryHits = options.includeMemory === false ? [] : searchProjectMemory(repoPath, task, 5);
-  const rawExecutionPlan = buildExecutionPlan(sourceDoc, guardAnalysis, primaryCommands);
+  const rawExecutionPlan = buildExecutionPlan(sourceDoc, guardAnalysis, rankedPrimaryCommands);
   const rankedPlan = rerankExecutionPlan({
     repoPath,
     plan: rawExecutionPlan,
     guardAnalysis,
     domain,
-    recommendedCommands: primaryCommands,
+    recommendedCommands: rankedPrimaryCommands,
     maxSteps: options.planMaxSteps ?? 8
   });
   const minimalRepairPath = buildMinimalRepairPath({ guardAnalysis, editBoundaryV2 });
@@ -224,9 +228,9 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
     dirtyWorktree,
     likelyFiles,
     relatedFiles: likelyFiles,
-    symbols: findSymbol(repoPath, task, options.maxSymbols ?? 12),
+    symbols: symbolHits,
     routes: traceRoute(repoPath, task, 12),
-    recommendedCommands: primaryCommands,
+    recommendedCommands: rankedPrimaryCommands,
     testFiles: tests.testFiles,
     relatedTests: relatedTestsForOutput,
     projectRules,
@@ -285,13 +289,52 @@ function explicitTaskPaths(
 }
 
 function buildReadOrder(input: {
+  repoPath: string;
+  task: string;
   sourceDoc: StoredSourceDoc | null;
   guardAnalysis: GuardOutputAnalysis | null;
   changedFiles: string[];
   relatedFiles: FileHit[];
+  discovery: DiscoveryResult | null;
+  symbols: SymbolHit[];
   sourceDocPath?: string;
 }): ReadOrderItem[] {
   const items: ReadOrderItem[] = [];
+  for (const file of input.discovery?.authoritativeHandoff.mustRead ?? []) {
+    items.push({
+      path: file.path,
+      why: `Authoritative handoff mustRead: ${file.why}`,
+      score: Math.max(0.98, file.confidence)
+    });
+  }
+  for (const step of input.discovery?.authoritativeHandoff.coreChain ?? []) {
+    items.push({
+      path: step.path,
+      why: `Route-to-widget ${step.kind}: ${step.symbol ?? step.path}`,
+      score: Math.max(0.94, step.confidence)
+    });
+  }
+  const strongCoverage = input.discovery?.authoritativeHandoff.testCoverage;
+  if (strongCoverage?.covered && strongCoverage.coverageStrength === "strong") {
+    for (const file of strongCoverage.testFiles) {
+      items.push({
+        path: file,
+        why: "Strong route-to-widget test coverage.",
+        score: 0.88
+      });
+    }
+  }
+  for (const candidate of inferUiLayoutAnchorPaths(input.repoPath, input.task, input.discovery, input.sourceDoc)) {
+    items.push(candidate);
+  }
+  for (const symbol of input.symbols.slice(0, 8)) {
+    items.push({
+      path: symbol.path,
+      line: symbol.startLine,
+      why: `Exact symbol match: ${symbol.qualifiedName ?? symbol.name}`,
+      score: symbolReadOrderScore(input.task, symbol)
+    });
+  }
   for (const finding of input.guardAnalysis?.findings ?? []) {
     items.push({ path: finding.file, line: finding.line, why: "Guard failure location", score: 1 });
   }
@@ -314,6 +357,27 @@ function buildReadOrder(input: {
     items.push({ path: file.path, why: file.reason, score });
   }
   return dedupeReadOrder(items).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
+}
+
+function relatedTestSeedFiles(
+  preferredFiles: string[],
+  discovery: DiscoveryResult | null,
+  readOrder: ReadOrderItem[]
+): string[] {
+  if (preferredFiles.length > 0) {
+    return preferredFiles;
+  }
+  return Array.from(
+    new Set([
+      ...(discovery?.authoritativeHandoff.mustRead.map((item) => item.path) ?? []),
+      ...(discovery?.authoritativeHandoff.coreChain.map((step) => step.path) ?? []),
+      ...(discovery?.authoritativeHandoff.testCoverage?.testFiles ?? []),
+      ...readOrder
+        .filter((item) => item.score >= 0.55)
+        .map((item) => item.path)
+        .filter((filePath) => !isGeneratedOrApiClientPath(filePath))
+    ])
+  ).slice(0, 40);
 }
 
 function annotateReadOrder(readOrder: ReadOrderItem[], fileTiers: ReturnType<typeof tierTaskFiles>): ReadOrderItem[] {
@@ -343,7 +407,125 @@ function contextTierFor(editTier: ReadOrderItem["editTier"], score: number): Rea
   return "reference";
 }
 
+function symbolReadOrderScore(task: string, symbol: SymbolHit): number {
+  const path = normalizePath(symbol.path).toLowerCase();
+  const uiLayoutTask = isUiLayoutTask(task);
+  if (isGeneratedOrApiClientPath(path)) {
+    return Math.min(0.18, symbol.score);
+  }
+  if (uiLayoutTask && /^(backend|database|infra)\//.test(path)) {
+    return Math.min(0.32, symbol.score);
+  }
+  if (uiLayoutTask && /(^|\/)(test|tests)\//.test(path) && !path.startsWith("frontend/test/")) {
+    return Math.min(0.42, symbol.score);
+  }
+  if (path.startsWith("frontend/lib/")) {
+    return Math.max(0.9, Math.min(0.97, symbol.score));
+  }
+  return Math.max(0.62, Math.min(0.86, symbol.score));
+}
+
+function isGeneratedOrApiClientPath(filePath: string): boolean {
+  const path = normalizePath(filePath).toLowerCase();
+  return path.includes("/packages/api_client/") || path.endsWith(".g.dart") || /(^|\/)generated\//.test(path);
+}
+
+function isUiLayoutTask(task: string): boolean {
+  return /url-|routepaths?\.|routenames?\.|page|widget|grid|action\s*bar|actionbar|stats|compact|alignment|layout|card|frontend|flutter|ui|截图|页面|界面|组件|卡片|布局|对齐/i.test(
+    task
+  );
+}
+
+function prioritizePrimaryCommands(
+  task: string,
+  commands: CommandHit[],
+  discovery: DiscoveryResult | null
+): CommandHit[] {
+  if (!isUiLayoutTask(task) || (discovery?.authoritativeHandoff.workflowProtocol.recommendedCommands.length ?? 0) > 0) {
+    return commands;
+  }
+  const handoffPaths = [
+    ...(discovery?.authoritativeHandoff.mustRead.map((item) => item.path) ?? []),
+    ...(discovery?.authoritativeHandoff.coreChain.map((step) => step.path) ?? [])
+  ].join(" ");
+  const pageAnchored = /frontend\/lib\/.*page\.dart|frontend\/lib\/modules\//.test(handoffPaths);
+  if (!pageAnchored) {
+    return commands;
+  }
+  return [...commands].sort((a, b) => commandPriority(task, b) - commandPriority(task, a));
+}
+
+function inferUiLayoutAnchorPaths(
+  repoPath: string,
+  task: string,
+  discovery: DiscoveryResult | null,
+  sourceDoc: StoredSourceDoc | null
+): ReadOrderItem[] {
+  if (!isUiLayoutTask(task)) {
+    return [];
+  }
+  const seeds = new Set<string>([
+    ...(discovery?.authoritativeHandoff.mustRead.map((item) => item.path) ?? []),
+    ...(discovery?.authoritativeHandoff.coreChain.map((step) => step.path) ?? []),
+    ...(sourceDoc?.targets.map((target) => target.targetPath) ?? [])
+  ]);
+  const anchors: ReadOrderItem[] = [];
+  const pageFiles = Array.from(seeds).filter((filePath) => /frontend\/lib\/.*_page\.dart$/i.test(filePath));
+  for (const pageFile of pageFiles) {
+    const base = path.basename(pageFile, ".dart");
+    for (const candidate of [
+      `frontend/test/modules/user_core/${base}_batch_delete_test.dart`,
+      `frontend/test/modules/user_core/${base}_test.dart`,
+      `tests/quality/test_frontend_card_layout_guard.py`,
+      `scripts/quality/check_frontend_card_layout_guard.py`,
+      `scripts/quality/run_frontend_card_layout_guard.sh`
+    ]) {
+      if (!existsSync(path.join(repoPath, candidate))) {
+        continue;
+      }
+      anchors.push({
+        path: candidate,
+        why: candidate.includes("guard")
+          ? "UI layout guard derived from route/page anchor."
+          : "Page-specific UI layout regression test derived from route/page anchor.",
+        score: candidate.includes("guard") ? 0.97 : 0.96
+      });
+    }
+  }
+  return anchors;
+}
+
+function commandPriority(task: string, command: CommandHit): number {
+  const text = `${command.command} ${command.name} ${command.sourceFile}`.toLowerCase();
+  let score = command.confidence ?? 0;
+  if (/frontend-card-layout(-contract)?-guard|run_frontend_card_layout.*guard/.test(text)) {
+    score += 1.5;
+  }
+  if (/frontend.*(layout|card|responsive|density|stretch|column).*guard/.test(text)) {
+    score += 0.6;
+  }
+  if (/flutter test .*organization_management_page|organization_management_page_.*test/.test(text)) {
+    score += 1.2;
+  }
+  if (
+    /backend|api-response|dio-relative|auth|identity|exercise|microplan/.test(text) &&
+    !task.toLowerCase().includes("exercise")
+  ) {
+    score -= 0.5;
+  }
+  return score;
+}
+
 function evidenceTierFromWhy(why: string): string {
+  if (why.includes("Authoritative handoff")) {
+    return "authoritative_handoff";
+  }
+  if (why.includes("Route-to-widget")) {
+    return "route_to_widget_chain";
+  }
+  if (why.includes("Exact symbol match")) {
+    return "exact_symbol";
+  }
   if (why.includes("Guard failure")) {
     return "direct_guard";
   }
@@ -634,7 +816,9 @@ function dedupeReadOrder(items: ReadOrderItem[]): ReadOrderItem[] {
     const normalized = normalizePath(item.path);
     const existing = best.get(normalized);
     if (!existing || item.score > existing.score) {
-      best.set(normalized, { ...item, path: normalized });
+      best.set(normalized, { ...item, path: normalized, line: item.line ?? existing?.line });
+    } else if (item.line && !existing.line) {
+      existing.line = item.line;
     }
   }
   return Array.from(best.values());

@@ -250,10 +250,17 @@ function nextComposedSymbol(
 }
 
 function isBusinessRelevantComposition(symbol: SymbolRow, task: string): boolean {
+  if (isSupportPath(symbol.path)) {
+    return false;
+  }
   const lowerTask = task.toLowerCase();
   const lowerName = symbol.name.toLowerCase();
   const lowerPath = symbol.path.toLowerCase();
-  if (/dashboard|athlete|training|trend|card|section|home|view|page|screen/.test(lowerName)) {
+  if (
+    /dashboard|athlete|training|trend|card|section|home|view|page|screen|organization|detail|stats|metric|grid|action|bar|panel/.test(
+      lowerName
+    )
+  ) {
     return true;
   }
   const basename = lowerPath.split("/").at(-1) ?? lowerPath;
@@ -398,7 +405,7 @@ function isPageLikeSymbol(symbol: SymbolRow): boolean {
 
 function isCoreWidgetSymbol(symbol: SymbolRow, task: string): boolean {
   const lowerTask = task.toLowerCase();
-  if (symbol.name.startsWith("_") && !/dashboard|card|section|home|view|widget/i.test(symbol.name)) {
+  if (symbol.name.startsWith("_") && !isPrivateWidgetOwnerName(symbol.name, lowerTask)) {
     return false;
   }
   if (/ViewModel|DesignValues|Provider|Controller|Notifier|State$/.test(symbol.name)) {
@@ -413,9 +420,22 @@ function isCoreWidgetSymbol(symbol: SymbolRow, task: string): boolean {
   return !isSupportPath(symbol.path);
 }
 
+function isPrivateWidgetOwnerName(name: string, loweredTask: string): boolean {
+  if (/dashboard|card|section|home|view|widget|grid|stats|metric|action|bar|panel|detail|organization/i.test(name)) {
+    return true;
+  }
+  const loweredName = name.toLowerCase();
+  return loweredTask
+    .split(/[^a-z0-9_\u4e00-\u9fff]+/u)
+    .filter((token) => token.length > 3)
+    .some((token) => loweredName.includes(token));
+}
+
 function isSupportPath(filePath: string): boolean {
   const lowerPath = filePath.toLowerCase();
   return (
+    lowerPath.includes("/core/qa/") ||
+    lowerPath.includes("/core/widgets/adaptive_grid.dart") ||
     lowerPath.includes("/packages/api_client/") ||
     lowerPath.endsWith(".g.dart") ||
     lowerPath.includes("/modules/design_system/components/") ||

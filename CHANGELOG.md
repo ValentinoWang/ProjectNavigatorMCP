@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.9.1
+
+Capsule route-anchor handoff bugfix release.
+
+- Fixed `pnav --version` and `pnav doctor` version drift by reading package metadata from `package.json`.
+- Promoted `authoritativeHandoff` route/page evidence into `pnav capsule` core read order for discovery-mode tasks.
+- Derived page-specific UI layout guard/test files from route/page anchors so URL screenshot layout tasks surface narrow guard and widget-test entrypoints.
+- Demoted generated API client symbols, backend keyword noise, QA markers, and shared layout primitives from core capsule routing for frontend UI layout tasks.
+- Re-ranked UI layout validation commands so frontend card-layout guards outrank unrelated auth/API/exercise guard commands.
+
 ## v0.9.0
 
 Fresh Graph Correctness & Equivalence release.
