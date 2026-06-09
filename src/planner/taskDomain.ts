@@ -22,6 +22,14 @@ export function inferTaskDomain(input: {
   }
 
   const source = `${input.task} ${input.sourceDoc?.title ?? ""} ${input.sourceDoc?.authority ?? ""}`.toLowerCase();
+  if (isMobileVisualContractTask(source)) {
+    const recipe = findDomainRecipe(input.repoPath, "frontend_design_system");
+    return {
+      name: recipe?.name ?? "frontend_design_system",
+      confidence: 0.9,
+      evidence: ["visual/screenshot contract overrides generic API contract keyword"]
+    };
+  }
   const scored = config.domainGates
     .map((gate) => {
       let score = 0;
@@ -58,4 +66,12 @@ export function inferTaskDomain(input: {
     confidence: Math.min(0.92, best.score),
     evidence: best.evidence
   };
+}
+
+function isMobileVisualContractTask(source: string): boolean {
+  return (
+    /visual contract|screenshot contract|mobile visual contract|requiredtext|required text|required_text|visual_pages|screen-shot|screenshot|截图契约|视觉契约|截图验收|截图|ios/.test(
+      source
+    ) && /required text|requiredtext|文案|语义|显示|url-[a-z0-9-]+|个人分析|personal analytics/.test(source)
+  );
 }

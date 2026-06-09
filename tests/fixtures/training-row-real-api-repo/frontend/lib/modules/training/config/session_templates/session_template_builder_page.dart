@@ -1,0 +1,3 @@
+class SessionTemplateBuilderPage {
+  void buildMetricTemplate() {}
+}

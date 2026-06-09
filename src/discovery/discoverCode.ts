@@ -388,18 +388,15 @@ function rankReadOrder(
   }));
   const best = new Map<string, (typeof related)[number]>();
   for (const item of [...workflowReadOrder, ...fromEntrypoints, ...fromReuse, ...related]) {
-    const score = isWorkflowProfileReadOrder(item)
-      ? item.score
-      : workflowSuppressesPath(workflowProfiles, item.path) && !workflowPaths.has(item.path)
-        ? Math.min(0.08, discoveryReadScore(task, item.path, item.score))
-        : discoveryReadScore(task, item.path, item.score);
+    const suppressedByWorkflow = workflowSuppressesPath(workflowProfiles, item.path) && !workflowPaths.has(item.path);
+    if (suppressedByWorkflow && workflowProfiles.length > 0) {
+      continue;
+    }
+    const score = isWorkflowProfileReadOrder(item) ? item.score : discoveryReadScore(task, item.path, item.score);
     const normalized = {
       ...item,
       score,
-      reason:
-        workflowSuppressesPath(workflowProfiles, item.path) && !workflowPaths.has(item.path)
-          ? `${item.reason}; suppressed by workflow profile`
-          : item.reason
+      reason: item.reason
     };
     const existing = best.get(normalized.path);
     if (!existing || normalized.score > existing.score) {

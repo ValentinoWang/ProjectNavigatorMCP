@@ -1,0 +1,3 @@
+class IdentityCapsule {
+  const IdentityCapsule();
+}

@@ -1,0 +1,8 @@
+version: 1
+pages:
+  - id: url-analytics-personal
+    routeTemplate: /analytics/personal
+    requiredText:
+      - 比赛最佳
+      - 测试最佳
+      - 训练最佳

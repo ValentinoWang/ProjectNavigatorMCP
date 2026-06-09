@@ -1,0 +1,3 @@
+class AppBottomNavBar {
+  const AppBottomNavBar();
+}

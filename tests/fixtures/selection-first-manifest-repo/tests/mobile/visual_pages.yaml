@@ -1,0 +1,178 @@
+version: 1
+pages:
+  - id: url-dashboard-management
+    artifactScreenId: url-dashboard-management
+    role: owner
+    routeTemplate: /dashboard/management
+    selectionFirstAcceptance:
+      required: true
+      pageMode: organizationRosterView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-dashboard-platform
+    artifactScreenId: url-dashboard-platform
+    role: admin
+    routeTemplate: /dashboard/platform
+    selectionFirstAcceptance:
+      required: true
+      pageMode: platformOrgThenAthlete
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-workspace
+    artifactScreenId: url-workspace
+    role: coach
+    routeTemplate: /workspace
+    selectionFirstAcceptance:
+      required: true
+      pageMode: organizationRosterView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-workspace-microplan
+    artifactScreenId: url-workspace-microplan
+    role: coach
+    routeTemplate: /workspace/microplan
+    selectionFirstAcceptance:
+      required: true
+      pageMode: singleAthleteView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-workspace-exercises
+    artifactScreenId: url-workspace-exercises
+    role: coach
+    routeTemplate: /workspace/exercises
+    selectionFirstAcceptance:
+      required: true
+      pageMode: singleAthleteView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-workspace-exercise-build-main
+    artifactScreenId: url-workspace-exercise-build-main
+    role: coach
+    routeTemplate: /workspace/exercises/build?assetId=asset-1
+    selectionFirstAcceptance:
+      required: true
+      pageMode: singleAthleteView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-workspace-exercise-build-lineage-panel
+    artifactScreenId: url-workspace-exercise-build-lineage-panel
+    role: coach
+    routeTemplate: /workspace/exercises/build?assetId=asset-1&qaPanel=lineage
+    selectionFirstAcceptance:
+      required: true
+      pageMode: singleAthleteView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-workspace-exercise-build-nl-draft
+    artifactScreenId: url-workspace-exercise-build-nl-draft
+    role: coach
+    routeTemplate: /workspace/exercises/build?assetId=asset-1&qaPanel=nlDraft
+    selectionFirstAcceptance:
+      required: true
+      pageMode: singleAthleteView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-workspace-exercise-lineage-review-page
+    artifactScreenId: url-workspace-exercise-lineage-review-page
+    role: coach
+    routeTemplate: /workspace/exercises/lineage-review
+    selectionFirstAcceptance:
+      required: true
+      pageMode: singleAthleteView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-workspace-competitions
+    artifactScreenId: url-workspace-competitions
+    role: coach
+    routeTemplate: /workspace/competitions
+    selectionFirstAcceptance:
+      required: true
+      pageMode: singleAthleteView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-workspace-medical
+    artifactScreenId: url-workspace-medical
+    role: coach
+    routeTemplate: /workspace/medical
+    selectionFirstAcceptance:
+      required: true
+      pageMode: singleAthleteView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-athlete-detail
+    artifactScreenId: url-athlete-detail
+    role: coach
+    routeTemplate: /athletes/{athleteId}
+    selectionFirstAcceptance:
+      required: true
+      pageMode: singleAthleteView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-athlete-assessment
+    artifactScreenId: url-athlete-assessment
+    role: coach
+    routeTemplate: /athletes/{athleteId}/assessment
+    selectionFirstAcceptance:
+      required: true
+      pageMode: batchAthleteAction
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-athlete-assessment-workspace
+    artifactScreenId: url-athlete-assessment-workspace
+    role: coach
+    routeTemplate: /athletes/{athleteId}/assessment-workspace
+    selectionFirstAcceptance:
+      required: true
+      pageMode: batchAthleteAction
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-athlete-medical-workspace
+    artifactScreenId: url-athlete-medical-workspace
+    role: coach
+    routeTemplate: /athletes/{athleteId}/medical-workspace
+    selectionFirstAcceptance:
+      required: true
+      pageMode: singleAthleteView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary
+  - id: url-athlete-personal-bests
+    artifactScreenId: url-athlete-personal-bests
+    role: coach
+    routeTemplate: /athletes/{athleteId}/personal-bests
+    selectionFirstAcceptance:
+      required: true
+      pageMode: singleAthleteView
+      acceptedVisibleStates:
+        - athleteSelector
+        - organizationAthleteBoard
+        - activeViewSelectionSummary

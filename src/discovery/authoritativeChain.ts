@@ -134,7 +134,8 @@ export function buildWorkflowProtocol(profiles: WorkflowDiscoveryProfile[]): Wor
     gateSteps: dedupeWorkflowItems(
       profiles.flatMap((profile) => profile.gateSteps),
       (item) => item.id
-    )
+    ),
+    acceptanceMatrices: profiles.flatMap((profile) => profile.acceptanceMatrices)
   };
 }
 

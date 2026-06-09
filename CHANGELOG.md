@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.9.3
+
+Workflow source-of-truth navigation hardening release.
+
+- Added built-in workflow guidance for auth session boundary lifecycle tasks so root auth/session files outrank generic identity and navigation UI files.
+- Added selection-first mobile visual acceptance matrix discovery from generated visual manifests, including route/page source reverse mapping.
+- Added training row real API workflow guidance so row logs/metrics persistence tasks start from E2E evidence, TrainingRun payload/sync code, backend contract tests, and write delegates.
+- Added mobile visual requiredText workflow guidance so visual/screenshot contract tasks are not misclassified as OpenAPI/API contract work.
+- Suppressed workflow-declared noise paths from workflow-driven read order instead of leaving them as low-score generic recommendations.
+- Expanded capsule Core Read Order for multi-file source-of-truth workflows while preserving strict mustRead budgets.
+
 ## v0.9.2
 
 Scan atomicity and rebuild safety patch.

@@ -1,0 +1,48 @@
+{
+  "profiles": [
+    {
+      "name": "flutter_transfer_identity_navigation_state",
+      "match": {
+        "regex": ["identity switch|personal/org|identity capsule|bottom nav|旧角色"]
+      },
+      "confidence": 0.95,
+      "mustRead": [
+        {
+          "path": "frontend/lib/core/router/auth_guard.dart",
+          "score": 0.99,
+          "why": "auth_route_boundary"
+        },
+        {
+          "path": "frontend/lib/core/navigation/primary_navigation_persona.dart",
+          "score": 0.98,
+          "why": "bottom_nav_persona_source"
+        },
+        {
+          "path": "frontend/lib/core/widgets/identity_capsule.dart",
+          "score": 0.97,
+          "why": "identity_capsule_display_source"
+        },
+        {
+          "path": "frontend/lib/modules/design_system/components/organisms/app_bottom_nav_bar.dart",
+          "score": 0.96,
+          "why": "bottom_nav_widget_source"
+        },
+        {
+          "path": "frontend/lib/core/identity/identity_switch_service.dart",
+          "score": 0.95,
+          "why": "identity_switch_state_source"
+        }
+      ],
+      "recommendedCommands": [
+        {
+          "command": "make auth-identity-contract-guard",
+          "required": true
+        },
+        {
+          "command": "make identity-role-preservation-guard",
+          "required": true
+        }
+      ]
+    }
+  ]
+}

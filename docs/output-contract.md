@@ -211,15 +211,26 @@ incremental, metadata-only, partial, fresh eval, and metadata eval timings with 
 - `supportingContext`: useful support dependencies excluded from `mustRead`, optionally with precise `reason` and `reasonDetail`.
 - `suppressedCandidates`: files removed from primary context with `reason`, `reasonDetail`, and reason confidence.
 - `strictGate`: budget and dropped-file audit.
-- `workflowProtocol`: repo-local or built-in workflow guidance for execution. It contains
+- `workflowProtocol`: merged repo-local and built-in workflow guidance for execution. It contains
   `profiles`, `actions`, `recommendedCommands`, `newFileExpectations`, `editPolicies`, and
   `gateSteps`.
+- `workflowProtocol.acceptanceMatrices`: deterministic manifest-derived matrices for workflow
+  tasks where the source of truth is generated acceptance metadata rather than a single route or
+  symbol. The first built-in matrix is `selection_first_acceptance`, derived from
+  `tests/mobile/visual_pages.yaml` entries with `selectionFirstAcceptance.required: true`. Each
+  family includes variant counts, roles, route templates, page modes, accepted visible states,
+  reverse-mapped Flutter route/page/source files, visible-state source evidence, and missing
+  evidence warnings.
 
-Workflow profiles are loaded from the target repo in this order:
+Workflow profiles are resolved from both target-repo configuration and built-in deterministic profiles:
 
 1. `.agents/pnav/workflow-profiles.json`
 2. `.pnav/workflow-profiles.json`
-3. Built-in fallback profiles
+3. Built-in profiles
+
+Matching repo-local profiles are merged with matching built-in profiles and sorted by confidence. Repo-local
+profiles add project-specific workflow knowledge; they do not hide more precise built-in workflows such as
+`auth_session_boundary_lifecycle` or `selection_first_acceptance_matrix`.
 
 Only existing files from a profile can enter `mustRead` or `supportingContext`.
 `newFileExpectations` may describe directories, patterns, or future files that do not exist yet.

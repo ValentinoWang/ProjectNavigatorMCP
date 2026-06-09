@@ -1,0 +1,11 @@
+{
+  "pages": [
+    {
+      "id": "url-analytics-personal",
+      "route": "/analytics/personal",
+      "requiredText": ["比赛最佳", "测试最佳", "训练最佳"],
+      "page": "PersonalAnalyticsPage",
+      "widget": "PrDashboardPage"
+    }
+  ]
+}

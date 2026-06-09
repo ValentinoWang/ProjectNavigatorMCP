@@ -2,6 +2,11 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { matchesAnyPattern } from "../config/projectConfig.js";
 import type { FileHit } from "../graph/types.js";
+import {
+  buildSelectionFirstAcceptanceMatrix,
+  explicitAcceptanceFamiliesFromTask,
+  type AcceptanceManifestMatrix
+} from "./acceptanceManifest.js";
 import type { DependencyTier } from "./dependencyTiers.js";
 import type { StrictGateCandidate } from "./strictMustReadGate.js";
 
@@ -18,6 +23,7 @@ export interface WorkflowDiscoveryProfile {
   newFileExpectations: WorkflowNewFileExpectation[];
   editPolicies: WorkflowEditPolicy[];
   gateSteps: WorkflowGateStep[];
+  acceptanceMatrices: AcceptanceManifestMatrix[];
 }
 
 export type WorkflowProfileSource = "repo_local" | "built_in";
@@ -78,6 +84,7 @@ export interface WorkflowProtocol {
   newFileExpectations: WorkflowNewFileExpectation[];
   editPolicies: WorkflowEditPolicy[];
   gateSteps: WorkflowGateStep[];
+  acceptanceMatrices: AcceptanceManifestMatrix[];
 }
 
 interface SeedOptions {
@@ -91,22 +98,9 @@ interface SeedOptions {
 export function resolveWorkflowDiscoveryProfiles(repoPath: string, task: string): WorkflowDiscoveryProfile[] {
   const lowered = task.toLowerCase();
   const repoLocalProfiles = resolveRepoLocalWorkflowProfiles(repoPath, lowered);
-  if (repoLocalProfiles.length > 0) {
-    return sortProfiles(repoLocalProfiles);
-  }
+  const builtInProfiles = resolveBuiltInWorkflowProfiles(repoPath, lowered);
 
-  return sortProfiles(
-    [
-      governanceHarnessProfile(repoPath, lowered),
-      roleUiGuardProfile(repoPath, lowered),
-      openapiContractProfile(repoPath, lowered),
-      schemaMigrationProfile(repoPath, lowered),
-      appPlusParityProfile(repoPath, lowered),
-      screenshotSemanticsProfile(repoPath, lowered),
-      reasoningSessionProfile(repoPath, lowered),
-      qualityGateProfile(repoPath, lowered)
-    ].filter((item): item is WorkflowDiscoveryProfile => item !== null)
-  );
+  return applyProfileSuppressions(sortProfiles([...repoLocalProfiles, ...builtInProfiles]));
 }
 
 export function workflowSuppressesPath(profiles: WorkflowDiscoveryProfile[], filePath: string): boolean {
@@ -127,9 +121,29 @@ function sortProfiles(profiles: WorkflowDiscoveryProfile[]): WorkflowDiscoveryPr
         profile.recommendedCommands.length > 0 ||
         profile.newFileExpectations.length > 0 ||
         profile.editPolicies.length > 0 ||
-        profile.gateSteps.length > 0
+        profile.gateSteps.length > 0 ||
+        profile.acceptanceMatrices.length > 0
     )
     .sort((a, b) => b.confidence - a.confidence || a.name.localeCompare(b.name));
+}
+
+function applyProfileSuppressions(profiles: WorkflowDiscoveryProfile[]): WorkflowDiscoveryProfile[] {
+  return profiles.map((profile, index) => {
+    const suppressors = profiles.filter(
+      (candidate, candidateIndex) =>
+        candidateIndex !== index && candidate.confidence > profile.confidence && candidate.suppressPaths.length > 0
+    );
+    if (suppressors.length === 0) {
+      return profile;
+    }
+    const isSuppressed = (filePath: string) =>
+      suppressors.some((suppressor) => matchesAnyPattern(filePath, suppressor.suppressPaths));
+    return {
+      ...profile,
+      candidates: profile.candidates.filter((candidate) => !isSuppressed(candidate.path)),
+      readOrder: profile.readOrder.filter((item) => !isSuppressed(item.path))
+    };
+  });
 }
 
 type RepoLocalWorkflowProfileDocument = RepoLocalWorkflowProfile[] | { profiles?: RepoLocalWorkflowProfile[] };
@@ -313,6 +327,23 @@ function expandRepoLocalPattern(repoPath: string, pattern: string): string[] {
   return files.sort((a, b) => a.localeCompare(b));
 }
 
+function resolveBuiltInWorkflowProfiles(repoPath: string, task: string): WorkflowDiscoveryProfile[] {
+  return [
+    governanceHarnessProfile(repoPath, task),
+    roleUiGuardProfile(repoPath, task),
+    mobileVisualRequiredTextProfile(repoPath, task),
+    openapiContractProfile(repoPath, task),
+    schemaMigrationProfile(repoPath, task),
+    appPlusParityProfile(repoPath, task),
+    authSessionBoundaryProfile(repoPath, task),
+    trainingRowRealApiWriteProfile(repoPath, task),
+    selectionFirstAcceptanceProfile(repoPath, task),
+    screenshotSemanticsProfile(repoPath, task),
+    reasoningSessionProfile(repoPath, task),
+    qualityGateProfile(repoPath, task)
+  ].filter((item): item is WorkflowDiscoveryProfile => item !== null);
+}
+
 function governanceHarnessProfile(repoPath: string, task: string): WorkflowDiscoveryProfile | null {
   if (!/(projectnavigatormcp|pnav|\bmcp\b)/.test(task) || !/(harness|skill|agents-results|治理|收尾)/.test(task)) {
     return null;
@@ -423,6 +454,9 @@ function roleUiGuardProfile(repoPath: string, task: string): WorkflowDiscoveryPr
 }
 
 function openapiContractProfile(repoPath: string, task: string): WorkflowDiscoveryProfile | null {
+  if (isMobileVisualRequiredTextTask(task)) {
+    return null;
+  }
   const contractIntent = /(接口|api|openapi|contract|契约|sdk)/.test(task);
   const teacherTrend = /(teacher|教师|班级|class|诊断|diagnostic|趋势|trend|dashboard|卡片)/.test(task);
   if (!contractIntent || !teacherTrend) {
@@ -569,6 +603,9 @@ function schemaMigrationProfile(repoPath: string, task: string): WorkflowDiscove
 }
 
 function appPlusParityProfile(repoPath: string, task: string): WorkflowDiscoveryProfile | null {
+  if (isMobileVisualRequiredTextTask(task)) {
+    return null;
+  }
   if (!/(app-plus|app plus|ios|状态栏|safe-area|safe area|hbuilderx|appium)/.test(task)) {
     return null;
   }
@@ -621,6 +658,412 @@ function appPlusParityProfile(repoPath: string, task: string): WorkflowDiscovery
   });
   return builder.profile(0.97, [
     "App-Plus parity task: include native safe-area, HBuilderX/Appium, and Page Shell context; H5 screenshots alone are insufficient."
+  ]);
+}
+
+function mobileVisualRequiredTextProfile(repoPath: string, task: string): WorkflowDiscoveryProfile | null {
+  if (!isMobileVisualRequiredTextTask(task)) {
+    return null;
+  }
+  const builder = new ProfileBuilder(repoPath, "mobile_visual_required_text_contract", [
+    "backend/**",
+    "database/**",
+    "infra/**",
+    "shared/api/**",
+    "frontend/packages/api_client/**",
+    "docs/openapi*/**",
+    "scripts/quality/*api*guard*",
+    "**/*.g.dart"
+  ]);
+  builder.core("tests/flutter-web/e2e/visual_pages_url_tree.json", 0.995, "visual_url_tree_source", true);
+  builder.core("tests/mobile/visual_pages.yaml", 0.99, "mobile_visual_required_text_manifest", true);
+  builder.core("frontend/lib/core/qa/mobile_visual_contract.dart", 0.985, "generated_mobile_visual_contract", true);
+  builder.core(
+    "frontend/lib/modules/analytics/personal/personal_analytics_page.dart",
+    0.98,
+    "analytics_personal_page_owner",
+    true
+  );
+  builder.core(
+    "frontend/lib/modules/training/review/pr/pr_dashboard_page.dart",
+    0.975,
+    "personal_best_copy_widget_owner",
+    true
+  );
+  builder.core("frontend/lib/l10n/app_zh.arb", 0.965, "i18n_required_business_copy", true);
+  builder.core("frontend/lib/l10n/app_en.arb", 0.96, "i18n_required_business_copy", true);
+  builder.core("scripts/quality/generate_mobile_visual_contract.py", 0.955, "mobile_visual_contract_generator", true);
+  builder.core(
+    "scripts/quality/check_mobile_visual_required_text_guard.py",
+    0.95,
+    "mobile_visual_required_text_guard",
+    true
+  );
+  builder.context("tests/screen-shot/change_log/screenshot-revalidation-checklist.md", 0.94, "screenshot_change_log");
+  builder.context("frontend/lib/core/router/app_router.dart", 0.9, "route_reverse_mapping");
+  builder.action({
+    type: "inspect_mobile_visual_screenshot_contract",
+    target: "url-* screenshot requiredText / visual_pages manifests",
+    required: true,
+    reason: "Visual contract means screenshot acceptance contract here, not OpenAPI/API contract."
+  });
+  builder.action({
+    type: "reverse_map_visual_url_to_flutter_source",
+    target: "url-analytics-personal -> /analytics/personal -> PersonalAnalyticsPage -> PrDashboardPage",
+    required: true,
+    reason: "URL screenshot ids must be mapped through Flutter route/page/widget owners before generic keyword search."
+  });
+  builder.action({
+    type: "update_required_text_contract",
+    path: "tests/flutter-web/e2e/visual_pages_url_tree.json",
+    required: true,
+    reason: "Required business copy belongs in the visual URL tree before generated mobile manifests."
+  });
+  builder.action({
+    type: "regenerate_mobile_visual_contract",
+    path: "frontend/lib/core/qa/mobile_visual_contract.dart",
+    command: "python3 scripts/quality/generate_mobile_visual_contract.py",
+    required: true,
+    reason: "Generated mobile visual contract should be refreshed from the visual_pages source."
+  });
+  builder.command({
+    command: "python3 scripts/quality/generate_mobile_visual_contract.py",
+    required: true,
+    reason: "Regenerate tests/mobile/visual_pages.yaml and frontend mobile visual contract from the URL tree."
+  });
+  builder.command({
+    command: "python3 scripts/quality/check_mobile_visual_required_text_guard.py",
+    required: true,
+    reason: "Verify requiredText contains the expected business copy for screenshot acceptance."
+  });
+  builder.editPolicy({
+    path: "backend/**",
+    policy: "do_not_touch",
+    reason: "Screenshot requiredText copy is frontend visual acceptance work, not backend/API data work."
+  });
+  builder.editPolicy({
+    path: "frontend/packages/api_client/**",
+    policy: "read_only",
+    reason: "Generated SDK models are noise for mobile visual requiredText copy."
+  });
+  builder.gateStep({
+    id: "mobile_visual_required_text_contract",
+    description:
+      "Update visual URL tree requiredText, regenerate mobile visual contract artifacts, and run the requiredText guard.",
+    command:
+      "python3 scripts/quality/generate_mobile_visual_contract.py && python3 scripts/quality/check_mobile_visual_required_text_guard.py",
+    required: true
+  });
+  return builder.profile(0.995, [
+    "Mobile visual requiredText task: treat visual/screenshot contract as screenshot acceptance, not OpenAPI/API contract; start from visual_pages URL tree, route/page/widget owner, i18n, generated mobile visual contract, and screenshot change log."
+  ]);
+}
+
+function isMobileVisualRequiredTextTask(task: string): boolean {
+  const visualContract =
+    /visual contract|screenshot contract|mobile visual contract|requiredtext|required text|required_text|visual_pages|screen-shot|screenshot|截图契约|视觉契约|截图验收|截图|ios/.test(
+      task
+    );
+  const copyIntent =
+    /required text|requiredtext|文案|语义|显示|比赛最佳|测试最佳|训练最佳|personal best|best badge|badge|label/.test(
+      task
+    );
+  const urlIntent = /url-[a-z0-9-]+|\/analytics\/personal|analytics-personal|个人分析|personal analytics/.test(task);
+  return visualContract && (copyIntent || urlIntent);
+}
+
+function selectionFirstAcceptanceProfile(repoPath: string, task: string): WorkflowDiscoveryProfile | null {
+  if (
+    !/selectionfirstacceptance|selection-first|selection first|active view|active-view|visual_pages\.ya?ml|页面族|截图验收|personal-bests|personal bests/.test(
+      task
+    )
+  ) {
+    return null;
+  }
+  const matrix = buildSelectionFirstAcceptanceMatrix(repoPath);
+  if (!matrix) {
+    return null;
+  }
+  const builder = new ProfileBuilder(repoPath, "selection_first_acceptance_matrix", [
+    "backend/**",
+    "database/**",
+    "infra/**",
+    "tests/screen-shot/**"
+  ]);
+  builder.acceptanceMatrix(matrix);
+  builder.core(matrix.manifestPath, 0.99, "selection_first_manifest", true);
+  builder.core("docs/developer/active-view-scope-unification-plan.md", 0.98, "active_view_scope_plan", true);
+  builder.core("scripts/quality/check_mobile_visual_active_view_scope_guard.py", 0.97, "active_view_scope_guard", true);
+  builder.context("frontend/lib/core/router/app_router.dart", 0.93, "flutter_route_reverse_mapping");
+  builder.context(
+    "frontend/lib/core/widgets/active_view_selection_bar.dart",
+    0.9,
+    "active_view_selection_summary_widget"
+  );
+  builder.context(
+    "frontend/lib/core/widgets/active_view_scope_required_panel.dart",
+    0.88,
+    "athlete_selector_required_panel"
+  );
+
+  const explicitFamilies = explicitAcceptanceFamiliesFromTask(matrix, task);
+  const familyTargets =
+    explicitFamilies.length > 0 ? explicitFamilies : matrix.families.filter((family) => family.status !== "mapped");
+  for (const family of familyTargets.slice(0, 6)) {
+    for (const sourceFile of family.sourceFiles) {
+      builder.core(
+        sourceFile,
+        explicitFamilies.length > 0 ? 0.965 : 0.91,
+        `selection_first_source:${family.family}`,
+        true
+      );
+    }
+  }
+  builder.action({
+    type: "build_manifest_family_matrix",
+    path: matrix.manifestPath,
+    required: true,
+    reason: `Group ${matrix.requiredVariants} required selection-first variants into ${matrix.requiredFamilies} screen families before reading page code.`
+  });
+  builder.action({
+    type: "reverse_map_manifest_family_to_flutter_source",
+    target: "selectionFirstAcceptance.required families",
+    required: true,
+    reason:
+      "Resolve routeTemplate/artifactScreenId to Flutter route builder and page source instead of relying on generic route tokens."
+  });
+  builder.action({
+    type: "verify_visible_state_evidence",
+    target: "athleteSelector | organizationAthleteBoard | activeViewSelectionSummary",
+    required: true,
+    reason:
+      "Each required family needs source evidence for at least one accepted visible state before screenshots are promoted."
+  });
+  builder.command({
+    command: "python3 scripts/quality/check_mobile_visual_active_view_scope_guard.py",
+    required: true,
+    reason: "Run the static Active View Scope visual guard after source/contract updates."
+  });
+  builder.gateStep({
+    id: "selection_first_manifest_to_source_matrix",
+    description:
+      "Confirm each selectionFirstAcceptance.required family is mapped to route/page source and has visible-state evidence.",
+    command: "python3 scripts/quality/check_mobile_visual_active_view_scope_guard.py",
+    required: true
+  });
+  return builder.profile(0.98, matrix.warnings);
+}
+
+function authSessionBoundaryProfile(repoPath: string, task: string): WorkflowDiscoveryProfile | null {
+  const boundaryIntent =
+    /authsessionboundary|auth session|session lifecycle|auth state transition|auth-state-transition|principal change|unauthorized drop|logout login|login principal|session drop|auth boundary|会话边界|认证状态|登录登出|未授权丢弃/.test(
+      task
+    );
+  const authIntent = /auth|identity|login|logout|principal|unauthorized|session|认证|身份|登录|登出|会话/.test(task);
+  if (!boundaryIntent || !authIntent) {
+    return null;
+  }
+  const builder = new ProfileBuilder(repoPath, "auth_session_boundary_lifecycle", [
+    "backend/**",
+    "database/**",
+    "infra/**",
+    "tests/screen-shot/**",
+    "tests/flutter-web/**",
+    "frontend/lib/core/router/auth_guard.dart",
+    "frontend/lib/core/navigation/primary_navigation_persona.dart",
+    "frontend/lib/core/widgets/identity_capsule.dart",
+    "frontend/lib/modules/design_system/components/organisms/app_bottom_nav_bar.dart",
+    "frontend/test/widget/identity_capsule_test.dart",
+    "frontend/test/modules/design_system/components/app_bottom_nav_bar_test.dart"
+  ]);
+  builder.core("frontend/lib/core/auth/auth_session_boundary.dart", 0.995, "auth_session_boundary_root", true);
+  builder.core("frontend/lib/core/di/auth_controller.dart", 0.99, "auth_controller_command_boundary", true);
+  builder.core("scripts/quality/check_auth_state_transition_guard.py", 0.985, "auth_state_transition_guard", true);
+  builder.core("frontend/lib/core/router/router_provider.dart", 0.975, "router_auth_resync_boundary", true);
+  builder.core("frontend/lib/core/identity/identity_controller.dart", 0.965, "identity_bootstrap_boundary", true);
+  builder.context("frontend/lib/modules/auth/login_page.dart", 0.94, "login_redirect_boundary");
+  builder.context("frontend/lib/core/router/auth_guard.dart", 0.92, "auth_route_redirect_policy");
+  builder.context("frontend/lib/core/identity/identity_switch_service.dart", 0.9, "identity_switch_session_boundary");
+  builder.context("frontend/lib/modules/auth/auth_repository.dart", 0.88, "auth_repository_login_logout");
+  builder.context("frontend/lib/modules/auth/http_auth_api.dart", 0.86, "auth_api_login_logout");
+  builder.context("frontend/test/core/di/auth_controller_race_test.dart", 0.84, "auth_controller_race_test");
+  builder.context("frontend/test/core/router/auth_route_stability_test.dart", 0.83, "auth_route_stability_test");
+  builder.context("frontend/test/modules/auth/login_page_first_click_test.dart", 0.82, "login_first_click_test");
+  builder.action({
+    type: "trace_auth_session_boundary_root",
+    target: "logout | login principal change | identity switch | unauthorized session drop",
+    required: true,
+    reason: "Start from AuthSessionBoundary and AuthController before navigation chrome or identity display widgets."
+  });
+  builder.action({
+    type: "verify_auth_controller_transition_hooks",
+    path: "frontend/lib/core/di/auth_controller.dart",
+    required: true,
+    reason: "Login, logout, and syncFromTokenStore must call the session boundary at the correct transition point."
+  });
+  builder.action({
+    type: "verify_router_uses_session_resync",
+    path: "frontend/lib/core/router/router_provider.dart",
+    required: true,
+    reason:
+      "Unauthorized or stale-token drops should resync through the auth controller instead of directly invalidating auth state."
+  });
+  builder.action({
+    type: "verify_identity_bootstrap_boundary",
+    path: "frontend/lib/core/identity/identity_controller.dart",
+    required: true,
+    reason: "Identity bootstrap must derive from stable auth/current-user state and not revive stale principal context."
+  });
+  builder.command({
+    command: "make auth-state-transition-guard",
+    required: true,
+    reason:
+      "Static guard for AuthController, RouterProvider, IdentityController, LoginPage, and auth transition regression tests."
+  });
+  builder.command({
+    command: "make frontend-auth-stable-user-guard",
+    required: true,
+    reason: "Validate frontend code uses stable current-user snapshots instead of transient auth reads."
+  });
+  builder.command({
+    command: "make identity-role-preservation-guard",
+    required: true,
+    reason: "Validate identity-switch behavior does not regress role/principal preservation semantics."
+  });
+  builder.editPolicy({
+    path: "frontend/lib/core/widgets/identity_capsule.dart",
+    policy: "inspect_only",
+    reason: "Identity display widgets are downstream consumers; do not start a session-lifecycle root fix there."
+  });
+  builder.editPolicy({
+    path: "frontend/lib/modules/design_system/components/organisms/app_bottom_nav_bar.dart",
+    policy: "inspect_only",
+    reason: "Bottom navigation reflects auth/identity state but is not the root session boundary."
+  });
+  builder.gateStep({
+    id: "auth_session_transition_guard",
+    description:
+      "Run auth-state-transition-guard after inspecting AuthSessionBoundary, AuthController, RouterProvider, IdentityController, and LoginPage.",
+    command: "make auth-state-transition-guard",
+    required: true
+  });
+  return builder.profile(0.99, [
+    "Auth session lifecycle task: prioritize AuthSessionBoundary/AuthController/auth-state-transition guard over identity display or bottom navigation files."
+  ]);
+}
+
+function trainingRowRealApiWriteProfile(repoPath: string, task: string): WorkflowDiscoveryProfile | null {
+  const rowWriteIntent =
+    /training[_ -]?row[_ -]?(logs|metrics)|training row|row lineage|row_lineage|metric binding|metric_binding|action timing|session-action-timing|非法时间|非法时长|invalid time|illegal time/.test(
+      task
+    );
+  const realApiContractIntent =
+    /真实\s*api|real api|写入|落盘|persist|后端契约|contract|契约|lineage|binding|绑定/.test(task);
+  const trainingIntent = /training|训练|session|row|metric|指标/.test(task);
+  if (!rowWriteIntent || !realApiContractIntent || !trainingIntent) {
+    return null;
+  }
+  const builder = new ProfileBuilder(repoPath, "training_row_real_api_write_contract", [
+    "frontend/lib/modules/training/config/session_templates/**",
+    "frontend/lib/modules/training/config/metrics/**",
+    "frontend/lib/core/router/**",
+    "frontend/packages/api_client/**",
+    "backend/app/api/v1/metrics*.py",
+    "backend/app/api/metrics*.py",
+    "backend/generated/**",
+    "scripts/quality/*api*guard*"
+  ]);
+  builder.core(
+    "tests/flutter-web/e2e/session-action-timing-real-api.spec.ts",
+    0.995,
+    "real_api_e2e_primary_evidence",
+    true
+  );
+  builder.core("frontend/lib/modules/training/run/training_run_page.dart", 0.99, "training_run_ui_entry", true);
+  builder.core(
+    "frontend/lib/modules/training/run/widgets/active_session_cockpit.dart",
+    0.985,
+    "active_session_action_source",
+    true
+  );
+  builder.core(
+    "frontend/lib/modules/training/run/training_run_controller.dart",
+    0.98,
+    "frontend_persistence_command",
+    true
+  );
+  builder.core(
+    "frontend/lib/modules/training/run/training_run_payload_builder.dart",
+    0.975,
+    "training_row_payload_source",
+    true
+  );
+  builder.core(
+    "frontend/lib/modules/training/run/training_run_row_sync.dart",
+    0.97,
+    "training_row_real_api_sync",
+    true
+  );
+  builder.core(
+    "backend/tests/test_training_session_action_timing_contract.py",
+    0.965,
+    "backend_action_timing_contract",
+    true
+  );
+  builder.core(
+    "backend/app/services/training_sessions_api_delegate.py",
+    0.96,
+    "backend_training_row_write_delegate",
+    true
+  );
+  builder.action({
+    type: "trace_real_api_e2e_to_row_persistence",
+    path: "tests/flutter-web/e2e/session-action-timing-real-api.spec.ts",
+    required: true,
+    reason: "Start from the real API E2E evidence before generic session/template/metric files."
+  });
+  builder.action({
+    type: "inspect_ui_action_to_payload_sync_chain",
+    target: "TrainingRunPage -> ActiveSessionCockpit -> TrainingRunController -> payload_builder -> row_sync",
+    required: true,
+    reason: "The frontend source of truth is the action pipeline that persists row logs and metrics."
+  });
+  builder.action({
+    type: "verify_backend_row_contracts",
+    path: "backend/tests/test_training_session_action_timing_contract.py",
+    required: true,
+    reason: "Illegal time, row lineage, and metric binding must be guarded by backend contract tests."
+  });
+  builder.command({
+    command: "make session-action-timing-real-api",
+    required: true,
+    reason: "Run the real API E2E that proves training_row_logs and training_row_metrics are written."
+  });
+  builder.command({
+    command: "pytest backend/tests/test_training_session_action_timing_contract.py",
+    required: true,
+    reason: "Run backend contract coverage for illegal time, row lineage, and metric binding."
+  });
+  builder.editPolicy({
+    path: "frontend/lib/modules/training/config/session_templates/**",
+    policy: "inspect_only",
+    reason: "Session template builders are keyword-adjacent but not the row persistence source of truth."
+  });
+  builder.editPolicy({
+    path: "frontend/packages/api_client/**",
+    policy: "read_only",
+    reason: "Generated API client symbols should not drive this real API row-write diagnosis."
+  });
+  builder.gateStep({
+    id: "training_row_real_api_contract",
+    description:
+      "Verify real API E2E evidence and backend contract tests before broad session/template/metric API exploration.",
+    command:
+      "make session-action-timing-real-api && pytest backend/tests/test_training_session_action_timing_contract.py",
+    required: true
+  });
+  return builder.profile(0.99, [
+    "Training row real API task: prioritize E2E evidence, TrainingRun action pipeline, payload/sync code, backend contract test, and write delegate over generic session/template/metric/API keyword hits."
   ]);
 }
 
@@ -712,6 +1155,7 @@ class ProfileBuilder {
   private readonly newFileExpectations: WorkflowNewFileExpectation[] = [];
   private readonly editPolicies: WorkflowEditPolicy[] = [];
   private readonly gateSteps: WorkflowGateStep[] = [];
+  private readonly acceptanceMatrices: AcceptanceManifestMatrix[] = [];
 
   constructor(
     private readonly repoPath: string,
@@ -772,6 +1216,10 @@ class ProfileBuilder {
     this.gateSteps.push({ ...input, sourceProfile: this.name, source: this.source });
   }
 
+  acceptanceMatrix(matrix: AcceptanceManifestMatrix): void {
+    this.acceptanceMatrices.push(matrix);
+  }
+
   profile(confidence: number, warnings: string[]): WorkflowDiscoveryProfile {
     const dedupedCandidates = dedupeCandidates(this.candidates);
     return {
@@ -786,7 +1234,8 @@ class ProfileBuilder {
       recommendedCommands: dedupeWorkflowItems(this.recommendedCommands, (item) => item.command),
       newFileExpectations: dedupeWorkflowItems(this.newFileExpectations, newFileKey),
       editPolicies: dedupeWorkflowItems(this.editPolicies, (item) => `${item.policy}:${item.path}`),
-      gateSteps: dedupeWorkflowItems(this.gateSteps, (item) => item.id)
+      gateSteps: dedupeWorkflowItems(this.gateSteps, (item) => item.id),
+      acceptanceMatrices: this.acceptanceMatrices
     };
   }
 

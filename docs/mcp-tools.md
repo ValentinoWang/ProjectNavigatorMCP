@@ -580,27 +580,57 @@ Data shape:
     ],
     "strictGate": {},
     "workflowProtocol": {
-      "profiles": [{ "name": "openapi_contract_first", "source": "repo_local", "confidence": 0.98 }],
+      "profiles": [
+        { "name": "auth_session_boundary_lifecycle", "source": "built_in", "confidence": 0.99 },
+        { "name": "flutter_transfer_identity_navigation_state", "source": "repo_local", "confidence": 0.95 }
+      ],
       "actions": [
         {
-          "type": "run_sdk_generate",
-          "command": "npm run sdk:generate",
+          "type": "trace_auth_session_boundary_root",
+          "target": "logout | login principal change | identity switch | unauthorized session drop",
           "required": true,
-          "reason": "Generated SDK files must be refreshed from the OpenAPI contract.",
-          "sourceProfile": "openapi_contract_first",
-          "source": "repo_local"
+          "reason": "Start from AuthSessionBoundary and AuthController before navigation chrome or identity display widgets.",
+          "sourceProfile": "auth_session_boundary_lifecycle",
+          "source": "built_in"
         }
       ],
-      "recommendedCommands": [{ "command": "npm run sdk:check", "required": true }],
+      "recommendedCommands": [{ "command": "make auth-state-transition-guard", "required": true }],
       "newFileExpectations": [],
       "editPolicies": [
         {
-          "path": "frontend/uniapp-shell/src/utils/sdk/generated/**",
-          "policy": "read_only",
-          "reason": "Generated SDK output is updated by sdk:generate, not manual edits."
+          "path": "frontend/lib/core/widgets/identity_capsule.dart",
+          "policy": "inspect_only",
+          "reason": "Identity display widgets are downstream consumers; do not start a session-lifecycle root fix there."
         }
       ],
-      "gateSteps": [{ "id": "openapi_before_generated_sdk", "required": true }]
+      "gateSteps": [{ "id": "auth_session_transition_guard", "required": true }],
+      "acceptanceMatrices": [
+        {
+          "kind": "selection_first_acceptance",
+          "manifestPath": "tests/mobile/visual_pages.yaml",
+          "requiredField": "selectionFirstAcceptance.required",
+          "requiredFamilies": 16,
+          "requiredVariants": 54,
+          "families": [
+            {
+              "family": "url-athlete-personal-bests",
+              "variantCount": 4,
+              "roles": ["admin", "captain", "coach", "owner"],
+              "routeTemplates": ["/athletes/{athleteId}/personal-bests"],
+              "pageModes": ["platformOrgThenAthlete", "singleAthleteView"],
+              "acceptedVisibleStates": ["activeViewSelectionSummary", "athleteSelector", "organizationAthleteBoard"],
+              "normalizedRoute": "/athletes/:id/personal-bests",
+              "routeConstant": "AthletesRoutePaths.personalBests",
+              "pageWidget": "AthletePbManagePage",
+              "sourceFiles": ["frontend/lib/modules/athletes/detail/athlete_pb_manage_page.dart"],
+              "evidenceStates": ["activeViewSelectionSummary"],
+              "missingAcceptedStates": ["athleteSelector", "organizationAthleteBoard"],
+              "status": "mapped"
+            }
+          ],
+          "warnings": []
+        }
+      ]
     }
   },
   "entrypoints": [],
@@ -615,6 +645,10 @@ Data shape:
   "warnings": []
 }
 ```
+
+Workflow profiles are merged, not shadowed: repo-local profiles can add project-specific signals while more precise
+built-in profiles still participate. For example, an `AuthSessionBoundary` lifecycle task can use the built-in
+`auth_session_boundary_lifecycle` profile even when the target repo also has a broad identity-navigation profile.
 
 ### `find_entrypoints`
 

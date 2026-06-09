@@ -104,7 +104,8 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
   const warnings: string[] = [];
   const mode = resolveMode(options);
   const discovery = mode === "discovery" ? discoverCode(repoPath, task, options.maxFiles ?? 15) : null;
-  const symbolHits = findSymbol(repoPath, task, options.maxSymbols ?? 12);
+  const workflowDriven = (discovery?.authoritativeHandoff.workflowProtocol.profiles.length ?? 0) > 0;
+  const symbolHits = workflowDriven ? [] : findSymbol(repoPath, task, options.maxSymbols ?? 12);
   const sourceDocResult = options.sourceDoc ? loadSourceDoc(repoPath, options.sourceDoc) : { doc: null };
   if (sourceDocResult.warning) {
     warnings.push(sourceDocResult.warning);
@@ -115,7 +116,7 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
     : null;
   warnings.push(...(guardAnalysis?.warnings ?? []));
 
-  const related = findRelatedFiles(repoPath, task, Math.max(options.maxFiles ?? 20, 40)).files;
+  const related = workflowDriven ? [] : findRelatedFiles(repoPath, task, Math.max(options.maxFiles ?? 20, 40)).files;
   const rawReadOrder = buildReadOrder({
     repoPath,
     task,
@@ -153,7 +154,9 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
   const preferredFiles = [...editBoundaryV2.mustEditFiles, ...editBoundaryV2.mayEditFiles];
   const tests = relatedTests(repoPath, relatedTestSeedFiles(preferredFiles, discovery, readOrder), task);
   const workflowCommands = discovery
-    ? workflowCommandsToCommandHits(discovery.authoritativeHandoff.workflowProtocol.recommendedCommands)
+    ? workflowCommandsToCommandHits(
+        discovery.authoritativeHandoff.workflowProtocol.recommendedCommands.filter((command) => command.required)
+      )
     : [];
   const primaryCommands = workflowCommands.length > 0 ? workflowCommands : tests.commands;
   const rankedPrimaryCommands = prioritizePrimaryCommands(task, primaryCommands, discovery);
@@ -229,7 +232,7 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
     likelyFiles,
     relatedFiles: likelyFiles,
     symbols: symbolHits,
-    routes: traceRoute(repoPath, task, 12),
+    routes: workflowDriven ? [] : traceRoute(repoPath, task, 12),
     recommendedCommands: rankedPrimaryCommands,
     testFiles: tests.testFiles,
     relatedTests: relatedTestsForOutput,
@@ -300,6 +303,7 @@ function buildReadOrder(input: {
   sourceDocPath?: string;
 }): ReadOrderItem[] {
   const items: ReadOrderItem[] = [];
+  const workflowDriven = (input.discovery?.authoritativeHandoff.workflowProtocol.profiles.length ?? 0) > 0;
   for (const file of input.discovery?.authoritativeHandoff.mustRead ?? []) {
     items.push({
       path: file.path,
@@ -324,16 +328,27 @@ function buildReadOrder(input: {
       });
     }
   }
-  for (const candidate of inferUiLayoutAnchorPaths(input.repoPath, input.task, input.discovery, input.sourceDoc)) {
-    items.push(candidate);
+  if (workflowDriven) {
+    for (const file of highConfidenceWorkflowReadOrder(input.discovery)) {
+      items.push({
+        path: file.path,
+        why: file.reason,
+        score: file.score
+      });
+    }
   }
-  for (const symbol of input.symbols.slice(0, 8)) {
-    items.push({
-      path: symbol.path,
-      line: symbol.startLine,
-      why: `Exact symbol match: ${symbol.qualifiedName ?? symbol.name}`,
-      score: symbolReadOrderScore(input.task, symbol)
-    });
+  if (!workflowDriven) {
+    for (const candidate of inferUiLayoutAnchorPaths(input.repoPath, input.task, input.discovery, input.sourceDoc)) {
+      items.push(candidate);
+    }
+    for (const symbol of input.symbols.slice(0, 8)) {
+      items.push({
+        path: symbol.path,
+        line: symbol.startLine,
+        why: `Exact symbol match: ${symbol.qualifiedName ?? symbol.name}`,
+        score: symbolReadOrderScore(input.task, symbol)
+      });
+    }
   }
   for (const finding of input.guardAnalysis?.findings ?? []) {
     items.push({ path: finding.file, line: finding.line, why: "Guard failure location", score: 1 });
@@ -350,13 +365,28 @@ function buildReadOrder(input: {
       score
     });
   }
-  for (const file of input.relatedFiles) {
-    const score = markdownPenalty(file.path, input.sourceDocPath)
-      ? Math.min(file.score, 0.1)
-      : Math.min(file.score, 0.6);
-    items.push({ path: file.path, why: file.reason, score });
+  if (!workflowDriven) {
+    for (const file of input.relatedFiles) {
+      const score = markdownPenalty(file.path, input.sourceDocPath)
+        ? Math.min(file.score, 0.1)
+        : Math.min(file.score, 0.6);
+      items.push({ path: file.path, why: file.reason, score });
+    }
   }
   return dedupeReadOrder(items).sort((a, b) => b.score - a.score || a.path.localeCompare(b.path));
+}
+
+function highConfidenceWorkflowReadOrder(discovery: DiscoveryResult | null): FileHit[] {
+  const expandsCoreReadOrder = discovery?.authoritativeHandoff.workflowProtocol.profiles.some(
+    (profile) =>
+      profile.name === "training_row_real_api_write_contract" || profile.name === "mobile_visual_required_text_contract"
+  );
+  if (!expandsCoreReadOrder) {
+    return [];
+  }
+  return (discovery?.recommendedReadOrder ?? []).filter(
+    (item) => item.reason.startsWith("Workflow profile:") && item.score >= 0.95
+  );
 }
 
 function relatedTestSeedFiles(
@@ -732,10 +762,22 @@ function interpretTask(task: string, sourceDoc: StoredSourceDoc | null): string 
   if (/workspace|microplan|滚动|scroll|sliver/.test(task.toLowerCase())) {
     return "Flutter workspace UI task. Pay attention to route entry, layout constraints, and responsive guard tests.";
   }
+  if (isMobileVisualContractTask(task)) {
+    return "Mobile visual screenshot contract task. Start from visual_pages URL tree, route/page/widget owner, i18n copy, generated mobile visual contract, and screenshot change log; do not treat visual contract as OpenAPI/API contract.";
+  }
   if (/session plan|session_plan|接口|api|字段|contract|openapi/.test(task.toLowerCase())) {
     return "API contract task. Pay attention to backend schema, OpenAPI artifacts, generated SDK, and drift guards.";
   }
   return "General repository task. Use likely files, symbols, routes, tests, and project rules to narrow context.";
+}
+
+function isMobileVisualContractTask(task: string): boolean {
+  const lowered = task.toLowerCase();
+  return (
+    /visual contract|screenshot contract|mobile visual contract|requiredtext|required text|required_text|visual_pages|screen-shot|screenshot|截图契约|视觉契约|截图验收|截图|ios/.test(
+      lowered
+    ) && /required text|requiredtext|文案|语义|显示|url-[a-z0-9-]+|个人分析|personal analytics/.test(lowered)
+  );
 }
 
 function selectProjectRules(repoPath: string, task: string): RuleHit[] {

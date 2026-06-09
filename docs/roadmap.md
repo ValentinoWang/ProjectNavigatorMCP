@@ -120,6 +120,9 @@ Strict Eval & Coverage Truthfulness:
 - Route test coverage distinguishes strong direct/naming coverage from weak related-search tests.
 - `route_test_covered` requires strong coverage.
 - Design-system token/theme tasks avoid generic theme-token suppression.
+- Workflow profiles are merged instead of shadowed so repo-local profiles cannot hide precise built-in protocols.
+- Built-in `auth_session_boundary_lifecycle` routes AuthSessionBoundary, auth-state-transition guard, AuthController,
+  RouterProvider, IdentityController, and LoginPage tasks away from downstream identity display/navigation widgets.
 
 ## v0.9
 
@@ -130,6 +133,8 @@ Fresh Graph Correctness & Equivalence:
 - Evidence freshness propagation and stale-critical-evidence guards.
 - Fresh graph benchmark suite.
 - Adversarial fixtures for rename, delete, caller expansion, route mutation, and stale duplicate/co-change cases.
+- Manifest acceptance matrix discovery for generated visual contracts, including
+  `selectionFirstAcceptance.required` family grouping and Flutter route/page/source reverse mapping.
 
 ## v0.10
 
