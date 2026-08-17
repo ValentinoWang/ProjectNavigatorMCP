@@ -319,6 +319,21 @@ Suggested Next Steps
 - MCP server 默认只读 SQLite。
 - `remember_task` 是写操作，需要写入 memories/tasks。
 
+可选语义证据后端：
+
+```bash
+pnav mcp <repo> --semantic-backend auto
+pnav mcp <repo> --semantic-backend builtin
+pnav mcp <repo> --semantic-backend cbm --cbm-binary /path/to/codebase-memory-mcp
+```
+
+- `auto` 优先尝试 CBM，失败后回退到 ProjectNavigator 内置图。
+- 显式 `cbm` 不回退，任何版本、索引或查询错误都直接失败。
+- 只支持 CBM `0.10.2`；二进制需独立安装，路径只进入当前进程，不写仓库配置。
+- 不复制 CBM C 源码，不读取其私有 SQLite 表，不引入 npm 依赖。
+- 所有语义结果都是 `supporting_evidence_only`，不能进入或覆盖 `mustRead`、`editBoundaryV2`、验证结果和完成证明。
+- `semantic_index` 对 CBM 固定传 `persistence: false`；若存在共享 artifact，或索引改变 Git 工作树中的新路径、既有脏文件内容或元数据，必须显式失败、列出变化路径且不得自动回滚；若索引后无法核验工作树，也必须关闭失败，不能由 `auto` 回退掩盖。
+
 ## 6. SQLite 数据库设计
 
 ### 6.1 核心表
@@ -665,6 +680,9 @@ MVP MCP tools 建议固定为 9 个。
 ### 9.9 `remember_task`
 
 记录一次完成的任务。
+
+此外提供六个统一语义证据工具：`semantic_backend_status`、`semantic_index`、
+`semantic_search`、`semantic_trace`、`semantic_architecture`、`semantic_detect_changes`。
 
 详细输入输出以 `docs/mcp-tools.md` 为准。
 

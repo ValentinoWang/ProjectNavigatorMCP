@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Added an optional semantic backend facade with `auto`, explicit `cbm`, and `builtin` modes.
+- Added six MCP tools for backend status, explicit indexing, symbol search, call tracing, architecture, and Git change impact while preserving the shared MCP envelope.
+- Added a strict `codebase-memory-mcp` `0.10.2` CLI adapter without vendoring CBM source, reading its private SQLite schema, or adding a package dependency.
+- Marked all semantic output `supporting_evidence_only` so it cannot control `mustRead`, `editBoundaryV2`, validation, or completion evidence.
+- Added provenance for backend/version, canonical repository root, CBM project, current Git SHA, freshness, coverage, timestamps, returned-file SHA-256 hashes, and explicit hash coverage/truncation metadata.
+- Added CBM index safeguards for `persistence: false`, pre/post repository artifact checks, content-aware before/after Git worktree mutation detection, and fail-closed post-index verification.
+- Added regression coverage for the real CBM 0.10.2 BM25 and architecture JSON table shapes, version drift, timeout, malformed JSON, non-zero exit, auto fallback, explicit fail-closed behavior, root mismatch, provenance, artifact refusal/creation, new-path mutation, mutation of an already-dirty path, and unverifiable post-index state.
+
 ## v0.9.3
 
 Workflow source-of-truth navigation hardening release.

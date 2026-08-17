@@ -29,6 +29,7 @@ pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --incremental -
 pnav scan /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --incremental --verify-partial --compare-full
 pnav graph-snapshot /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --out agents-results/graph-snapshot.json
 pnav map /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer
+pnav mcp /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --semantic-backend auto
 ```
 
 ## Demo 1: Workspace Microplan Scroll Issue
@@ -192,3 +193,23 @@ pnav capsule /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "workspace m
 ```
 
 Expected result should include the prior memory hit.
+
+## Demo 7: Optional Semantic Evidence
+
+Start the MCP server in `auto` mode as shown in Setup. Through the MCP client, call:
+
+```json
+{ "tool": "semantic_backend_status", "arguments": {} }
+{ "tool": "semantic_search", "arguments": { "query": "IdentityController", "limit": 20 } }
+{ "tool": "semantic_trace", "arguments": { "query": "IdentityController", "direction": "both", "depth": 3 } }
+{ "tool": "semantic_architecture", "arguments": { "scope": "frontend/lib/core/identity" } }
+{ "tool": "semantic_detect_changes", "arguments": { "base_branch": "main" } }
+```
+
+Expected result:
+
+- semantic provenance uses `authority: "supporting_evidence_only"`.
+- `selectedBackend` is `codebase-memory` only when CBM `0.10.2` and a canonical-root-matched index are usable; otherwise `auto` reports a builtin fallback reason.
+- provenance contains the canonical repo root, current Git SHA, coverage/freshness, and SHA-256 values for returned files.
+- semantic results do not change `authoritativeHandoff.mustRead` or `editBoundaryV2` from the corresponding `discover_code` / `prepare_task_context` calls.
+- explicit `--semantic-backend cbm` fails instead of silently falling back.

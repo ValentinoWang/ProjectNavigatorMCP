@@ -43,7 +43,7 @@ business data.
 Postgres can be introduced later only if the product needs team-shared memory,
 centralized dashboards, permissions, or SaaS-style multi-project management.
 
-## v0.8 Capabilities
+## Current Capabilities
 
 The current release supports:
 
@@ -111,6 +111,10 @@ The current release supports:
 62. Eval metadata-only preflight and runtime cache stats for large dirty-worktree eval suites.
 63. Fresh-graph validity scopes, `requiresFreshCodeGraph`, partial graph invalidation v2, and graph-plane freshness reporting.
 64. Fresh graph correctness tools: stable graph snapshots, partial-vs-full equivalence, evidence freshness, and fresh graph benchmarks.
+65. Optional semantic evidence facade with `auto`, `cbm`, and `builtin` backends.
+66. Strict `codebase-memory-mcp` `0.10.2` adapter for symbol search, call tracing, architecture, and Git change impact.
+67. Semantic provenance with backend/version, canonical repository root, project, current Git SHA, freshness, coverage, returned-file SHA-256 values, and explicit hash coverage/truncation metadata.
+68. CBM indexing safeguards: `persistence: false`, repository artifact refusal, and content-aware before/after Git worktree fingerprints, including files that were already dirty.
 
 MCP tools:
 
@@ -142,6 +146,12 @@ MCP tools:
 - `trace_feature`
 - `duplicate_clusters`
 - `explain_reuse`
+- `semantic_backend_status`
+- `semantic_index`
+- `semantic_search`
+- `semantic_trace`
+- `semantic_architecture`
+- `semantic_detect_changes`
 
 ## Example Target Repository
 
@@ -212,6 +222,22 @@ pnav map /path/to/project
 pnav capsule /path/to/project "fix login flow"
 pnav mcp /path/to/project
 ```
+
+Optional CBM-backed structural evidence:
+
+```bash
+# CBM must be installed separately and must report version 0.10.2.
+pnav mcp /path/to/project --semantic-backend auto
+pnav mcp /path/to/project --semantic-backend cbm --cbm-binary /path/to/codebase-memory-mcp
+```
+
+`auto` uses CBM when its binary and matching index are usable, then falls back to the built-in
+ProjectNavigator graph. Explicit `cbm` mode fails closed. The CBM binary path is process-local and
+is never written to repository configuration. This repository does not vendor CBM source or read
+its private SQLite schema.
+
+Every semantic result is labeled `supporting_evidence_only`. It cannot populate or override
+`authoritativeHandoff.mustRead`, `editBoundaryV2`, validation results, or completion evidence.
 
 For the Flutter validation project used during development:
 

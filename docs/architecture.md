@@ -21,6 +21,11 @@ flowchart LR
 
   CLI --> Repo["Target Git repo"]
   MCP --> DB[".pnav/project.sqlite"]
+  MCP --> Semantic["SemanticBackend facade"]
+  Semantic --> CBM["optional codebase-memory-mcp 0.10.2"]
+  Semantic --> Builtin["built-in PNAV graph fallback"]
+  Builtin --> DB
+  CBM --> CBMStore["CBM-owned user cache"]
 
   Repo --> Scanner["Scanner pipeline"]
   Scanner --> DB
@@ -127,6 +132,36 @@ and exposes repository intelligence tools.
 
 The MCP server should not rescan the whole repository automatically on every tool call.
 Scanning belongs to `pnav scan <repo>` or to a future explicit `refresh_index` tool.
+
+## Optional Semantic Evidence Layer
+
+The MCP server exposes one `SemanticBackend` facade over two implementations:
+
+```text
+semantic tools -> auto | cbm | builtin -> normalized result + provenance
+```
+
+- `cbm` invokes the separately installed `codebase-memory-mcp` CLI. The supported contract is
+  pinned to `0.10.2`; ProjectNavigator neither vendors its C source nor reads its private SQLite
+  tables.
+- `builtin` reuses `.pnav/project.sqlite` symbol, symbol-edge, module, and Git evidence. It does not
+  create a second ProjectNavigator index.
+- `auto` tries CBM first for structural queries and falls back to builtin on availability, version,
+  indexing, timeout, process, or response failures. Explicit `cbm` mode fails closed.
+
+Both implementations return `authority: "supporting_evidence_only"`. The semantic layer has no
+dependency edge into the discovery ranker, strict must-read gate, repair planner, edit boundary, or
+finish-time audit. This structural separation prevents optional graph evidence from becoming task
+authority.
+
+CBM indexing is an explicit `semantic_index` operation. It always passes `persistence: false`,
+rejects an existing `.codebase-memory/graph.db.zst` or artifact manifest, and compares
+content-aware fingerprints of the complete Git porcelain set before and after, including paths
+that were already dirty. A change is reported as `worktree_modified`, includes the changed paths,
+and is never rolled back automatically. Failure to capture the post-index state is reported as
+`worktree_unverifiable` and also fails closed. A post-index artifact check catches repository
+artifacts even when `.codebase-memory/` is Git-ignored. CBM continues to own its user-cache
+storage; ProjectNavigator stores no CBM binary path or private database state.
 
 ## Storage Model
 

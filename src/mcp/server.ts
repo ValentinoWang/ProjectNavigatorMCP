@@ -27,20 +27,23 @@ import { explainGuardRule } from "../guard/ruleRegistry.js";
 import { rememberTask, searchProjectMemory } from "../memory/memory.js";
 import { recordTaskResult } from "../memory/recordTaskResult.js";
 import { PACKAGE_VERSION } from "../shared/packageInfo.js";
+import { SemanticBackendRouter } from "../semantic/backendRouter.js";
+import type { SemanticBackendOptions } from "../semantic/types.js";
 import { auditTaskResult } from "../tasks/taskAudit.js";
 import { toolResponse } from "./response.js";
 
-export async function startMcpServer(repoPath: string): Promise<void> {
-  const server = createMcpServer(repoPath);
+export async function startMcpServer(repoPath: string, options: SemanticBackendOptions = {}): Promise<void> {
+  const server = createMcpServer(repoPath, options);
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
 
-export function createMcpServer(repoPath: string): McpServer {
+export function createMcpServer(repoPath: string, options: SemanticBackendOptions = {}): McpServer {
   const server = new McpServer({
     name: "project-navigator-mcp",
     version: PACKAGE_VERSION
   });
+  const semanticBackend = new SemanticBackendRouter(options);
 
   server.registerTool(
     "repo_map",
@@ -519,7 +522,92 @@ export function createMcpServer(repoPath: string): McpServer {
       )
   );
 
+  server.registerTool(
+    "semantic_backend_status",
+    {
+      description:
+        "Report the selected semantic evidence backend. Results are supporting evidence only and never control mustRead or edit boundaries.",
+      inputSchema: {}
+    },
+    async () => semanticToolResponse(repoPath, await semanticBackend.status(repoPath))
+  );
+
+  server.registerTool(
+    "semantic_index",
+    {
+      description:
+        "Build or refresh the selected semantic evidence index. CBM indexing disables repository artifact persistence and checks for worktree changes.",
+      inputSchema: {}
+    },
+    async () => semanticToolResponse(repoPath, await semanticBackend.index(repoPath))
+  );
+
+  server.registerTool(
+    "semantic_search",
+    {
+      description:
+        "Search symbols through the selected semantic backend as supporting evidence; ProjectNavigator handoff ranking remains authoritative.",
+      inputSchema: {
+        query: z.string().min(1),
+        limit: z.number().int().positive().max(100).optional()
+      }
+    },
+    async ({ query, limit }) =>
+      semanticToolResponse(repoPath, await semanticBackend.search(repoPath, query, limit ?? 20))
+  );
+
+  server.registerTool(
+    "semantic_trace",
+    {
+      description:
+        "Trace callers and callees through the selected semantic backend as non-authoritative structural evidence.",
+      inputSchema: {
+        query: z.string().min(1),
+        direction: z.enum(["inbound", "outbound", "both"]).optional(),
+        depth: z.number().int().positive().max(10).optional(),
+        limit: z.number().int().positive().max(500).optional()
+      }
+    },
+    async ({ query, direction, depth, limit }) =>
+      semanticToolResponse(
+        repoPath,
+        await semanticBackend.trace(repoPath, query, direction ?? "both", depth ?? 3, limit ?? 100)
+      )
+  );
+
+  server.registerTool(
+    "semantic_architecture",
+    {
+      description: "Return a high-level structural overview from the selected semantic backend as supporting evidence.",
+      inputSchema: {
+        scope: z.string().optional()
+      }
+    },
+    async ({ scope }) => semanticToolResponse(repoPath, await semanticBackend.architecture(repoPath, scope))
+  );
+
+  server.registerTool(
+    "semantic_detect_changes",
+    {
+      description:
+        "Map Git changes to structural impact evidence without changing ProjectNavigator's edit boundary or completion proof.",
+      inputSchema: {
+        base_branch: z.string().optional(),
+        baseBranch: z.string().optional()
+      }
+    },
+    async ({ base_branch, baseBranch }) =>
+      semanticToolResponse(repoPath, await semanticBackend.detectChanges(repoPath, baseBranch ?? base_branch))
+  );
+
   return server;
+}
+
+function semanticToolResponse<T extends { warnings: string[] }>(
+  repoPath: string,
+  result: T
+): { content: Array<{ type: "text"; text: string }> } {
+  return textJson(toolResponse(repoPath, result, result.warnings));
 }
 
 function textJson(value: unknown): { content: Array<{ type: "text"; text: string }> } {

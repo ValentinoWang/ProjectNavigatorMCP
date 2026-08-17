@@ -240,6 +240,38 @@ Add only after real target demo passes:
 5. Postgres team memory sync.
 6. web dashboard.
 
+## Optional Semantic Backend Milestone
+
+### Delivered Scope
+
+- Add a normalized `SemanticBackend` contract for status, explicit indexing, symbol search, call
+  trace, architecture, and Git change impact.
+- Keep the built-in `.pnav/project.sqlite` graph as the dependency-free fallback.
+- Adapt the public `codebase-memory-mcp cli --json <tool>` contract at exactly version `0.10.2`.
+- Preserve the MCP envelope and label all semantic output `supporting_evidence_only`.
+- Include canonical root, backend/version, project, current Git SHA, indexed/query time, freshness,
+  coverage, and SHA-256 hashes for returned repository files.
+
+### Non-Goals and Gates
+
+- Do not vendor CBM source, link its implementation, read its private SQLite tables, or add it as an
+  npm dependency.
+- Do not let semantic output modify `mustRead`, `editBoundaryV2`, validation, or completion proof.
+- `auto` may fall back to builtin; explicit `cbm` must fail closed.
+- CBM indexing must send `persistence: false`, refuse repository artifacts that CBM could import or
+  refresh, and fail visibly if the worktree changes, including content changes to an already-dirty
+  path whose porcelain status remains unchanged. If the post-index worktree cannot be verified,
+  indexing must fail closed instead of falling back. Recheck repository artifacts afterward so a
+  Git-ignored `.codebase-memory/graph.db.zst` cannot bypass the worktree fingerprint.
+
+### Acceptance
+
+- Fake-executable contract tests cover valid output, unsupported version, timeout, malformed JSON,
+  non-zero exit, auto fallback, explicit failure, root mismatch, provenance, artifact refusal,
+  new-path and already-dirty-path worktree mutation, ignored artifact creation, unverifiable
+  post-index state, and `persistence: false`.
+- MCP contract tests register and invoke all six semantic tools without changing the shared envelope.
+
 ## Current Production Gate Contract
 
 v0.8.2 keeps the MVP local-first but hardens Discovery Mode output:

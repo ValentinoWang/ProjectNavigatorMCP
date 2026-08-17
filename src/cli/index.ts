@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
-import { Command } from "commander";
+import { Command, Option } from "commander";
 import { benchmarkFreshGraph } from "../benchmark/freshGraphBenchmark.js";
 import { prepareTaskContext } from "../capsule/prepareTaskContext.js";
 import { renderCapsule } from "../capsule/renderCapsule.js";
@@ -29,6 +29,7 @@ import { scanRepo } from "../scanner/scanRepo.js";
 import { getDoctorReport, renderDoctorReport } from "./commands/doctor.js";
 import { initProject, renderInitResult } from "./commands/init.js";
 import { PACKAGE_NAME, PACKAGE_VERSION } from "../shared/packageInfo.js";
+import type { SemanticBackendPreference } from "../semantic/types.js";
 import { auditTaskResult } from "../tasks/taskAudit.js";
 
 const program = new Command();
@@ -500,8 +501,17 @@ program
   .command("mcp")
   .description("Start the MCP server for a repository")
   .argument("<repo>", "Target repository path")
-  .action(async (repo: string) => {
-    await startMcpServer(repo);
+  .addOption(
+    new Option("--semantic-backend <backend>", "Semantic evidence backend")
+      .choices(["auto", "cbm", "builtin"])
+      .default("auto")
+  )
+  .option("--cbm-binary <path>", "CBM executable path (process-local; never written to repository config)")
+  .action(async (repo: string, options: { semanticBackend: SemanticBackendPreference; cbmBinary?: string }) => {
+    await startMcpServer(repo, {
+      preference: options.semanticBackend,
+      cbmBinary: options.cbmBinary
+    });
   });
 
 try {

@@ -43,6 +43,70 @@ All MCP tools return a JSON string inside MCP text content. The JSON always uses
 
 Scores are relevance values. Confidence describes relationship reliability.
 
+## Semantic Evidence Backend
+
+The six `semantic_*` tools use one normalized facade with `auto`, `cbm`, and `builtin` modes:
+
+```bash
+pnav mcp <repo> --semantic-backend auto
+pnav mcp <repo> --semantic-backend builtin
+pnav mcp <repo> --semantic-backend cbm --cbm-binary /path/to/codebase-memory-mcp
+```
+
+`auto` is the default. It tries an independently installed `codebase-memory-mcp` and falls back to
+the built-in ProjectNavigator graph. `cbm` fails closed and supports exactly version `0.10.2`.
+The binary is resolved from `--cbm-binary`, `PNAV_CBM_BINARY`, or `PATH`; it is never persisted in
+the target repository. ProjectNavigator does not vendor CBM or inspect its private database.
+
+The shared envelope remains unchanged. Its outer `data` contains this semantic result:
+
+```json
+{
+  "ok": true,
+  "selectedBackend": "codebase-memory",
+  "requestedBackend": "auto",
+  "fallback": { "used": false, "from": null, "reason": null },
+  "data": {},
+  "provenance": {
+    "backend": "codebase-memory",
+    "backendVersion": "0.10.2",
+    "contractVersion": 1,
+    "authority": "supporting_evidence_only",
+    "repoRoot": "/canonical/path/to/repo",
+    "project": "indexed-project-name",
+    "gitSha": "full-current-git-sha",
+    "indexedAt": "2026-08-12T00:00:00.000Z",
+    "queriedAt": "2026-08-12T00:01:00.000Z",
+    "freshness": "metadata_only",
+    "coverage": {},
+    "fileHashes": { "src/main.ts": "sha256-hex" },
+    "fileHashCoverage": {
+      "candidateCount": 1,
+      "hashedCount": 1,
+      "limit": 256,
+      "truncated": false
+    }
+  },
+  "warnings": []
+}
+```
+
+Semantic output is structural supporting evidence only. It cannot determine or override
+`authoritativeHandoff.mustRead`, `editBoundaryV2`, validations, or completion evidence. CBM
+coverage is best-effort; `metadata_only`, `partial`, `weak`, `stale`, and `unknown` must be treated
+as evidence qualifications, not source truth. `fileHashCoverage` makes missing or truncated
+returned-file hashes explicit; a hash map must not be assumed complete unless its counts agree and
+`truncated` is false.
+
+`semantic_index` is the only semantic tool that requests indexing. For CBM it always sends
+`persistence: false`, refuses a repository `.codebase-memory/graph.db.zst` or artifact manifest,
+and compares content-aware fingerprints for the complete Git porcelain set before and after. This
+also detects changes to files that were already dirty even when their porcelain status is unchanged.
+`artifact_conflict`, `worktree_modified`, and an unverifiable post-index worktree are never hidden by
+`auto` fallback; mutation errors list the changed paths, and ProjectNavigator never rolls back a
+reported side effect. Repository artifacts are checked again after indexing so Git ignore rules
+cannot hide an unexpected `.codebase-memory/graph.db.zst`.
+
 ## Fresh Graph CLI Helpers
 
 v0.9 fresh graph correctness checks are CLI-first and keep the MCP envelope unchanged:
@@ -71,6 +135,79 @@ v0.4 uses deterministic navigation signals before broad keyword matching:
 8. Generic Markdown matches.
 
 ## Tools
+
+### `semantic_backend_status`
+
+Input:
+
+```json
+{}
+```
+
+Returns availability, index readiness, selected binary/version, matched project, raw status, and
+fallback information. CBM projects are accepted only when their canonical `root_path` equals the
+requested repository root.
+
+### `semantic_index`
+
+Input:
+
+```json
+{}
+```
+
+Builds or refreshes the selected backend's semantic index. Builtin mode performs an incremental
+ProjectNavigator scan. CBM mode applies the artifact and worktree safety gates described above.
+
+### `semantic_search`
+
+Input:
+
+```json
+{ "query": "IdentityController", "limit": 20 }
+```
+
+Returns normalized symbol names, qualified names, kinds, paths, line spans, score when available,
+and selected in/out degree. CBM uses `search_graph(format: "json")`; its BM25 `rank` is exposed as
+`score`, while unavailable degree fields remain `null`. Builtin uses the existing ProjectNavigator
+symbol index.
+
+### `semantic_trace`
+
+Input:
+
+```json
+{ "query": "IdentityController", "direction": "both", "depth": 3, "limit": 100 }
+```
+
+`direction` is `inbound`, `outbound`, or `both`. Returns normalized callers/callees, hop distance,
+truncation, and cursor when the backend provides one. CBM `0.10.2` JSON trace output does not
+actually include the advertised strategy/confidence columns, so ProjectNavigator returns those
+fields as `null` with a warning instead of inventing values.
+
+### `semantic_architecture`
+
+Input:
+
+```json
+{ "scope": "frontend/lib/core/identity" }
+```
+
+Returns the selected backend's architecture summary. `scope` is optional and is passed to CBM as a
+repository path prefix. ProjectNavigator requests CBM's structured JSON format and extracts returned
+file-table paths for provenance hashing; builtin mode scopes the existing ProjectNavigator module map.
+
+### `semantic_detect_changes`
+
+Input:
+
+```json
+{ "base_branch": "main" }
+```
+
+Returns changed files and structural impact evidence. `baseBranch` is accepted as an alias.
+Builtin mode combines Git diff state with indexed file edges; CBM uses
+`detect_changes(format: "json")`.
 
 ### `repo_map`
 

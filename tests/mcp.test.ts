@@ -41,7 +41,7 @@ describe("MCP server", () => {
     );
 
     const client = new Client({ name: "pnav-test-client", version: "0.1.0" });
-    const server = createMcpServer(repo);
+    const server = createMcpServer(repo, { preference: "builtin" });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
 
@@ -75,6 +75,12 @@ describe("MCP server", () => {
         "remember_task",
         "repo_map",
         "search_project_memory",
+        "semantic_architecture",
+        "semantic_backend_status",
+        "semantic_detect_changes",
+        "semantic_index",
+        "semantic_search",
+        "semantic_trace",
         "trace_feature",
         "trace_route",
         "trace_symbol",
@@ -114,7 +120,13 @@ describe("MCP server", () => {
           { title: "Add auth test", summary: "Stored from MCP test", changedFiles: ["src/main.ts"], tags: ["test"] }
         ],
         ["record_task_result", { title: "Record test result", task: "auth test", result: "passed" }],
-        ["search_project_memory", { query: "auth test" }]
+        ["search_project_memory", { query: "auth test" }],
+        ["semantic_backend_status", {}],
+        ["semantic_index", {}],
+        ["semantic_search", { query: "add" }],
+        ["semantic_trace", { query: "add", direction: "both" }],
+        ["semantic_architecture", {}],
+        ["semantic_detect_changes", { base_branch: "main" }]
       ];
 
       for (const [name, args] of calls) {
