@@ -8,7 +8,8 @@ import { findEntrypoints, loadEntrypointCatalog, rankEntrypointsFromCatalog } fr
 import { findReusableComponents } from "./reuse.js";
 import { findCallees } from "./symbolGraph.js";
 import type { DiscoveryResult, DiscoveryTimingBreakdown } from "./types.js";
-import { whyRelated } from "./whyRelated.js";
+import { whyRelatedBatch } from "./whyRelated.js";
+import { planDiscoveryQuery, type DiscoveryQueryPlan } from "./queryPlan.js";
 import {
   isWorkflowProfileReadOrder,
   resolveWorkflowDiscoveryProfiles,
@@ -23,6 +24,8 @@ export interface TimedDiscoveryResult {
 
 export interface DiscoveryTimingOptions {
   requireRouteChain?: boolean;
+  queryPlan?: DiscoveryQueryPlan;
+  includeWhyRelated?: boolean;
 }
 
 export type DiscoveryCacheBucket =
@@ -99,6 +102,7 @@ export function discoverCodeWithTiming(
     cached(context, "workflowProfiles", task, () => resolveWorkflowDiscoveryProfiles(repoPath, task))
   );
   const hasWorkflowProfile = workflowProfiles.length > 0;
+  const queryPlan = options.queryPlan ?? planDiscoveryQuery(task, hasWorkflowProfile);
   const entrypoints = timed(timing, "entrypointsMs", () => {
     if (!context) {
       return findEntrypoints(repoPath, task, 10).entrypoints;
@@ -108,17 +112,23 @@ export function discoverCodeWithTiming(
   });
   const related = timed(timing, "relatedFilesMs", () =>
     cached(context, "relatedFiles", `${task}:${hasWorkflowProfile ? Math.min(5, limit) : limit}`, () =>
-      hasWorkflowProfile
-        ? workflowProfiles.flatMap((profile) => profile.readOrder).slice(0, Math.min(5, limit))
-        : findRelatedFiles(repoPath, task, limit).files
+      !queryPlan.runRelatedFiles
+        ? []
+        : hasWorkflowProfile
+          ? workflowProfiles.flatMap((profile) => profile.readOrder).slice(0, Math.min(5, limit))
+          : findRelatedFiles(repoPath, task, limit).files
     )
   );
   const coreSymbols = timed(timing, "symbolsMs", () =>
-    cached(context, "symbols", task, () => (hasWorkflowProfile ? [] : findSymbol(repoPath, task, 12)))
+    cached(context, "symbols", task, () =>
+      !queryPlan.runSymbols || hasWorkflowProfile ? [] : findSymbol(repoPath, task, 12)
+    )
   );
   const reuse = timed(timing, "reuseMs", () =>
     cached(context, "reuse", task, () =>
-      hasWorkflowProfile ? { reuseCandidates: [], duplicateRisks: [] } : findReusableComponents(repoPath, task, 8)
+      !queryPlan.runReuse || hasWorkflowProfile
+        ? { reuseCandidates: [], duplicateRisks: [] }
+        : findReusableComponents(repoPath, task, 8)
     )
   );
   const initialTests = timed(timing, "relatedTestsMs", () =>
@@ -139,7 +149,7 @@ export function discoverCodeWithTiming(
   );
   const callGraphPreview = timed(timing, "callGraphMs", () =>
     cached(context, "callGraph", task, () =>
-      hasWorkflowProfile
+      !queryPlan.runCallGraph || hasWorkflowProfile
         ? []
         : coreSymbols.slice(0, 5).flatMap((symbol) =>
             findCallees(repoPath, symbol.qualifiedName ?? symbol.name, 5).callees.map((callee) => ({
@@ -167,7 +177,7 @@ export function discoverCodeWithTiming(
         initialTests,
         workflowProfiles,
         {
-          buildRouteChain: !hasWorkflowProfile || Boolean(options.requireRouteChain)
+          buildRouteChain: queryPlan.runRouteChain || Boolean(options.requireRouteChain)
         }
       )
     )
@@ -177,29 +187,27 @@ export function discoverCodeWithTiming(
       ? recommendedReadOrder
       : mergeHandoffReadOrder(recommendedReadOrder, authoritativeHandoff, limit);
   const tiers = tierReadOrder(task, finalRecommendedReadOrder, limit);
-  const finalTests = relatedTests(
-    repoPath,
-    relatedTestSeedPaths(authoritativeHandoff, finalRecommendedReadOrder),
-    task,
-    {
-      relatedFiles: finalRecommendedReadOrder,
-      demoteCommands: workflowProfiles.some((profile) => profile.recommendedCommands.length > 0),
-      excludeCommands: workflowProfiles.flatMap((profile) =>
-        profile.recommendedCommands.map((command) => command.command)
-      )
-    }
-  );
+  // The initial test recommendation is already based on the ranked entrypoints and
+  // related files. Reusing it avoids opening the same graph catalogs a second time
+  // after the handoff only reorders those candidates.
+  const finalTests = initialTests;
   const workflowWarnings = workflowProfiles.flatMap((profile) => profile.warnings);
   const whyRelatedItems = timed(timing, "whyRelatedMs", () =>
     cached(context, "whyRelated", task, () =>
-      hasWorkflowProfile
-        ? finalRecommendedReadOrder.slice(0, 8).map((file) => ({
-            target: file.path,
-            task,
-            score: file.score,
-            evidence: [{ type: "workflow_profile", detail: file.reason, score: file.score }]
-          }))
-        : finalRecommendedReadOrder.slice(0, 8).map((file) => whyRelated(repoPath, file.path, task))
+      !queryPlan.runWhyRelated || options.includeWhyRelated === false
+        ? []
+        : hasWorkflowProfile
+          ? finalRecommendedReadOrder.slice(0, 8).map((file) => ({
+              target: file.path,
+              task,
+              score: file.score,
+              evidence: [{ type: "workflow_profile", detail: file.reason, score: file.score }]
+            }))
+          : whyRelatedBatch(
+              repoPath,
+              finalRecommendedReadOrder.slice(0, 8).map((file) => file.path),
+              task
+            )
     )
   );
 

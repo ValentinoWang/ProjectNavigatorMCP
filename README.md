@@ -88,6 +88,7 @@ The current release supports:
 39. Discovery Quality Hardening: route/page/module-root entrypoints outrank internal card/widget token matches.
 40. Discovery tiers: `mustRead`, `shouldInspect`, `reuseBeforeCreate`, and `ignoreForNow`.
 41. Verified vs candidate feature chains through `trace_feature`.
+
 42. Explicit reuse verdicts: `reuse_as_is`, `extend_existing`, `extract_shared`, and `create_new_allowed`.
 43. Score breakdowns for entrypoint and reuse ranking decisions.
 44. `authoritativeHandoff`: strict production discovery handoff with `mustRead`, `coreChain`, `reuseDecision`, `supportingContext`, and `suppressedCandidates`.
@@ -115,6 +116,17 @@ The current release supports:
 66. Strict `codebase-memory-mcp` `0.10.2` adapter for symbol search, call tracing, architecture, and Git change impact.
 67. Semantic provenance with backend/version, canonical repository root, project, current Git SHA, freshness, coverage, returned-file SHA-256 values, and explicit hash coverage/truncation metadata.
 68. CBM indexing safeguards: `persistence: false`, repository artifact refusal, and content-aware before/after Git worktree fingerprints, including files that were already dirty.
+
+### Context Profiles
+
+`pnav capsule <repo> "<task>"` defaults to the token-budgeted `brief` profile. It emits one
+authoritative read/edit receipt with at most three primary files, two supporting files, three
+validation commands, three warnings, and 2500 characters. It does not load project memory,
+rules, debug details, routes, symbols, or full Discovery Mode by default.
+
+Use `--profile standard` for the complete compatibility capsule or `--profile debug` for the
+largest diagnostic output. MCP `prepare_task_context` accepts the same `profile` field and
+returns a receipt for `brief`, while `standard` and `debug` return the full context object.
 
 MCP tools:
 

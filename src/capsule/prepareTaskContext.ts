@@ -22,6 +22,7 @@ import { inferTaskDomain } from "../planner/taskDomain.js";
 import type { DomainDecision, PlannerDebug, RankedExecutionStep } from "../planner/types.js";
 import { createTaskSession } from "../tasks/taskSession.js";
 import type { CommandHit, FileHit, RouteHit, RuleHit, SymbolHit } from "../graph/types.js";
+import { contextBudget, resolveContextProfile, type ContextProfile } from "./contextProfile.js";
 
 export interface ReadOrderItem {
   path: string;
@@ -50,6 +51,7 @@ export interface EditBoundary {
 
 export interface TaskContext {
   task: string;
+  profile: ContextProfile;
   mode: "discovery" | "repair";
   discovery: DiscoveryResult | null;
   taskSessionId: string;
@@ -97,15 +99,15 @@ export interface TaskContextOptions {
   domainHint?: string;
   planMaxSteps?: number;
   includeDebug?: boolean;
+  profile?: ContextProfile;
   mode?: "auto" | "discovery" | "repair";
 }
 
 export function prepareTaskContext(repoPath: string, task: string, options: TaskContextOptions = {}): TaskContext {
   const warnings: string[] = [];
+  const profile = resolveContextProfile(options.profile);
+  const budget = contextBudget(profile);
   const mode = resolveMode(options);
-  const discovery = mode === "discovery" ? discoverCode(repoPath, task, options.maxFiles ?? 15) : null;
-  const workflowDriven = (discovery?.authoritativeHandoff.workflowProtocol.profiles.length ?? 0) > 0;
-  const symbolHits = workflowDriven ? [] : findSymbol(repoPath, task, options.maxSymbols ?? 12);
   const sourceDocResult = options.sourceDoc ? loadSourceDoc(repoPath, options.sourceDoc) : { doc: null };
   if (sourceDocResult.warning) {
     warnings.push(sourceDocResult.warning);
@@ -115,8 +117,21 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
     ? analyzeGuardOutput(repoPath, options.guardOutput, { command: options.guardCommand, sourceDoc: options.sourceDoc })
     : null;
   warnings.push(...(guardAnalysis?.warnings ?? []));
+  const explicitPaths = explicitTaskPaths(sourceDoc, guardAnalysis, options.changedFiles ?? []);
+  const directRepair = mode === "repair" && explicitPaths.length > 0;
+  const maxFiles = options.maxFiles ?? (profile === "brief" ? budget.maxPrimaryFiles + budget.maxSupportingFiles : 20);
+  const discovery =
+    mode === "discovery" && budget.includeFullDiscovery ? discoverCode(repoPath, task, Math.min(maxFiles, 15)) : null;
+  const workflowDriven = (discovery?.authoritativeHandoff.workflowProtocol.profiles.length ?? 0) > 0;
+  const symbolHits =
+    budget.includeSymbols && !workflowDriven && !directRepair
+      ? findSymbol(repoPath, task, options.maxSymbols ?? 12)
+      : [];
 
-  const related = workflowDriven ? [] : findRelatedFiles(repoPath, task, Math.max(options.maxFiles ?? 20, 40)).files;
+  const related =
+    workflowDriven || directRepair
+      ? []
+      : findRelatedFiles(repoPath, task, Math.min(Math.max(maxFiles, 5), profile === "brief" ? 5 : 40)).files;
   const rawReadOrder = buildReadOrder({
     repoPath,
     task,
@@ -136,9 +151,8 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
     guardAnalysis,
     changedFiles: options.changedFiles ?? []
   });
-  const explicitPaths = explicitTaskPaths(sourceDoc, guardAnalysis, options.changedFiles ?? []);
   const gated = applyDomainGate({ repoPath, domain, readOrder: rawReadOrder, explicitPaths });
-  const readOrder = gated.readOrder.slice(0, options.maxFiles ?? 20);
+  const readOrder = gated.readOrder.slice(0, maxFiles);
   const fileTiers = tierTaskFiles({
     repoPath,
     sourceDoc,
@@ -159,7 +173,10 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
       )
     : [];
   const primaryCommands = workflowCommands.length > 0 ? workflowCommands : tests.commands;
-  const rankedPrimaryCommands = prioritizePrimaryCommands(task, primaryCommands, discovery);
+  const rankedPrimaryCommands = prioritizePrimaryCommands(task, primaryCommands, discovery).slice(
+    0,
+    budget.maxCommands
+  );
   const workflowCommandText = new Set(workflowCommands.map((command) => command.command.toLowerCase()));
   const relatedTestsForOutput =
     workflowCommands.length > 0
@@ -180,9 +197,15 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
   });
   warnings.push(...worktreeBoundary.warnings);
 
-  const likelyFiles = toLikelyFiles(readOrder, related).slice(0, options.maxFiles ?? 20);
-  const projectRules = options.includeRules === false ? [] : selectProjectRules(repoPath, task);
-  const memoryHits = options.includeMemory === false ? [] : searchProjectMemory(repoPath, task, 5);
+  const likelyFiles = toLikelyFiles(readOrder, related).slice(0, maxFiles);
+  const projectRules =
+    options.includeRules === false || !(options.includeRules ?? budget.includeRules)
+      ? []
+      : selectProjectRules(repoPath, task);
+  const memoryHits =
+    options.includeMemory === false || !(options.includeMemory ?? budget.includeMemory)
+      ? []
+      : searchProjectMemory(repoPath, task, 5);
   const rawExecutionPlan = buildExecutionPlan(sourceDoc, guardAnalysis, rankedPrimaryCommands);
   const rankedPlan = rerankExecutionPlan({
     repoPath,
@@ -204,6 +227,7 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
 
   return {
     task,
+    profile,
     mode,
     discovery,
     taskSessionId: taskSession.taskSessionId,
@@ -232,14 +256,14 @@ export function prepareTaskContext(repoPath: string, task: string, options: Task
     likelyFiles,
     relatedFiles: likelyFiles,
     symbols: symbolHits,
-    routes: workflowDriven ? [] : traceRoute(repoPath, task, 12),
+    routes: workflowDriven || directRepair || !budget.includeRoutes ? [] : traceRoute(repoPath, task, 12),
     recommendedCommands: rankedPrimaryCommands,
     testFiles: tests.testFiles,
     relatedTests: relatedTestsForOutput,
     projectRules,
     memoryHits,
     debug:
-      options.includeDebug === false
+      options.includeDebug === false || !(options.includeDebug ?? budget.includeDebug)
         ? null
         : {
             domainDecision: domain,

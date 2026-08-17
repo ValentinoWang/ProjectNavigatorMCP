@@ -31,6 +31,7 @@ import { initProject, renderInitResult } from "./commands/init.js";
 import { PACKAGE_NAME, PACKAGE_VERSION } from "../shared/packageInfo.js";
 import type { SemanticBackendPreference } from "../semantic/types.js";
 import { auditTaskResult } from "../tasks/taskAudit.js";
+import type { ContextProfile } from "../capsule/contextProfile.js";
 
 const program = new Command();
 
@@ -145,6 +146,9 @@ program
   .option("--domain-hint <domain>", "Optional task domain hint")
   .option("--plan-max-steps <number>", "Maximum execution plan steps", "8")
   .option("--mode <mode>", "Task context mode: auto, discovery, or repair", "auto")
+  .addOption(
+    new Option("--profile <profile>", "Context output profile").choices(["brief", "standard", "debug"]).default("brief")
+  )
   .action(
     (
       repo: string,
@@ -157,6 +161,7 @@ program
         domainHint?: string;
         planMaxSteps?: string;
         mode?: "auto" | "discovery" | "repair";
+        profile?: ContextProfile;
       }
     ) => {
       console.log(
@@ -168,8 +173,10 @@ program
             changedFiles: options.changedFile ?? [],
             domainHint: options.domainHint,
             planMaxSteps: Number(options.planMaxSteps ?? "8"),
-            mode: options.mode
-          })
+            mode: options.mode,
+            profile: options.profile
+          }),
+          options.profile ?? "brief"
         )
       );
     }

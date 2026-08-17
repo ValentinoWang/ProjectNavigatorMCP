@@ -69,6 +69,14 @@ MCP tools 的名字是通用的，但返回内容根据项目不同而不同。
 - Web 管理后台
 - 自动替代 Codex / Claude Code 写代码
 
+### 1.4 上下文输出档位
+
+`pnav capsule` 和 MCP `prepare_task_context` 默认使用 `brief`：只返回去重后的核心读取、
+编辑边界、最多三个校验命令和三条警告，序列化结果不超过 2500 字符。`standard` 和
+`debug` 是显式展开档位，才加载完整规则、记忆、路由、symbol 和 Discovery 信息。
+带有明确 `file:line` 的修复任务会跳过无关的广泛检索；路由/UI、symbol/影响分析和工作流
+任务由确定性的 query plan 选择对应证据面。
+
 第一版最重要的是打通闭环：
 
 ```text

@@ -1,6 +1,56 @@
 import type { TaskContext } from "./prepareTaskContext.js";
+import { buildContextReceipt } from "./contextReceipt.js";
+import type { ContextProfile } from "./contextProfile.js";
 
-export function renderCapsule(context: TaskContext): string {
+export function renderCapsule(context: TaskContext, profile: ContextProfile = context.profile): string {
+  if (profile === "brief") {
+    return renderBriefCapsule(context);
+  }
+  return renderStandardCapsule(context);
+}
+
+function renderBriefCapsule(context: TaskContext): string {
+  const receipt = buildContextReceipt(context);
+  const readPaths = new Set(receipt.read.map((item) => item.path));
+  const editTiers = new Map<string, string>();
+  for (const file of receipt.edit.must) editTiers.set(file, "must_edit");
+  for (const file of receipt.edit.may) editTiers.set(file, "may_edit");
+  for (const file of receipt.edit.blocked) editTiers.set(file, "do_not_touch");
+  const lines = [
+    "# Task Context Brief",
+    "",
+    `Task: ${context.task}`,
+    `Context: ${receipt.contextId}`,
+    `State: ${receipt.state.mode}; confidence=${receipt.state.confidence}; fresh=${receipt.state.fresh}`,
+    "",
+    "## Read",
+    ...(receipt.read.length > 0
+      ? receipt.read.map(
+          (item) =>
+            `- ${editTiers.get(item.path) ?? "inspect"}: ${item.path}${item.line ? `:${item.line}` : ""} - ${item.reason}`
+        )
+      : ["- none"]),
+    ...(receipt.edit.blocked.some((file) => !readPaths.has(file))
+      ? [
+          "",
+          "## Blocked",
+          ...receipt.edit.blocked.filter((file) => !readPaths.has(file)).map((file) => `- do_not_touch: ${file}`)
+        ]
+      : []),
+    "",
+    "## Validate",
+    ...(receipt.validate.length > 0 ? receipt.validate.map((command) => `- ${command}`) : ["- none"]),
+    "",
+    "## Warnings",
+    ...(receipt.warnings.length > 0 ? receipt.warnings.map((warning) => `- ${warning}`) : ["- none"]),
+    "",
+    "Expand: standard, debug, impact, evidence, reuse"
+  ];
+  const output = lines.join("\n");
+  return output.length <= 2500 ? output : `${output.slice(0, 2497).trimEnd()}...`;
+}
+
+function renderStandardCapsule(context: TaskContext): string {
   const lines = [
     `# Task Context Capsule`,
     "",

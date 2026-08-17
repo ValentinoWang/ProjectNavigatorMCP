@@ -2,6 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import * as z from "zod/v4";
 import { prepareTaskContext } from "../capsule/prepareTaskContext.js";
+import { buildContextReceipt } from "../capsule/contextReceipt.js";
+import type { ContextProfile } from "../capsule/contextProfile.js";
 import { discoverCode } from "../discovery/discoverCode.js";
 import { duplicateClusters } from "../discovery/duplicateClusters.js";
 import { findEntrypoints } from "../discovery/entrypoints.js";
@@ -147,30 +149,31 @@ export function createMcpServer(repoPath: string, options: SemanticBackendOption
         planMaxSteps: z.number().int().positive().max(20).optional(),
         include_debug: z.boolean().optional(),
         includeDebug: z.boolean().optional(),
+        profile: z.enum(["brief", "standard", "debug"]).optional(),
         mode: z.enum(["auto", "discovery", "repair"]).optional()
       }
     },
-    async (input) =>
-      textJson(
-        toolResponse(
-          repoPath,
-          prepareTaskContext(repoPath, input.task, {
-            sourceDoc: input.sourceDoc ?? input.source_doc,
-            guardOutput: input.guardOutput ?? input.guard_output,
-            guardCommand: input.guardCommand ?? input.guard_command,
-            changedFiles: input.changedFiles ?? input.changed_files,
-            maxFiles: input.maxFiles ?? input.max_files,
-            maxSymbols: input.maxSymbols ?? input.max_symbols,
-            includeMemory: input.includeMemory ?? input.include_memory,
-            includeRules: input.includeRules ?? input.include_rules,
-            includeDirtyStatus: input.includeDirtyStatus ?? input.include_dirty_status,
-            domainHint: input.domainHint ?? input.domain_hint,
-            planMaxSteps: input.planMaxSteps ?? input.plan_max_steps,
-            includeDebug: input.includeDebug ?? input.include_debug,
-            mode: input.mode
-          })
-        )
-      )
+    async (input) => {
+      const profile = (input.profile ?? "brief") as ContextProfile;
+      const context = prepareTaskContext(repoPath, input.task, {
+        sourceDoc: input.sourceDoc ?? input.source_doc,
+        guardOutput: input.guardOutput ?? input.guard_output,
+        guardCommand: input.guardCommand ?? input.guard_command,
+        changedFiles: input.changedFiles ?? input.changed_files,
+        maxFiles: input.maxFiles ?? input.max_files,
+        maxSymbols: input.maxSymbols ?? input.max_symbols,
+        includeMemory: input.includeMemory ?? input.include_memory,
+        includeRules: input.includeRules ?? input.include_rules,
+        includeDirtyStatus: input.includeDirtyStatus ?? input.include_dirty_status,
+        domainHint: input.domainHint ?? input.domain_hint,
+        planMaxSteps: input.planMaxSteps ?? input.plan_max_steps,
+        includeDebug: input.includeDebug ?? input.include_debug,
+        profile,
+        mode: input.mode
+      });
+      const data = profile === "brief" ? buildContextReceipt(context) : context;
+      return textJson(toolResponse(repoPath, data, context.warnings));
+    }
   );
 
   server.registerTool(
@@ -615,7 +618,7 @@ function textJson(value: unknown): { content: Array<{ type: "text"; text: string
     content: [
       {
         type: "text",
-        text: JSON.stringify(value, null, 2)
+        text: JSON.stringify(value)
       }
     ]
   };

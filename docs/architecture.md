@@ -263,7 +263,8 @@ sequenceDiagram
 ## Context Capsule
 
 The context capsule is the main product output. It turns repository intelligence into a
-small handoff document for a coding agent.
+small handoff document for a coding agent. CLI and MCP callers default to the bounded `brief`
+profile; `standard` and `debug` retain the complete context for explicit inspection.
 
 It should include:
 
@@ -276,6 +277,12 @@ It should include:
 - project rules
 - memory hits
 - suggested next steps
+
+The brief profile is a `ContextReceipt` rather than a second copy of every capsule section. It
+deduplicates paths, caps reads at three primary plus two supporting files, caps validation at
+three commands, and keeps the serialized output within 2500 characters. A direct guard
+`file:line` repair skips broad discovery work; the deterministic `DiscoveryQueryPlan` enables
+route-chain, symbol-impact, workflow, or broad discovery only when task semantics require it.
 
 For production Discovery Mode, the context capsule should prefer `authoritativeHandoff`: a
 strict handoff with capped `mustRead`, route-to-widget chain completeness, precise

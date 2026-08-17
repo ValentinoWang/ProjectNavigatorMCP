@@ -113,73 +113,22 @@ When changing tool names, schema fields, or CLI commands, update all of these to
 - `docs/mcp-tools.md`
 - `examples/flutter-transfer/demo-queries.md`
 
+## Context Output Rules
+
+- CLI `pnav capsule` and MCP `prepare_task_context` default to the `brief` profile.
+- `brief` is capped at three primary files, two supporting files, three validation commands,
+  three warnings, and 2500 output characters. It does not load memory, project rules,
+  debug details, routes, symbols, or full Discovery Mode unless explicitly expanded.
+- `standard` and `debug` are opt-in profiles for full context and diagnostics.
+- `editBoundaryV2` remains the authoritative edit boundary. A receipt is navigation guidance,
+  not completion evidence.
+- Do not repeat the same path in a brief capsule. Prefer direct `file:line` repair evidence
+  and skip broad discovery, reuse, route-chain, and why-related queries when they are not asked for.
+- MCP text responses use compact JSON. Preserve the shared response envelope.
+
 ## Safety and Repo Hygiene
 
 Do not commit generated databases, caches, `node_modules`, or `.pnav` contents. Keep sample
 outputs small and textual.
 
-## v0.3 Development Rules
-
-For Execution-Ready Project Secretary work:
-
-- Do not introduce Postgres.
-- Do not introduce Tree-sitter or LSP as the v0.3 main path.
-- Do not build a Web UI.
-- Preserve the MCP envelope: `repo`, `generated_at`, `index_status`, `data`, `warnings`.
-- Prefer deterministic rule-based reranking before adding LLM calls.
-- Add or update fixture tests before changing ranking logic.
-- Guard findings, source_doc sync targets, changed_files, and guard recipe canonical paths must outrank generic keyword results.
-
-## v0.4 Development Rules
-
-For Minimal Repair Path & Finish-Time Audit work:
-
-- Do not introduce Postgres, Tree-sitter, LSP, or a Web UI as the v0.4 main path.
-- `editBoundaryV2` is the authoritative edit boundary.
-- `minimalRepairPath` is the preferred agent execution path.
-- Do not let `depends_on`, body-inferred paths, generic Markdown, screenshots, QA manifests, Maestro, or Patrol enter editable boundaries unless explicitly requested.
-- Finish-time audit must be deterministic and must not call an LLM.
-
-## v0.5 Development Rules
-
-For Code Discovery & Reuse Intelligence work:
-
-- Keep Discovery Mode separate from Repair Mode.
-- Do not put discovery ranking logic into repair planner modules.
-- Do not introduce Postgres, Web UI, LSP, SCIP, or mandatory Tree-sitter in v0.5.
-- Every top discovery result should include deterministic evidence.
-- Ambiguous call/reference edges must expose lower confidence instead of pretending to be exact.
-- Reuse detection must be local and deterministic; do not add a vector database for v0.5.
-
-## v0.6 Development Rules
-
-For Precise Discovery Chains & Incremental Index work:
-
-- Prefer feature chains over wider candidate lists.
-- Persist deterministic import and duplicate evidence in SQLite.
-- Keep ambiguous references low-confidence.
-- Incremental scan must report changed/skipped/deleted counts and avoid rebuilding when nothing changed.
-- Do not introduce Postgres, Web UI, mandatory Tree-sitter, LSP, or SCIP in v0.6.
-
-## v0.7 Development Rules
-
-For Discovery Quality Hardening work:
-
-- Route, page, and module-root entrypoints must outrank internal token-heavy widgets/cards.
-- Discovery Mode should return `mustRead`, `shouldInspect`, `reuseBeforeCreate`, and `ignoreForNow` instead of one flat list.
-- Feature chains must declare whether they are `verified_chain` or `candidate_chain`.
-- Reuse candidates must provide a verdict before an agent creates new code.
-- Flutter/frontend UI discovery must demote backend, database, infra, screenshot, and E2E noise unless explicit evidence requires it.
-- Ranking changes need deterministic tests; do not add LLM-based reranking.
-
-## v0.8 Development Rules
-
-For Production Discovery Gate work:
-
-- `authoritativeHandoff.mustRead` is the primary context. Keep it short, strict, and evidence-backed.
-- `mustRead` should be capped at five files by default.
-- Import-only files, l10n, API error wrappers, auth caches, loggers, generic helpers, screenshots, and E2E artifacts cannot enter `mustRead` without explicit evidence.
-- Route/page/widget composition edges outrank import edges.
-- Unverified chains must be labeled `partial_chain` or `candidate_chain`.
-- Every dropped candidate needs a deterministic suppression reason.
-- Production eval must be deterministic and must not call an LLM.
+Historical v0.3-v0.8 rules are retained in `docs/history/agent-development-rules.md`.

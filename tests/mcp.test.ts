@@ -136,12 +136,19 @@ describe("MCP server", () => {
         if (first.type !== "text") {
           throw new Error("Expected text content");
         }
+        expect(first.text).not.toContain("\n");
         const parsed = JSON.parse(first.text) as Record<string, unknown>;
         expect(parsed).toHaveProperty("repo", path.basename(repo));
         expect(parsed).toHaveProperty("generated_at");
         expect(parsed).toHaveProperty("index_status");
         expect(parsed).toHaveProperty("data");
         expect(parsed).toHaveProperty("warnings");
+        if (name === "prepare_task_context") {
+          const data = parsed.data as { profile?: string; contextId?: string; read?: unknown[] };
+          expect(data.profile).toBe("brief");
+          expect(data.contextId).toEqual(expect.any(String));
+          expect(data.read?.length).toBeLessThanOrEqual(5);
+        }
       }
     } finally {
       await client.close();

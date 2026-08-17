@@ -43,6 +43,25 @@ All MCP tools return a JSON string inside MCP text content. The JSON always uses
 
 Scores are relevance values. Confidence describes relationship reliability.
 
+## `prepare_task_context` Profiles
+
+The tool accepts `profile: "brief" | "standard" | "debug"` and defaults to `brief`.
+`brief` returns a bounded context receipt with `contextId`, `read`, `edit`, `validate`,
+`warnings`, and `expandable` fields. The receipt is navigation guidance and does not replace
+`editBoundaryV2` or finish-time evidence. Request `standard` or `debug` when a caller needs the
+full legacy `TaskContext` fields, including memory, project rules, routes, symbols, and discovery.
+
+The CLI has the equivalent option:
+
+```bash
+pnav capsule /path/to/repo "<task>" --profile brief
+pnav capsule /path/to/repo "<task>" --profile standard
+```
+
+MCP text content uses compact JSON to avoid formatting-only token overhead. Direct `file:line`
+repair inputs skip broad related-file, symbol, route, reuse, and why-related queries unless the
+caller explicitly requests a broader profile or discovery operation.
+
 ## Semantic Evidence Backend
 
 The six `semantic_*` tools use one normalized facade with `auto`, `cbm`, and `builtin` modes:
@@ -383,9 +402,27 @@ Input:
   "include_dirty_status": true,
   "domain_hint": "frontend_design_system",
   "plan_max_steps": 8,
-  "include_debug": true
+  "include_debug": true,
+  "profile": "brief"
 }
 ```
+
+With `profile: "brief"` (the default), `data` is a bounded receipt:
+
+```json
+{
+  "contextId": "tsk_20260817_000000_abc123",
+  "profile": "brief",
+  "state": { "fresh": true, "mode": "repair", "confidence": "high" },
+  "read": [{ "path": "frontend/lib/page.dart", "line": 9, "reason": "Guard failure location" }],
+  "edit": { "must": ["frontend/lib/page.dart"], "may": [], "blocked": [] },
+  "validate": ["make test"],
+  "warnings": [],
+  "expandable": ["standard", "debug", "impact", "evidence", "reuse"]
+}
+```
+
+Set `profile` to `standard` or `debug` to receive the full data shape documented below.
 
 Data shape:
 

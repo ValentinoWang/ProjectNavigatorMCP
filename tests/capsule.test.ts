@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { prepareTaskContext } from "../src/capsule/prepareTaskContext.js";
+import { buildContextReceipt } from "../src/capsule/contextReceipt.js";
+import { renderCapsule } from "../src/capsule/renderCapsule.js";
 import { rememberTask, searchProjectMemory } from "../src/memory/memory.js";
 import { scanRepo } from "../src/scanner/scanRepo.js";
 
@@ -31,6 +33,45 @@ describe("prepareTaskContext", () => {
     expect(context.recommendedCommands.length).toBeGreaterThan(0);
     expect(context.projectRules.length).toBeGreaterThan(0);
     expect(context.nextSteps.length).toBeGreaterThan(0);
+  });
+
+  it("keeps brief capsules within the read and output budget", () => {
+    const repo = copyFixtureRepo();
+    const context = prepareTaskContext(repo, "fix add test", { profile: "brief", includeDirtyStatus: false });
+    const receipt = buildContextReceipt(context);
+    const rendered = renderCapsule(context, "brief");
+    const paths = receipt.read.map((item) => item.path);
+
+    expect(context.profile).toBe("brief");
+    expect(receipt.read.length).toBeLessThanOrEqual(5);
+    expect(receipt.edit.must.length).toBeLessThanOrEqual(3);
+    expect(receipt.edit.may.length).toBeLessThanOrEqual(2);
+    expect(receipt.validate.length).toBeLessThanOrEqual(3);
+    expect(receipt.warnings.length).toBeLessThanOrEqual(3);
+    expect(JSON.stringify(receipt).length).toBeLessThanOrEqual(2500);
+    expect(new Set(paths).size).toBe(paths.length);
+    expect(context.projectRules).toEqual([]);
+    expect(context.memoryHits).toEqual([]);
+    expect(context.debug).toBeNull();
+    expect(rendered.length).toBeLessThanOrEqual(2500);
+    expect(rendered).not.toContain("## Edit Boundary V2");
+    expect(rendered).not.toContain("## Memory Hits");
+  });
+
+  it("keeps direct guard repairs out of broad discovery planes", () => {
+    const repo = copyFixtureRepo();
+    const context = prepareTaskContext(repo, "fix add test", {
+      profile: "brief",
+      guardOutput: "src/main.ts:1 add rule failure",
+      includeDirtyStatus: false
+    });
+
+    expect(context.mode).toBe("repair");
+    expect(context.discovery).toBeNull();
+    expect(context.symbols).toEqual([]);
+    expect(context.routes).toEqual([]);
+    expect(context.relatedFiles).not.toContainEqual(expect.objectContaining({ path: "test/main.test.ts" }));
+    expect(context.readOrder[0]?.path).toBe("src/main.ts");
   });
 
   it("stores and retrieves project memory", () => {

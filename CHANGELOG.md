@@ -11,6 +11,9 @@
 - Added provenance for backend/version, canonical repository root, CBM project, current Git SHA, freshness, coverage, timestamps, returned-file SHA-256 hashes, and explicit hash coverage/truncation metadata.
 - Added CBM index safeguards for `persistence: false`, pre/post repository artifact checks, content-aware before/after Git worktree mutation detection, and fail-closed post-index verification.
 - Added regression coverage for the real CBM 0.10.2 BM25 and architecture JSON table shapes, version drift, timeout, malformed JSON, non-zero exit, auto fallback, explicit fail-closed behavior, root mismatch, provenance, artifact refusal/creation, new-path mutation, mutation of an already-dirty path, and unverifiable post-index state.
+- Added token-budgeted `brief`, `standard`, and `debug` context profiles with a deduplicated `ContextReceipt` and a 2500-character brief budget.
+- Added deterministic discovery query plans, direct-repair broad-query suppression, shared-connection `whyRelated` batching, and single-pass related-test recommendations.
+- Switched MCP text responses to compact JSON and documented the profile contract without changing the package version or shared response envelope.
 
 ## v0.9.3
 

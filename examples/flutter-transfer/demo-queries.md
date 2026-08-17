@@ -37,8 +37,11 @@ pnav mcp /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer --semantic-backe
 Command:
 
 ```bash
-pnav capsule /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "修复 workspace microplan 页面滚动问题"
+pnav capsule /Users/vsiyo/Desktop/Athlete_Platform/flutter-transfer "修复 workspace microplan 页面滚动问题" --profile brief
 ```
+
+Use `--profile standard` when the demo needs the full legacy capsule, including project rules,
+memory, routes, and discovery details.
 
 Expected result should mention:
 

@@ -194,6 +194,17 @@ An MCP client can call:
 
 without the server crashing or scanning the whole repository per request.
 
+### Context efficiency contract (v0.9.5)
+
+- `prepare_task_context` defaults to `brief`; `standard` and `debug` are explicit opt-ins.
+- Brief output is bounded to three primary reads, two supporting reads, three commands, three
+  warnings, and 2500 characters with duplicate paths removed.
+- Discovery uses a deterministic query plan. Direct repair evidence skips broad related-file,
+  route-chain, reuse, and why-related work; route/UI and symbol-impact requests opt into only the
+  corresponding evidence planes.
+- Related-test recommendations and why-related evidence reuse one computation/shared database
+  connection per request.
+
 ## Milestone 7: Memory Loop
 
 ### Tasks
