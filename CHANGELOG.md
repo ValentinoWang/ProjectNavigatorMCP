@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v0.9.5
+
 - Added an optional semantic backend facade with `auto`, explicit `cbm`, and `builtin` modes.
 - Added six MCP tools for backend status, explicit indexing, symbol search, call tracing, architecture, and Git change impact while preserving the shared MCP envelope.
 - Added a strict `codebase-memory-mcp` `0.10.2` CLI adapter without vendoring CBM source, reading its private SQLite schema, or adding a package dependency.
